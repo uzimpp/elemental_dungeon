@@ -334,11 +334,28 @@ class Game:
             self.screen.blit(cd_text, cd_rect)
 
     def draw_game_elements(self):
+        # Draw all game objects in proper layers
+        
+        # # 1. Draw ground effects/AOE skills first (bottom layer)
+        # for effect in self.effects:
+        #     effect.draw(self.screen)
+                
+        # 2. Draw projectiles
+        for projectile in self.player.get_projectiles():
+            projectile.draw(self.screen)
+        
+        # 3. Draw entities (enemies, player, summons)
+        for enemy in self.enemies:
+            enemy.draw(self.screen)
+        
+        for summon in self.player.get_summons():
+            summon.draw(self.screen)
+            
         self.player.draw(self.screen)
-        for e in self.enemies:
-            e.draw(self.screen)
-        for ef in self.effects:
-            ef.draw(self.screen)
+        
+        # 4. Draw overhead effects (top layer)
+        for effect in self.effects:
+            effect.draw(self.screen)
 
 
 def main():

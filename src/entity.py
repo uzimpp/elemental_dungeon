@@ -19,6 +19,10 @@ class Entity:
         
         # State
         self.alive = True
+        
+        # Direction
+        self.dx = 1
+        self.dy = 0
 
     def move(self, dx, dy, dt):
         """Move the entity by the given delta x and y, scaled by dt (delta time)"""
@@ -41,11 +45,6 @@ class Entity:
         """Heal the entity"""
         if amount > 0:
             self.health = min(self.max_health, self.health + amount)
-
-    def is_colliding_with(self, other):
-        """Check if this entity is colliding with another entity"""
-        distance = self.get_distance_to(other.x, other.y)
-        return distance < (self.radius + other.radius)
 
     def draw(self, screen):
         """Draw the entity on the screen"""
@@ -76,3 +75,25 @@ class Entity:
     def update(self, dt):
         """Update method to be overridden by child classes"""
         pass 
+
+    def draw_triangle(self, surf):
+        """Helper method to draw a directional triangle"""
+        # Calculate three points of the triangle
+        angle = math.atan2(self.dy, self.dx)
+        
+        # Front point (nose of triangle)
+        front_x = self.x + math.cos(angle) * self.radius
+        front_y = self.y + math.sin(angle) * self.radius
+        
+        # Back points (base of triangle)
+        back_angle1 = angle + math.pi * 2/3  # 120 degrees
+        back_angle2 = angle - math.pi * 2/3  # -120 degrees
+        
+        back_x1 = self.x + math.cos(back_angle1) * self.radius
+        back_y1 = self.y + math.sin(back_angle1) * self.radius
+        
+        back_x2 = self.x + math.cos(back_angle2) * self.radius
+        back_y2 = self.y + math.sin(back_angle2) * self.radius
+        
+        points = [(front_x, front_y), (back_x1, back_y1), (back_x2, back_y2)]
+        pygame.draw.polygon(surf, self.color, points) 

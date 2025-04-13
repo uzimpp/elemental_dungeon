@@ -46,8 +46,8 @@ class Enemy(Entity):
         if closest_obj and closest_dist > 0:
             tx = closest_obj[1]
             ty = closest_obj[2]
-            dx, dy = self.get_direction_to(tx, ty)
-            self.move(dx, dy, dt)
+            self.dx, self.dy = self.get_direction_to(tx, ty)
+            self.move(self.dx, self.dy, dt)
 
         # 3) Check for death
         if self.health <= 0:
@@ -92,10 +92,13 @@ class Enemy(Entity):
         target.take_damage(self.damage)
 
     def draw(self, surf):
-        pygame.draw.circle(
-            surf, self.color, (int(
-                self.x), int(
-                self.y)), self.radius)
+        # pygame.draw.circle(
+        #     surf, self.color, (int(
+        #         self.x), int(
+        #         self.y)), self.radius)
+        # Draw directional triangle instead of circle
+        self.draw_triangle(surf)
+        
         # HP bar
         bar_x = self.x - 25
         bar_y = self.y - self.radius - 10

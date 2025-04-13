@@ -54,13 +54,19 @@ class Player(Entity):
         self.dash_distance = dash_distance
         self.stamina_depleted_time = None
         self.stamina_cooldown = stamina_cooldown
-
+    
+    def get_projectiles(self):
+        return self.projectiles
+    
+    def get_summons(self):
+        return self.summons
+    
     def handle_input(self, dt):
         keys = pygame.key.get_pressed()
 
         # 1) Are we pressing SHIFT?
         shift_held = (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT])
-
+        
         # 2) Check if we can sprint
         can_sprint = shift_held and (self.stamina > 0)
 
@@ -71,16 +77,34 @@ class Player(Entity):
             self.speed = self.walk_speed
 
         # 4) Movement (using dt)
-        current_speed = self.speed * dt
-        if keys[pygame.K_w]:
-            self.y -= current_speed
-        if keys[pygame.K_s]:
-            self.y += current_speed
-        if keys[pygame.K_a]:
-            self.x -= current_speed
-        if keys[pygame.K_d]:
-            self.x += current_speed
-
+        tmp_dx = 0
+        tmp_dy = 0
+        if keys[pygame.K_w]: tmp_dy -= 1
+        if keys[pygame.K_s]: tmp_dy += 1
+        if keys[pygame.K_a]: tmp_dx -= 1
+        if keys[pygame.K_d]: tmp_dx += 1
+        
+        # Update direction if moving
+        if tmp_dx != 0 or tmp_dy != 0:
+            dist = math.hypot(tmp_dx, tmp_dy)
+            self.dx = tmp_dx / dist
+            self.dy = tmp_dy / dist
+            
+            # Move
+            current_speed = self.speed * dt
+            self.x += tmp_dx * current_speed
+            self.y += tmp_dy * current_speed
+        
+        # If not moving, point toward mouse
+        else:
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            tmp_dx = mouse_x - self.x
+            tmp_dy = mouse_y - self.y
+            dist = math.hypot(tmp_dx, tmp_dy)
+            if dist > 0:
+                self.dx = tmp_dx / dist
+                self.dy = tmp_dy / dist
+        
         # Stay within screen
         self.x = max(self.radius, min(WIDTH - self.radius, self.x))
         self.y = max(self.radius, min(HEIGHT - self.radius, self.y))
@@ -322,15 +346,15 @@ class Player(Entity):
                 self.health = 0
 
     def draw(self, surf):
-        # draw player circle
-        pygame.draw.circle(
-            surf, self.color, (int(
-                self.x), int(
-                self.y)), self.radius)
-        # projectiles
+        # pygame.draw.circle(
+        #     surf, self.color, (int(
+        #         self.x), int(
+        #         self.y)), self.radius)
+        # Draw directional triangle instead of circle
+        self.draw_triangle(surf)
+
         for p in self.projectiles:
             p.draw(surf)
-        # summons
         for w in self.summons:
             w.draw(surf)
 

@@ -9,7 +9,7 @@ def resolve_overlap(a, b):
     dist = math.hypot(dx, dy)
     min_dist = a.radius + b.radius
     if dist == 0:
-        dist = 0.1
+        dist = 0.00000001
     if dist < min_dist:
         overlap = min_dist - dist
         push_x = dx / dist * (overlap / 2.0)
