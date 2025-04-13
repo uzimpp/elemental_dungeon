@@ -316,14 +316,6 @@ class Player:
         #     effects.append(VisualEffect(self.x, self.y, "explosion",
         #                               base_skill.color, 35, 0.5))
 
-    def update_skills(self, dt, enemies):
-        for projectile in self.projectiles:
-            projectile.update(dt, enemies)
-        self.projectiles = [p for p in self.projectiles if p.active]
-
-        for summon in self.summons:
-            summon.update(enemies)
-        self.summons = [s for s in self.summons if s.alive]
 
     def take_damage(self, amt):
         if amt > 0:

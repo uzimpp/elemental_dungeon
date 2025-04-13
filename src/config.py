@@ -99,5 +99,5 @@ ENEMY_DAMAGE = 5
 ATTACK_COOLDOWN = 1
 
 # File names
-LOG_FILENAME = "log.csv"
-SKILLS_FILENAME = "skills.csv"
+LOG_FILENAME = "data/log.csv"
+SKILLS_FILENAME = "data/skills.csv"
