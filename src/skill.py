@@ -72,14 +72,17 @@ class Projectile(BaseSkill):
         self.y = y
         self.radius = 5  # Visual radius for projectile
 
-        # Calculate velocity
+        # Use the speed from the CSV (multiply by 60 to convert to pixels per second)
+        projectile_speed = self.speed * 60
+
+        # Calculate velocity with the speed from CSV
         dx = target_x - x
         dy = target_y - y
         dist = math.hypot(dx, dy)
         if dist == 0:
             dist = 1
-        self.vx = (dx / dist) * self.speed
-        self.vy = (dy / dist) * self.speed
+        self.vx = (dx / dist) * projectile_speed
+        self.vy = (dy / dist) * projectile_speed
 
     def update(self, dt, enemies):
         self.x += self.vx * dt
@@ -314,8 +317,8 @@ def create_skill(skill_type, x, y, base_skill, **kwargs):
             x,
             y,
             base_skill,
-            kwargs.get('target_x'),
-            kwargs.get('target_y'))
+            kwargs.get('tx'),
+            kwargs.get('ty'))
     elif skill_type == SkillType.CHAIN:
         return Chain(x, y, base_skill, kwargs.get('targets', []))
     elif skill_type == SkillType.SUMMON:

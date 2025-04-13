@@ -2,9 +2,10 @@ import pygame
 import math
 import time
 from utils import draw_hp_bar
+from entity import Entity
 
 
-class Enemy:
+class Enemy(Entity):
     def __init__(
             self,
             x,
@@ -17,18 +18,13 @@ class Enemy:
             color,
             damage,
             attack_cooldown):
-        self.x = x
-        self.y = y
-        self.radius = radius
-        self.base_speed = base_speed
-        # scale with wave
-        self.health = base_hp * (wave_number * wave_multiplier)
-        self.max_health = self.health
+        # Call parent class constructor
+        super().__init__(x, y, radius, base_hp * (wave_number * wave_multiplier), base_speed, color)
+        
+        # Enemy specific attributes
         self.damage = damage
-        self.alive = True
-        self.color = color
-        self.attack_cooldown = attack_cooldown  # seconds
-        self.attack_timer = 0.0     # current timer for attacks
+        self.attack_cooldown = attack_cooldown
+        self.attack_timer = 0.0
 
     def update(self, player, dt):
         # 1) Check for attack BEFORE moving
@@ -50,11 +46,8 @@ class Enemy:
         if closest_obj and closest_dist > 0:
             tx = closest_obj[1]
             ty = closest_obj[2]
-            dx = tx - self.x
-            dy = ty - self.y
-            speed = self.base_speed * dt
-            self.x += (dx / closest_dist) * speed
-            self.y += (dy / closest_dist) * speed
+            dx, dy = self.get_direction_to(tx, ty)
+            self.move(dx, dy, dt)
 
         # 3) Check for death
         if self.health <= 0:
@@ -73,13 +66,26 @@ class Enemy:
         closest_obj = None
 
         for t in targets:
-            dist = math.hypot(t[1] - self.x, t[2] - self.y)
+            dist = self.get_distance_to(t[1], t[2])
             if dist < closest_dist:
                 closest_dist = dist
                 closest_type = t[0]
                 closest_obj = t
 
         return closest_type, closest_dist, closest_obj
+
+    def get_distance_to(self, other_x, other_y):
+        """Calculate distance to another point"""
+        return math.hypot(other_x - self.x, other_y - self.y)
+
+    def get_direction_to(self, target_x, target_y):
+        """Calculate direction (dx, dy) to a target point, normalized"""
+        dx = target_x - self.x
+        dy = target_y - self.y
+        distance = math.hypot(dx, dy)
+        if distance == 0:
+            return 0, 0
+        return dx / distance, dy / distance
 
     def attack(self, target_type, target):
         """Deal damage to the target."""

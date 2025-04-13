@@ -237,14 +237,13 @@ class Game:
         self.player.handle_input(dt)
 
         # 3. Update projectiles and summons
-        for p in self.projectiles:
-            p.update()  
-            # collision checks, etc.
-        self.projectiles = [p for p in self.projectiles if p.active]
+        for p in self.player.projectiles:
+            p.update(dt, self.enemies)
+        self.player.projectiles = [p for p in self.player.projectiles if p.active]
     
-        for s in self.summons:
+        for s in self.player.summons:
             s.update(self.enemies)
-        self.summons = [s for s in self.summons if s.alive]
+        self.player.summons = [s for s in self.player.summons if s.alive]
 
         # 4. Resolve collisions
         entities = [self.player] + self.player.summons + self.enemies

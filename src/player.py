@@ -8,9 +8,10 @@ from utils import angle_diff
 from skill import SkillType, create_skill, Projectile, Summons, Chain, Slash
 from visual_effects import VisualEffect
 from config import (WIDTH, HEIGHT)
+from entity import Entity
 
 
-class Player:
+class Player(Entity):
     def __init__(
             self,
             name,
@@ -29,32 +30,29 @@ class Player:
             dash_cost,
             dash_distance,
             stamina_cooldown):
+        # Call parent class constructor
+        super().__init__(x, y, radius, max_health, walk_speed, color)
+        
+        # Player specific attributes
         self.name = name
-        self.x = x
-        self.y = y
-        self.radius = radius
-        self.max_health = max_health
-        self.health = self.max_health
-
         self.deck = deck
         self.projectiles = []
         self.summons = []
         self.summon_limit = summon_limit
-        self.color = color
 
-        # Convert speeds to units per second
+        # Speed attributes
         self.walk_speed = walk_speed
         self.sprint_speed = sprint_speed
         self.speed = self.walk_speed  # current speed
 
-        # Stamina System (values per second)
+        # Stamina System
         self.max_stamina = max_stamina
         self.stamina = self.max_stamina
         self.stamina_regen = stamina_regen
         self.sprint_drain = sprint_drain
         self.dash_cost = dash_cost
         self.dash_distance = dash_distance
-        self.stamina_depleted_time = None  # Track when stamina was depleted
+        self.stamina_depleted_time = None
         self.stamina_cooldown = stamina_cooldown
 
     def handle_input(self, dt):
