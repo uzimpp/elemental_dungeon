@@ -245,8 +245,8 @@ class Game:
             s.update(self.enemies)
         self.player.summons = [s for s in self.player.summons if s.alive]
 
-        # 4. Resolve collisions
-        entities = [self.player] + self.player.summons + self.enemies
+        # 4. Resolve collisions between alive entities only
+        entities = [entity for entity in ([self.player] + self.player.summons + self.enemies) if entity.alive]
         for i in range(len(entities)):
             for j in range(i + 1, len(entities)):
                 resolve_overlap(entities[i], entities[j])

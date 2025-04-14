@@ -39,7 +39,11 @@ class Entity:
             self.health -= amount
             if self.health <= 0:
                 self.health = 0
-                self.alive = False
+                # For entities without animations, mark as dead immediately
+                # For entities with animations, the child class will handle death timing
+                if not hasattr(self, 'animation'):
+                    self.alive = False
+                # Don't set self.alive = False here, let subclasses handle it
 
     def heal(self, amount):
         """Heal the entity"""
