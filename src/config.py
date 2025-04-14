@@ -1,4 +1,5 @@
 # Screen constants
+TITLE = "Incantato"
 WIDTH = 1028
 HEIGHT = 720
 FPS = 60
@@ -106,7 +107,7 @@ PLAYER_RADIUS = 20
 PLAYER_MAX_HEALTH = 100
 PLAYER_SUMMON_LIMIT = 5
 PLAYER_COLOR = BLUE  # Assuming BLUE is defined elsewhere
-PLAYER_SPRITE_PATH = "sprites/player_sheet.png"
+PLAYER_SPRITE_PATH = "assets/images/player_sheet.png"
 PLAYER_ANIMATION_CONFIG = ANIMATION_CONFIG
 
 # Enemy configuration
@@ -115,7 +116,7 @@ ENEMY_BASE_SPEED = 105  # 1.75 * 60
 ENEMY_DAMAGE = 5
 ATTACK_COOLDOWN = 1
 ENEMY_ANIMATION_CONFIG = ANIMATION_CONFIG
-ENEMY_SPRITE_PATH = "sprites/enemy_sheet.png"
+ENEMY_SPRITE_PATH = "assets/images/enemy_sheet.png"
 
 # File names
 LOG_FILENAME = "data/log.csv"

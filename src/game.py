@@ -5,11 +5,14 @@ import time
 import csv
 import random
 from skill import SkillType, BaseSkill
+from game_state import MenuState, PlayingState, PausedState, GameOverState
+from wave_manager import WaveManager
 from player import Player
 from enemy import Enemy
-from visual_effects import VisualEffect
+from effects import EffectManager
 from utils import resolve_overlap, draw_hp_bar, angle_diff
 from config import (
+    TITLE,
     WIDTH,
     HEIGHT,
     FPS,
@@ -39,110 +42,128 @@ from config import (
     WAVE_MULTIPLIER,
     ENEMY_DAMAGE,
     ATTACK_COOLDOWN)
+from ui import UIManager
+from map_system import MapManager
+from resource_manager import ResourceManager
 
 
 class Game:
+    """Main game controller class using state pattern"""
+    
     def __init__(self):
+        # Initialize pygame
+        pygame.init()
+        
+        # Make constants accessible to game states
+        self.WIDTH = WIDTH
+        self.HEIGHT = HEIGHT
+        self.PLAYER_RADIUS = PLAYER_RADIUS
+        self.PLAYER_MAX_HEALTH = PLAYER_MAX_HEALTH
+        self.PLAYER_SUMMON_LIMIT = PLAYER_SUMMON_LIMIT
+        self.PLAYER_COLOR = PLAYER_COLOR
+        self.PLAYER_WALK_SPEED = PLAYER_WALK_SPEED
+        self.PLAYER_SPRINT_SPEED = PLAYER_SPRINT_SPEED
+        self.PLAYER_MAX_STAMINA = PLAYER_MAX_STAMINA
+        self.PLAYER_STAMINA_REGEN = PLAYER_STAMINA_REGEN
+        self.PLAYER_SPRINT_DRAIN = PLAYER_SPRINT_DRAIN
+        self.PLAYER_DASH_COST = PLAYER_DASH_COST
+        self.PLAYER_DASH_DISTANCE = PLAYER_DASH_DISTANCE
+        self.PLAYER_STAMINA_COOLDOWN = PLAYER_STAMINA_COOLDOWN
+        
+        # Create game window
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Elemental Tower Defense")
+        pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
         self.running = True
 
+        # Create managers
+        self.wave_manager = WaveManager()
+        self.ui_manager = UIManager()
+        # self.map_manager = MapManager(WIDTH, HEIGHT)  # Comment this out
+        self.effect_manager = EffectManager()
+        self.resource_manager = ResourceManager()
+        
+        # Generate a random map
+        # self.map_manager.create_random_map()  # Comment this out
+        
+        # Initialize game states
+        self.states = {
+            "menu": MenuState(self),
+            "playing": PlayingState(self),
+            "paused": PausedState(self),
+            "game_over": GameOverState(self)
+        }
+        
+        # Set initial state
+        self.current_state = "menu"
+        
+        # Player data (collected before starting game)
+        self.player_name = "Unknown"
+        self.deck = []
+    
+    def set_running(self, value):
+        """Set running state"""
+        self.running = value
+    
+    def set_state(self, state_name):
+        """Change to a different game state"""
+        if state_name in self.states:
+            # Call exit on current state
+            if hasattr(self.states[self.current_state], "exit"):
+                self.states[self.current_state].exit()
+            
+            # Switch state
+            self.current_state = state_name
+            
+            # Call enter on new state
+            if hasattr(self.states[self.current_state], "enter"):
+                self.states[self.current_state].enter()
+            
+            if state_name == "menu":
+                self.ui_manager.create_menu_ui(
+                    lambda: self.start_new_game(),
+                    lambda: self.set_running(False)
+                )
+            elif state_name == "paused":
+                self.ui_manager.create_pause_ui(
+                    lambda: self.set_state("playing"),
+                    lambda: self.set_running(False)
+                )
+            elif state_name == "game_over":
+                self.ui_manager.create_game_over_ui(
+                    lambda: self.set_state("menu"),
+                    lambda: self.set_running(False),
+                    self.wave_number
+                )
+    
+    def get_player_info(self):
+        """Get player name and build their deck"""
         self.player_name = input("Enter player name: ") or "Unknown"
-
-        # load skills
+        
+        # Load skills
         all_skills = self.load_skills_from_csv(SKILLS_FILENAME)
-        # pick deck
-        deck = self.build_deck_interactively(all_skills)
-        self.player = Player(
-            self.player_name,
-            WIDTH // 2,
-            HEIGHT // 2,
-            deck,
-            PLAYER_RADIUS,
-            PLAYER_MAX_HEALTH,
-            PLAYER_SUMMON_LIMIT,
-            PLAYER_COLOR,
-            PLAYER_WALK_SPEED,
-            PLAYER_SPRINT_SPEED,
-            PLAYER_MAX_STAMINA,
-            PLAYER_STAMINA_REGEN,
-            PLAYER_SPRINT_DRAIN,
-            PLAYER_DASH_COST,
-            PLAYER_DASH_DISTANCE,
-            PLAYER_STAMINA_COOLDOWN)
-
-        self.wave_number = 1
-        self.enemies = []
-        self.spawn_wave()
-
-        self.game_start_time = time.time()
-        self.effects = []
-
-    def log_csv(self, wave):
-        now_str = time.strftime("%Y-%m-%d %H:%M:%S")
-        g_time = time.time() - self.game_start_time
-
-        # Convert deck to string representation
-        deck_str = "|".join([skill.name for skill in self.player.deck])
-
-        with open(LOG_FILENAME, "a", newline="") as f:
-            w = csv.writer(f)
-            # Write header if file is empty
-            if f.tell() == 0:
-                w.writerow([
-                    "timestamp", "player_name", "wave_survived",
-                    "game_duration", "final_hp", "deck_composition",
-                    "skill1", "skill2", "skill3", "skill4"
-                ])
-
-            # Write data row
-            w.writerow([
-                now_str,                    # timestamp
-                self.player_name,          # player_name
-                wave,                      # wave_survived
-                f"{g_time:.2f}",          # game_duration
-                self.player.health,        # final_hp
-                deck_str,                  # deck_composition
-                self.player.deck[0].name,  # skill1
-                self.player.deck[1].name,  # skill2
-                self.player.deck[2].name,  # skill3
-                self.player.deck[3].name,  # skill4
-            ])
-
-    def spawn_wave(self):
-        self.enemies.clear()
-        # spawn 5 enemies each wave
-        n_enemies = 5 + self.wave_number
-        for _ in range(n_enemies):
-            x = random.randint(20, WIDTH - 20)
-            y = random.randint(20, HEIGHT - 20)
-            e = Enemy(
-                x,
-                y,
-                self.wave_number,
-                15,
-                ENEMY_BASE_SPEED,
-                ENEMY_BASE_HP,
-                WAVE_MULTIPLIER,
-                RED,
-                ENEMY_DAMAGE,
-                ATTACK_COOLDOWN)
-            self.enemies.append(e)
-
-    def load_skills_from_csv(self, filename):
-        """
-        CSV columns:
-        name,element,skill_type,damage,speed,radius,duration,pull,heal_amount,cooldown,description
-        """
+        
+        # Build deck
+        self.deck = self.build_deck_interactively(all_skills)
+    
+    def load_skills_from_csv(self, filename_in_config):
+        """Load skills from the data preloaded by ResourceManager."""
         skill_list = []
+        # Get the pre-processed data (list of dicts) from ResourceManager
+        skills_data = self.resource_manager.get_data("skills") # Use the name used in preload
+
+        if not skills_data:
+            print(f"Error: Skills data '{filename_in_config}' not loaded by ResourceManager.")
+            sys.exit(1)
+
         try:
-            with open(filename, newline='', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    nm = row["name"]
-                    elem = row["element"].upper()
-                    stype_str = row["skill_type"].upper()
+            for row in skills_data: # Iterate through the list of dicts
+                nm = row["name"]
+                elem = row["element"].upper()
+                stype_str = row["skill_type"].upper()
+                # ... (rest of the parsing logic remains the same) ...
+                # Make sure to handle potential errors if CSV columns are missing/malformed
+                try:
                     dmg = int(row["damage"])
                     spd = float(row["speed"])
                     rad = float(row["radius"])
@@ -151,30 +172,34 @@ class Game:
                     heal = int(row["heal_amount"])
                     cd = float(row["cooldown"])
                     desc = row["description"]
+                except KeyError as e:
+                    print(f"CSV parsing error: Missing column {e} in row: {row}")
+                    continue # Skip this skill
+                except ValueError as e:
+                    print(f"CSV parsing error: Invalid value in row {row}. Error: {e}")
+                    continue # Skip this skill
 
-                    # Convert string to SkillType enum
-                    try:
-                        st = SkillType[stype_str]
-                    except KeyError:
-                        print(f"Unknown skill_type: {stype_str}")
-                        continue
+                # Convert string to SkillType enum
+                try:
+                    st = SkillType[stype_str]
+                except KeyError:
+                    print(f"Unknown skill_type: {stype_str} for skill '{nm}'")
+                    continue
 
-                    skill_obj = BaseSkill(
-                        nm, elem, st,
-                        dmg, spd,
-                        rad, dur, pull, heal,
-                        cd, desc
-                    )
-                    skill_list.append(skill_obj)
-        except FileNotFoundError:
-            print(f"Error: CSV '{filename}' not found.")
-            sys.exit(1)
-        except KeyError as e:
-            print(f"CSV parsing error: missing column {e}")
+                skill_obj = BaseSkill(
+                    nm, elem, st,
+                    dmg, spd,
+                    rad, dur, pull, heal,
+                    cd, desc
+                )
+                skill_list.append(skill_obj)
+        except Exception as e: # Catch broader exceptions during processing
+            print(f"Error processing skills data: {e}")
             sys.exit(1)
         return skill_list
-
+    
     def build_deck_interactively(self, skill_list):
+        """Let player select skills for their deck"""
         print("=== BUILD YOUR DECK (Pick 4) ===")
         for i, sk in enumerate(skill_list):
             print(f"{i + 1}. [{sk.element}] {sk.name} - {sk.description}")
@@ -198,168 +223,190 @@ class Game:
         for s in chosen:
             print(f"- {s.name}")
         return chosen
+    
+    def log_csv(self, wave):
+        """Log game results to CSV file"""
+        # Use the data_dir from resource manager to build the correct path
+        log_path = os.path.join(self.resource_manager.data_dir, LOG_FILENAME)
 
+        now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+        # Ensure game_start_time is initialized correctly in start_new_game
+        if not hasattr(self, 'game_start_time') or self.game_start_time is None:
+             g_time = 0 # Or some default/error value
+             print("Warning: game_start_time not set before logging.")
+        else:
+             g_time = time.time() - self.game_start_time
+
+        # Ensure player and deck exist before logging
+        if not hasattr(self, 'player') or not self.player or not self.player.deck:
+             print("Warning: Player/deck not available for logging.")
+             deck_str = "N/A"
+             skill_names = ["N/A"] * 4
+             final_hp = "N/A"
+        else:
+             deck_str = "|".join([skill.name for skill in self.player.deck])
+             skill_names = [self.player.deck[i].name if i < len(self.player.deck) else "N/A" for i in range(4)]
+             final_hp = self.player.health
+
+
+        file_exists = os.path.exists(log_path)
+
+        try:
+            with open(log_path, "a", newline="", encoding='utf-8') as f:
+                w = csv.writer(f)
+                # Write header only if file is new
+                if not file_exists or f.tell() == 0:
+                    w.writerow([
+                        "timestamp", "player_name", "wave_survived",
+                        "game_duration", "final_hp", "deck_composition",
+                        "skill1", "skill2", "skill3", "skill4"
+                    ])
+
+                # Write data row
+                w.writerow([
+                    now_str,                    # timestamp
+                    self.player_name,           # player_name
+                    wave,                       # wave_survived
+                    f"{g_time:.2f}",            # game_duration
+                    final_hp,                   # final_hp
+                    deck_str,                   # deck_composition
+                    skill_names[0],             # skill1
+                    skill_names[1],             # skill2
+                    skill_names[2],             # skill3
+                    skill_names[3],             # skill4
+                ])
+        except IOError as e:
+             print(f"Error writing to log file '{log_path}': {e}")
+        except Exception as e:
+             print(f"An unexpected error occurred during logging: {e}")
+    
     def run(self):
+        """Main game loop"""
+        # Get player info MUST happen AFTER resource manager is ready
+        # and AFTER pygame.init is called (which ResourceManager ensures)
+        # ResourceManager init should happen first in Game.__init__ if it does pygame.init
+
+        # Preload resources
+        self.resource_manager.preload_resources() # Now includes loading skills data
+
+        # Get player info (which uses skills data)
+        self.get_player_info()
+
+        # Inject managers into the playing state
+        self.states["playing"].wave_manager = self.wave_manager
+        # self.states["playing"].map_manager = self.map_manager  # Comment this out
+        self.states["playing"].effect_manager = self.effect_manager
+        
+        # Start with menu state
+        self.set_state("menu")
+        
+        # Main game loop
         while self.running:
-            # Convert milliseconds to seconds for dt
+            # Calculate delta time
             dt = self.clock.tick(FPS) / 1000.0
-            self.handle_events()
-            self.update(dt)
-            self.draw()
-
-            if self.player.health <= 0:
-                print("Player died!")
-                self.log_csv(self.wave_number)
-                self.running = False
-
+            
+            # Get all events
+            events = pygame.event.get()
+            
+            # Check for quit event
+            for event in events:
+                if event.type == pygame.QUIT:
+                    self.running = False
+            
+            # Let current state handle events
+            self.states[self.current_state].handle_events(events)
+            
+            # Update current state
+            self.states[self.current_state].update(dt)
+            
+            # Update UI
+            self.ui_manager.update(dt)
+            
+            # Draw current state
+            self.states[self.current_state].draw(self.screen)
+            
+            # Draw UI
+            self.ui_manager.draw(self.screen)
+            
+            # Flip display
+            pygame.display.flip()
+        
+        # Clean up
         pygame.quit()
         sys.exit()
 
-    def handle_events(self):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.running = False
-            else:
-                mouse_pos = pygame.mouse.get_pos()
-                now = time.time()
-                result = self.player.handle_event(
-                    event, mouse_pos, self.enemies, now, self.effects)
-                if result == 'exit':
-                    self.log_csv(self.wave_number)
-                    self.running = False
+    def start_new_game(self):
+        """Initialize a new game"""
+        # ... (map stuff commented out) ...
 
-    def update(self, dt):
-        # 1. Update enemy positions and attacks FIRST
-        for e in self.enemies:
-            e.update(self.player, dt)
+        # Reset wave number
+        self.wave_number = 1
+        self.game_start_time = time.time() # Initialize game_start_time here
 
-        # 2. Handle player input (movement) AFTER enemy attacks
-        self.player.handle_input(dt)
+        # ... (Create player - deck is already built in get_player_info) ...
+        # Make sure self.deck is available here
+        if not self.deck:
+             print("Error: Deck is empty. Cannot start game.")
+             # Maybe go back to menu or exit?
+             self.set_state("menu") # Example: return to menu
+             return
 
-        # 3. Update projectiles and summons
-        for p in self.player.projectiles:
-            p.update(dt, self.enemies)
-        self.player.projectiles = [p for p in self.player.projectiles if p.active]
-    
-        for s in self.player.summons:
-            s.update(self.enemies)
-        self.player.summons = [s for s in self.player.summons if s.alive]
+        self.player = Player(
+            self.player_name,
+            WIDTH // 2,
+            HEIGHT // 2,
+            self.deck, # Use the deck built earlier
+            PLAYER_RADIUS,
+            PLAYER_MAX_HEALTH,
+            PLAYER_SUMMON_LIMIT,
+            PLAYER_COLOR,
+            PLAYER_WALK_SPEED,
+            PLAYER_SPRINT_SPEED,
+            PLAYER_MAX_STAMINA,
+            PLAYER_STAMINA_REGEN,
+            PLAYER_SPRINT_DRAIN,
+            PLAYER_DASH_COST,
+            PLAYER_DASH_DISTANCE,
+            PLAYER_STAMINA_COOLDOWN
+        )
+        
+        # Create initial wave
+        self.enemies = []
+        self.wave_manager.spawn_wave(self.wave_number, self.enemies)
+        
+        # Create game UI
+        self.ui_manager.create_gameplay_ui(self.player)
+        
+        # Start game music
+        self.resource_manager.play_music("game_theme", volume=0.4)
+        
+        # Change state to playing
+        self.set_state("playing")
 
-        # 4. Resolve collisions between alive entities only
-        entities = [entity for entity in ([self.player] + self.player.summons + self.enemies) if entity.alive]
-        for i in range(len(entities)):
-            for j in range(i + 1, len(entities)):
-                resolve_overlap(entities[i], entities[j])
-
-        # 5. Clean up dead entities
-        self.enemies = [e for e in self.enemies if e.alive]
-
-        # 6. Wave logic
-        if len(self.enemies) == 0:
-            self.wave_number += 1
-            self.spawn_wave()
-
-        # 7. Update visual effects
-        for eff in self.effects:
-            eff.update(dt)
-        self.effects = [ef for ef in self.effects if ef.active]
-
-    def draw(self):
+    def draw_playing(self):
         self.screen.fill(WHITE)
-        self.draw_wave_info()
-        self.draw_player_bars()
-        self.draw_skill_ui()
+        
+        # Draw map first
+        # self.map_manager.draw(self.screen)  # Comment this out
+        
+        # Draw game elements
         self.draw_game_elements()
-        pygame.display.flip()
+        
+        # Draw UI
+        self.ui_manager.draw(self.screen)
 
-    def draw_wave_info(self):
-        ui_font = pygame.font.SysFont("Arial", 24)
-        wave_text = ui_font.render(f"WAVE: {self.wave_number}", True, BLACK)
-        self.screen.blit(wave_text, (10, 10))
-
-    def draw_player_bars(self):
-        ui_font = pygame.font.SysFont("Arial", 24)
-        # HP Bar
-        player_bar_x = 10
-        player_bar_y = 50
-        bar_width = 200
-        bar_height = 20
-        pygame.draw.rect(self.screen, UI_COLORS['hp_bar_bg'],
-                         (player_bar_x, player_bar_y, bar_width, bar_height))
-        hp_frac = self.player.health / self.player.max_health
-        fill_width = int(bar_width * max(hp_frac, 0))
-        pygame.draw.rect(self.screen, UI_COLORS['hp_bar_fill'],
-                         (player_bar_x, player_bar_y, fill_width, bar_height))
-        hp_text_str = f"{int(self.player.health)}/{self.player.max_health}"
-        hp_text = ui_font.render(hp_text_str, True, UI_COLORS['hp_text'])
-        self.screen.blit(hp_text, (player_bar_x + bar_width + 10, player_bar_y - 2))
-
-        # Stamina Bar
-        pygame.draw.rect(self.screen, UI_COLORS['stamina_bar_bg'], (10, 80, 200, 20))
-        st_frac = self.player.stamina / self.player.max_stamina
-        st_fill = int(200 * max(st_frac, 0))
-        pygame.draw.rect(self.screen, UI_COLORS['stamina_bar_fill'], (10, 80, st_fill, 20))
-        st_text_str = f"{int(self.player.stamina)}/{self.player.max_stamina}"
-        st_text = ui_font.render(st_text_str, True, UI_COLORS['stamina_text'])
-        self.screen.blit(st_text, (220, 78))
-
-    def draw_skill_ui(self):
-        skill_font = pygame.font.SysFont("Arial", 16)
+    def handle_playing_events(self, events):
+        mouse_pos = pygame.mouse.get_pos()
         now = time.time()
-        skill_start_y = HEIGHT - 100
-        for i, skill in enumerate(self.player.deck):
-            box_x = 10 + i * 110
-            box_y = skill_start_y
-            box_width = 100
-            box_height = 80
-            pygame.draw.rect(self.screen, UI_COLORS['skill_box_bg'],
-                             (box_x, box_y, box_width, box_height))
-            name_text = skill_font.render(skill.name, True, WHITE)
-            name_rect = name_text.get_rect(centerx=box_x + box_width // 2, top=box_y + 5)
-            self.screen.blit(name_text, name_rect)
-            self.draw_skill_cooldown(skill, box_x, box_y, box_width, box_height, now, skill_font)
-            key_text = skill_font.render(f"[{i + 1}]", True, WHITE)
-            key_rect = key_text.get_rect(bottom=box_y + box_height - 5, centerx=box_x + box_width // 2)
-            self.screen.blit(key_text, key_rect)
-            pygame.draw.rect(self.screen, skill.color, (box_x, box_y, 5, box_height))
-
-    def draw_skill_cooldown(self, skill, box_x, box_y, box_width, box_height, now, skill_font):
-        if not skill.is_off_cooldown(now):
-            cd_remaining = skill.cooldown - (now - skill.last_use_time)
-            cd_height = int((cd_remaining / skill.cooldown) * box_height)
-            pygame.draw.rect(self.screen, UI_COLORS['cooldown_overlay'],
-                             (box_x, box_y + box_height - cd_height, box_width, cd_height))
-            cd_text = skill_font.render(f"{cd_remaining:.1f}s", True, WHITE)
-            cd_rect = cd_text.get_rect(center=(box_x + box_width // 2, box_y + box_height // 2))
-            self.screen.blit(cd_text, cd_rect)
-
-    def draw_game_elements(self):
-        # Draw all game objects in proper layers
         
-        # # 1. Draw ground effects/AOE skills first (bottom layer)
-        # for effect in self.effects:
-        #     effect.draw(self.screen)
-                
-        # 2. Draw projectiles
-        for projectile in self.player.get_projectiles():
-            projectile.draw(self.screen)
-        
-        # 3. Draw entities (enemies, player, summons)
-        for enemy in self.enemies:
-            enemy.draw(self.screen)
-        
-        for summon in self.player.get_summons():
-            summon.draw(self.screen)
+        for event in events:
+            # Let UI handle events first
+            if self.ui_manager.handle_event(event):
+                continue
             
-        self.player.draw(self.screen)
-        
-        # 4. Draw overhead effects (top layer)
-        for effect in self.effects:
-            effect.draw(self.screen)
-
+            # Existing event handling code...
 
 def main():
-    pygame.init()
     game = Game()
     game.run()
 

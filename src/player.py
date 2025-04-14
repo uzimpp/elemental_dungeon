@@ -6,10 +6,11 @@ import random
 from utils import angle_diff
 # from skill import SkillType, create_skill, Projectile, Summons, Chain, Slash, Shield, Orbit, Mark, Zone, Beam, Trap, Buff
 from skill import SkillType, create_skill, Projectile, Summons, Chain, Slash
-from visual_effects import VisualEffect, DashAfterimage
+from effects import EffectManager
 from config import (WIDTH, HEIGHT, PLAYER_SPRITE_PATH, PLAYER_ANIMATION_CONFIG)
 from entity import Entity
 from animation import CharacterAnimation
+from resource_manager import ResourceManager
 
 
 class Player(Entity):
@@ -189,7 +190,7 @@ class Player(Entity):
         # --- Update Animation System ---
         self.animation.update(dt, self.dx, self.dy)
 
-    def handle_event(self, event, mouse_pos, enemies, now, effects):
+    def handle_event(self, event, mouse_pos, enemies, now, effects_manager):
         # Ignore events if dying
         if self.state == 'dying':
             return None
@@ -200,10 +201,10 @@ class Player(Entity):
                 if event.key in [pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4]:
                     skill_idx = event.key - pygame.K_1
                     # Pass 'effects' list to cast_skill
-                    self.cast_skill(skill_idx, mouse_pos, enemies, now, effects)
+                    self.cast_skill(skill_idx, mouse_pos, enemies, now, effects_manager)
                 elif event.key == pygame.K_SPACE:
                     # Pass 'effects' list to dash
-                    self.dash(effects)
+                    self.dash(effects_manager)
 
             if event.key == pygame.K_ESCAPE:
                 print("Player exited the game!")
@@ -213,10 +214,10 @@ class Player(Entity):
              if self.state not in ['cast', 'sweep']: # Check both
                  if event.button == 1:
                      # Pass 'effects' list to cast_skill
-                     self.cast_skill(0, mouse_pos, enemies, now, effects)
+                     self.cast_skill(0, mouse_pos, enemies, now, effects_manager)
         return None
 
-    def dash(self, effects):
+    def dash(self, effects_manager):
         """Dash logic - Triggers an afterimage effect."""
         if self.state in ['dying', 'cast', 'sweep']: return
 
@@ -226,8 +227,7 @@ class Player(Entity):
              start_x, start_y = self.x, self.y
              current_sprite = self.animation.get_current_sprite() # Get sprite before potential direction change
              if current_sprite: # Make sure sprite is valid
-                  afterimage = DashAfterimage(start_x, start_y, current_sprite)
-                  effects.append(afterimage) # Add to the main effects list
+                  effects_manager.create_dash_afterimage(start_x, start_y, current_sprite)
 
              # --- Perform Dash ---
              self.stamina -= self.dash_cost
@@ -264,7 +264,7 @@ class Player(Entity):
         else:
             print("Not enough stamina to dash!")
 
-    def cast_skill(self, skill_idx, target_pos, enemies, now, effects):
+    def cast_skill(self, skill_idx, target_pos, enemies, now, effects_manager):
         # Allow casting only if not dying or already performing an action
         if self.state in ['dying', 'cast', 'sweep']:
              return
@@ -290,6 +290,19 @@ class Player(Entity):
         tx, ty = target_pos
         base_skill.trigger_cooldown(now)
 
+        # Play appropriate sound for skill type
+        resource_manager = ResourceManager()
+        if base_skill.skill_type == SkillType.PROJECTILE:
+            resource_manager.play_sound("projectile", volume=0.4)
+        elif base_skill.skill_type == SkillType.SUMMON:
+            resource_manager.play_sound("summon", volume=0.4)
+        elif base_skill.skill_type == SkillType.HEAL:
+            resource_manager.play_sound("heal", volume=0.4)
+        elif base_skill.skill_type == SkillType.AOE:
+            resource_manager.play_sound("explosion", volume=0.5)
+        elif base_skill.skill_type == SkillType.SLASH:
+            resource_manager.play_sound("slash", volume=0.5)
+
         if base_skill.skill_type == SkillType.PROJECTILE:
             skill = create_skill(
                 SkillType.PROJECTILE,
@@ -299,28 +312,14 @@ class Player(Entity):
                 tx=tx,
                 ty=ty)
             self.projectiles.append(skill)
-            effects.append(
-                VisualEffect(
-                    self.x,
-                    self.y,
-                    "explosion",
-                    base_skill.color,
-                    20,
-                    0.2))
+            effects_manager.create_explosion(self.x, self.y, base_skill.color, 20, 0.2)
 
         elif base_skill.skill_type == SkillType.SUMMON:
             if len(self.summons) < self.summon_limit:
                 skill = create_skill(
                     SkillType.SUMMON, self.x, self.y, base_skill)
                 self.summons.append(skill)
-                effects.append(
-                    VisualEffect(
-                        self.x,
-                        self.y,
-                        "heal",
-                        base_skill.color,
-                        30,
-                        0.5))
+                effects_manager.create_heal(self.x, self.y, base_skill.color, 0.5)
 
         elif base_skill.skill_type == SkillType.HEAL:
             skill = create_skill(SkillType.HEAL, self.x, self.y, base_skill)
@@ -328,40 +327,17 @@ class Player(Entity):
                 self.max_health,
                 self.health +
                 base_skill.heal_amount)
-            effects.append(skill)
-            effects.append(
-                VisualEffect(
-                    self.x,
-                    self.y,
-                    "heal",
-                    base_skill.color,
-                    40,
-                    0.8))
+            effects_manager.create_heal(self.x, self.y, base_skill.color, 0.8)
 
         elif base_skill.skill_type == SkillType.AOE:
             skill = create_skill(SkillType.AOE, tx, ty, base_skill)
-            effects.append(skill)
-            effects.append(
-                VisualEffect(
-                    tx,
-                    ty,
-                    "explosion",
-                    base_skill.color,
-                    base_skill.radius,
-                    0.5))
+            effects_manager.create_explosion(tx, ty, base_skill.color, base_skill.radius, 0.5)
 
             for e in enemies:
                 dist = math.hypot(e.x - tx, e.y - ty)
                 if dist <= base_skill.radius:
                     e.health -= base_skill.damage
-                    effects.append(
-                        VisualEffect(
-                            e.x,
-                            e.y,
-                            "explosion",
-                            base_skill.color,
-                            20,
-                            0.2))
+                    effects_manager.create_explosion(e.x, e.y, base_skill.color, 20, 0.2)
 
         elif base_skill.skill_type == SkillType.SLASH:
             # Create a Slash skill around the player
@@ -369,15 +345,7 @@ class Player(Entity):
                 SkillType.SLASH, self.x, self.y, base_skill,
                 player_x=self.x, player_y=self.y, cursor_x=tx, cursor_y=ty
             )
-            effects.append(slash_skill)
-            # Create a VisualEffect for the slash
-            slash_effect = VisualEffect(
-                self.x, self.y, "slash", base_skill.color,
-                radius=base_skill.radius, duration=0.3
-            )
-            slash_effect.start_angle = slash_skill.start_angle
-            slash_effect.sweep_angle = slash_skill.sweep_angle
-            effects.append(slash_effect)
+            effects_manager.create_slash(self.x, self.y, slash_skill.start_angle, slash_skill.sweep_angle, base_skill.color, base_skill.radius, 0.3)
 
             for enemy in enemies:
                 # Calculate angle to the enemy
@@ -411,19 +379,12 @@ class Player(Entity):
             for e in remaining:
                 targets.append((e.x, e.y))
                 e.health -= base_skill.damage
-                effects.append(
-                    VisualEffect(
-                        e.x,
-                        e.y,
-                        "explosion",
-                        base_skill.color,
-                        25,
-                        0.3))
+                effects_manager.create_explosion(e.x, e.y, base_skill.color, 25, 0.3)
 
             if targets:
                 skill = create_skill(
                     SkillType.CHAIN, 0, 0, base_skill, targets=targets)
-                effects.append(skill)
+                effects_manager.create_explosion(0, 0, skill.color, 0, 0)
 
         # elif base_skill.skill_type == SkillType.SHIELD:
         #     shield = Shield(self, 50, base_skill.color, base_skill.duration)

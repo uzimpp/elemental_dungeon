@@ -3,14 +3,29 @@ import math
 
 class SpriteSheet:
     """Utility class to handle loading and extracting sprites from a sheet."""
-    def __init__(self, image_path):
+    def __init__(self, sprite_sheet_filename):
+        """Initialize with the path to a sprite sheet image."""
+        from resource_manager import ResourceManager
+        self.resource_manager = ResourceManager()
+        
+        # Extract sheet name from filename (e.g., "player_sheet" from "player_sheet.png")
+        import os
+        sheet_name = os.path.splitext(sprite_sheet_filename)[0]
+
         try:
-            self.sprite_sheet = pygame.image.load(image_path).convert_alpha()
-        except pygame.error as e:
-            print(f"Error loading sprite sheet: {image_path}")
-            print(e)
-            # You might want to provide a default fallback image or exit
-            raise SystemExit() # Or handle it differently
+            # Load using ResourceManager, passing name and filename
+            self.sprite_sheet = self.resource_manager.load_sprite_sheet(sheet_name, sprite_sheet_filename)
+            if self.sprite_sheet is None:
+                # Handle error if ResourceManager failed (it prints internally)
+                raise ValueError(f"Sprite sheet '{sprite_sheet_filename}' could not be loaded.")
+        except Exception as e: # Catch any exception during loading
+            print(f"Error initializing SpriteSheet with '{sprite_sheet_filename}': {e}")
+            # Create a placeholder image on failure
+            self.sprite_sheet = pygame.Surface((64, 64), pygame.SRCALPHA)
+            pygame.draw.rect(self.sprite_sheet, (255, 0, 255), (0, 0, 64, 64), 2)
+            pygame.draw.line(self.sprite_sheet, (255, 0, 255), (0, 0), (64, 64), 2)
+            # Potentially raise the exception again or handle more gracefully
+            # raise e # Optional: re-raise if you want the program to stop
 
     def get_sprite(self, x, y, width, height):
         """Extracts a single sprite (surface) from the sheet."""
@@ -39,18 +54,18 @@ class CharacterAnimation:
     # List of valid atan2 angles for easy lookup
     ANGLES = list(DIRECTION_ROWS.keys())
 
-    def __init__(self, sprite_sheet_path, config, sprite_width=32, sprite_height=32):
+    def __init__(self, sprite_sheet_filename, config, sprite_width=32, sprite_height=32):
         """
         Initializes the animation handler with state configurations.
 
         Args:
-            sprite_sheet_path (str): Path to the sprite sheet image.
+            sprite_sheet_filename (str): Filename of the sprite sheet (e.g., "player_sheet.png").
             config (dict): Dictionary defining animation states and their properties.
                            Example: {'idle': {'start_col':0, 'frames':1, 'duration':0.2, 'loop':True, 'directional':True}, ...}
             sprite_width (int): Width of a single sprite frame.
             sprite_height (int): Height of a single sprite frame.
         """
-        self.sprite_sheet = SpriteSheet(sprite_sheet_path)
+        self.sprite_sheet = SpriteSheet(sprite_sheet_filename)
         self.config = config
         self.sprite_width = sprite_width
         self.sprite_height = sprite_height
