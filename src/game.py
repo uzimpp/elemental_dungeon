@@ -4,7 +4,7 @@ import sys
 import time
 import csv
 import random
-from skill import SkillType, Deck
+from deck import Deck
 from player import Player
 from enemy import Enemy
 from visual_effects import VisualEffect
@@ -14,23 +14,21 @@ from config import *
 
 class Game:
     def __init__(self):
+        pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Elemental Tower Defense")
         self.clock = pygame.time.Clock()
         self.running = True
+        self.effects = []
 
         self.player_name = input("Enter player name: ") or "Unknown"
 
-        # Create DeckManager and load skills
-        tmp_deck = Deck(None)  # Temporarily None
-        all_skills = tmp_deck.load_from_csv(SKILLS_FILENAME)
-        deck = self.build_deck_interactively(all_skills)
-        
+        # Create player first with no deck
         self.player = Player(
             self.player_name,
             WIDTH // 2,
             HEIGHT // 2,
-            deck,  # Pass deck directly
+            None,  # No deck yet
             PLAYER_RADIUS,
             PLAYER_MAX_HEALTH,
             PLAYER_SUMMON_LIMIT,
@@ -43,6 +41,19 @@ class Game:
             PLAYER_DASH_COST,
             PLAYER_DASH_DISTANCE,
             PLAYER_STAMINA_COOLDOWN)
+        
+        # Set game reference
+        self.player.game = self
+
+        # Create and initialize deck
+        deck = Deck(self.player)  # Create deck with player reference
+        all_skills = deck.load_from_csv(SKILLS_FILENAME)
+        chosen_skills = self.build_deck_interactively(all_skills)
+        deck.skills = chosen_skills  # Set chosen skills
+        deck.summon_limit = PLAYER_SUMMON_LIMIT
+        
+        # Set deck on player
+        self.player.deck = deck
 
         self.wave_number = 1
         self.enemies = []
@@ -166,7 +177,7 @@ class Game:
         # 2. Handle player input (movement)
         self.player.handle_input(dt)
 
-        # 3. Update deck manager
+        # 3. Update deck
         self.player.deck.update(dt, self.enemies)
     
         # 4. Resolve collisions
@@ -262,15 +273,15 @@ class Game:
     def draw_game_elements(self):
         # Draw all game objects in proper layers
         
-        # 1. Draw projectiles and summons via deck
-        self.player.deck.draw(self.screen)
-        
-        # 2. Draw entities (enemies, player)
+        # 1. Draw entities (enemies, player)
         for enemy in self.enemies:
             enemy.draw(self.screen)
         
-        # 3. Draw player
+        # 2. Draw player
         self.player.draw(self.screen)
+        
+        # 3. Draw projectiles and summons via deck
+        self.player.deck.draw(self.screen)
         
         # 4. Draw overhead effects (top layer)
         for effect in self.effects:

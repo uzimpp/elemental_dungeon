@@ -4,7 +4,7 @@ import math
 import pygame
 import random
 from utils import angle_diff
-from skill import Deck
+from deck import Deck
 from visual_effects import VisualEffect, DashAfterimage
 from config import (WIDTH, HEIGHT, PLAYER_SPRITE_PATH, PLAYER_ANIMATION_CONFIG, SHADOW_SUMMON_SPRITE_PATH, SHADOW_SUMMON_ANIMATION_CONFIG)
 from entity import Entity
@@ -17,7 +17,7 @@ class Player(Entity):
             name,
             x,
             y,
-            skills,
+            deck,  # This will be None initially
             radius,
             max_health,
             summon_limit,
@@ -35,11 +35,10 @@ class Player(Entity):
         
         # Player specific attributes
         self.name = name
+        self.game = None  # Will be set by Game class
         
-        # Initialize Deck to handle skills
-        self.deck = Deck(self)
-        self.deck.skills = skills
-        self.deck.summon_limit = summon_limit
+        # Deck will be set later by Game class
+        self.deck = deck
         
         # Speed attributes
         self.walk_speed = walk_speed
@@ -60,13 +59,13 @@ class Player(Entity):
         sprite_path = PLAYER_SPRITE_PATH
         self.animation = CharacterAnimation(
             sprite_sheet_path=sprite_path,
-            config=PLAYER_ANIMATION_CONFIG, # <-- Pass the config dictionary
+            config=PLAYER_ANIMATION_CONFIG,
             sprite_width=32,
             sprite_height=32
         )
-        self.state = 'idle' # Add player state tracking
+        self.state = 'idle'  # Add player state tracking
         self.is_sprinting = False
-        self.attack_timer = 0.0 # Timer to manage returning from cast state
+        self.attack_timer = 0.0  # Timer to manage returning from cast state
     
     @property
     def summons(self):
@@ -264,7 +263,7 @@ class Player(Entity):
             print("Not enough stamina to dash!")
 
     def cast_skill(self, skill_idx, mouse_pos, enemies, now, effects):
-        return self.deck.use_skill(skill_idx, mouse_pos[0], mouse_pos[1])
+        return self.deck.use_skill(skill_idx, mouse_pos[0], mouse_pos[1], enemies, now)
 
     def take_damage(self, amt):
         if self.state == 'dying' or not self.alive: 
