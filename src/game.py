@@ -4,41 +4,12 @@ import sys
 import time
 import csv
 import random
-from skill import SkillType, BaseSkill
+from skill import SkillType, Deck
 from player import Player
 from enemy import Enemy
 from visual_effects import VisualEffect
 from utils import resolve_overlap, draw_hp_bar, angle_diff
-from config import (
-    WIDTH,
-    HEIGHT,
-    FPS,
-    WHITE,
-    BLACK,
-    RED,
-    BLUE,
-    PURPLE,
-    GREEN,
-    UI_COLORS,
-    LOG_FILENAME,
-    SKILLS_FILENAME,
-    PLAYER_RADIUS,
-    PLAYER_MAX_HEALTH,
-    PLAYER_SUMMON_LIMIT,
-    PLAYER_COLOR,
-    PLAYER_WALK_SPEED,
-    PLAYER_SPRINT_SPEED,
-    PLAYER_MAX_STAMINA,
-    PLAYER_STAMINA_REGEN,
-    PLAYER_SPRINT_DRAIN,
-    PLAYER_DASH_COST,
-    PLAYER_DASH_DISTANCE,
-    PLAYER_STAMINA_COOLDOWN,
-    ENEMY_BASE_HP,
-    ENEMY_BASE_SPEED,
-    WAVE_MULTIPLIER,
-    ENEMY_DAMAGE,
-    ATTACK_COOLDOWN)
+from config import *
 
 
 class Game:
@@ -50,15 +21,16 @@ class Game:
 
         self.player_name = input("Enter player name: ") or "Unknown"
 
-        # load skills
-        all_skills = self.load_skills_from_csv(SKILLS_FILENAME)
-        # pick deck
+        # Create DeckManager and load skills
+        tmp_deck = Deck(None)  # Temporarily None
+        all_skills = tmp_deck.load_from_csv(SKILLS_FILENAME)
         deck = self.build_deck_interactively(all_skills)
+        
         self.player = Player(
             self.player_name,
             WIDTH // 2,
             HEIGHT // 2,
-            deck,
+            deck,  # Pass deck directly
             PLAYER_RADIUS,
             PLAYER_MAX_HEALTH,
             PLAYER_SUMMON_LIMIT,
@@ -84,7 +56,7 @@ class Game:
         g_time = time.time() - self.game_start_time
 
         # Convert deck to string representation
-        deck_str = "|".join([skill.name for skill in self.player.deck])
+        deck_str = "|".join([skill.name for skill in self.player.deck.skills])
 
         with open(LOG_FILENAME, "a", newline="") as f:
             w = csv.writer(f)
@@ -104,10 +76,10 @@ class Game:
                 f"{g_time:.2f}",          # game_duration
                 self.player.health,        # final_hp
                 deck_str,                  # deck_composition
-                self.player.deck[0].name,  # skill1
-                self.player.deck[1].name,  # skill2
-                self.player.deck[2].name,  # skill3
-                self.player.deck[3].name,  # skill4
+                self.player.deck.skills[0].name,  # skill1
+                self.player.deck.skills[1].name,  # skill2
+                self.player.deck.skills[2].name,  # skill3
+                self.player.deck.skills[3].name,  # skill4
             ])
 
     def spawn_wave(self):
@@ -130,49 +102,7 @@ class Game:
                 ATTACK_COOLDOWN)
             self.enemies.append(e)
 
-    def load_skills_from_csv(self, filename):
-        """
-        CSV columns:
-        name,element,skill_type,damage,speed,radius,duration,pull,heal_amount,cooldown,description
-        """
-        skill_list = []
-        try:
-            with open(filename, newline='', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    nm = row["name"]
-                    elem = row["element"].upper()
-                    stype_str = row["skill_type"].upper()
-                    dmg = int(row["damage"])
-                    spd = float(row["speed"])
-                    rad = float(row["radius"])
-                    dur = float(row["duration"])
-                    pull = (row["pull"].strip().lower() == "true")
-                    heal = int(row["heal_amount"])
-                    cd = float(row["cooldown"])
-                    desc = row["description"]
-
-                    # Convert string to SkillType enum
-                    try:
-                        st = SkillType[stype_str]
-                    except KeyError:
-                        print(f"Unknown skill_type: {stype_str}")
-                        continue
-
-                    skill_obj = BaseSkill(
-                        nm, elem, st,
-                        dmg, spd,
-                        rad, dur, pull, heal,
-                        cd, desc
-                    )
-                    skill_list.append(skill_obj)
-        except FileNotFoundError:
-            print(f"Error: CSV '{filename}' not found.")
-            sys.exit(1)
-        except KeyError as e:
-            print(f"CSV parsing error: missing column {e}")
-            sys.exit(1)
-        return skill_list
+   
 
     def build_deck_interactively(self, skill_list):
         print("=== BUILD YOUR DECK (Pick 4) ===")
@@ -229,24 +159,20 @@ class Game:
                     self.running = False
 
     def update(self, dt):
-        # 1. Update enemy positions and attacks FIRST
+        # 1. Update enemy positions and attacks
         for e in self.enemies:
             e.update(self.player, dt)
 
-        # 2. Handle player input (movement) AFTER enemy attacks
+        # 2. Handle player input (movement)
         self.player.handle_input(dt)
 
-        # 3. Update projectiles and summons
-        for p in self.player.projectiles:
-            p.update(dt, self.enemies)
-        self.player.projectiles = [p for p in self.player.projectiles if p.active]
+        # 3. Update deck manager
+        self.player.deck.update(dt, self.enemies)
     
-        for s in self.player.summons:
-            s.update(self.enemies)
-        self.player.summons = [s for s in self.player.summons if s.alive]
-
-        # 4. Resolve collisions between alive entities only
-        entities = [entity for entity in ([self.player] + self.player.summons + self.enemies) if entity.alive]
+        # 4. Resolve collisions
+        entities = [entity for entity in ([self.player] + 
+                                          self.player.summons + 
+                                          self.enemies) if entity.alive]
         for i in range(len(entities)):
             for j in range(i + 1, len(entities)):
                 resolve_overlap(entities[i], entities[j])
@@ -307,7 +233,7 @@ class Game:
         skill_font = pygame.font.SysFont("Arial", 16)
         now = time.time()
         skill_start_y = HEIGHT - 100
-        for i, skill in enumerate(self.player.deck):
+        for i, skill in enumerate(self.player.deck.skills):
             box_x = 10 + i * 110
             box_y = skill_start_y
             box_width = 100
@@ -336,21 +262,14 @@ class Game:
     def draw_game_elements(self):
         # Draw all game objects in proper layers
         
-        # # 1. Draw ground effects/AOE skills first (bottom layer)
-        # for effect in self.effects:
-        #     effect.draw(self.screen)
-                
-        # 2. Draw projectiles
-        for projectile in self.player.get_projectiles():
-            projectile.draw(self.screen)
+        # 1. Draw projectiles and summons via deck
+        self.player.deck.draw(self.screen)
         
-        # 3. Draw entities (enemies, player, summons)
+        # 2. Draw entities (enemies, player)
         for enemy in self.enemies:
             enemy.draw(self.screen)
         
-        for summon in self.player.get_summons():
-            summon.draw(self.screen)
-            
+        # 3. Draw player
         self.player.draw(self.screen)
         
         # 4. Draw overhead effects (top layer)

@@ -4,10 +4,9 @@ import math
 import pygame
 import random
 from utils import angle_diff
-# from skill import SkillType, create_skill, Projectile, Summons, Chain, Slash, Shield, Orbit, Mark, Zone, Beam, Trap, Buff
-from skill import SkillType, create_skill, Projectile, Summons, Chain, Slash
+from skill import Deck
 from visual_effects import VisualEffect, DashAfterimage
-from config import (WIDTH, HEIGHT, PLAYER_SPRITE_PATH, PLAYER_ANIMATION_CONFIG)
+from config import (WIDTH, HEIGHT, PLAYER_SPRITE_PATH, PLAYER_ANIMATION_CONFIG, SHADOW_SUMMON_SPRITE_PATH, SHADOW_SUMMON_ANIMATION_CONFIG)
 from entity import Entity
 from animation import CharacterAnimation
 
@@ -18,7 +17,7 @@ class Player(Entity):
             name,
             x,
             y,
-            deck,
+            skills,
             radius,
             max_health,
             summon_limit,
@@ -36,11 +35,12 @@ class Player(Entity):
         
         # Player specific attributes
         self.name = name
-        self.deck = deck
-        self.projectiles = []
-        self.summons = []
-        self.summon_limit = summon_limit
-
+        
+        # Initialize Deck to handle skills
+        self.deck = Deck(self)
+        self.deck.skills = skills
+        self.deck.summon_limit = summon_limit
+        
         # Speed attributes
         self.walk_speed = walk_speed
         self.sprint_speed = sprint_speed
@@ -55,8 +55,6 @@ class Player(Entity):
         self.dash_distance = dash_distance
         self.stamina_depleted_time = None
         self.stamina_cooldown = stamina_cooldown
-
-
         
         # Animation setup - Pass the config now
         sprite_path = PLAYER_SPRITE_PATH
@@ -70,11 +68,15 @@ class Player(Entity):
         self.is_sprinting = False
         self.attack_timer = 0.0 # Timer to manage returning from cast state
     
-    def get_projectiles(self):
-        return self.projectiles
-    
-    def get_summons(self):
-        return self.summons
+    @property
+    def summons(self):
+        """Compatibility property for access to active summons"""
+        return self.deck.get_summons()
+        
+    @property
+    def projectiles(self):
+        """Compatibility property for access to active projectiles"""
+        return self.deck.get_projectiles()
     
     def handle_input(self, dt):
         # --- Prevent input/movement if dying ---
@@ -196,13 +198,11 @@ class Player(Entity):
 
         if event.type == pygame.KEYDOWN:
             # Ignore skill/dash if already performing an action
-            if self.state not in ['cast', 'sweep']: # Check both
+            if self.state not in ['cast', 'sweep']:
                 if event.key in [pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4]:
                     skill_idx = event.key - pygame.K_1
-                    # Pass 'effects' list to cast_skill
                     self.cast_skill(skill_idx, mouse_pos, enemies, now, effects)
                 elif event.key == pygame.K_SPACE:
-                    # Pass 'effects' list to dash
                     self.dash(effects)
 
             if event.key == pygame.K_ESCAPE:
@@ -210,10 +210,9 @@ class Player(Entity):
                 return 'exit'
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
-             if self.state not in ['cast', 'sweep']: # Check both
-                 if event.button == 1:
-                     # Pass 'effects' list to cast_skill
-                     self.cast_skill(0, mouse_pos, enemies, now, effects)
+            if self.state not in ['cast', 'sweep']:
+                if event.button == 1:
+                    self.cast_skill(0, mouse_pos, enemies, now, effects)
         return None
 
     def dash(self, effects):
@@ -264,176 +263,8 @@ class Player(Entity):
         else:
             print("Not enough stamina to dash!")
 
-    def cast_skill(self, skill_idx, target_pos, enemies, now, effects):
-        # Allow casting only if not dying or already performing an action
-        if self.state in ['dying', 'cast', 'sweep']:
-             return
-
-        if skill_idx >= len(self.deck): return
-        base_skill = self.deck[skill_idx]
-        if not base_skill.is_off_cooldown(now): return
-
-        # --- Determine Animation State and Duration ---
-        action_state = 'cast' # Default
-        if base_skill.skill_type == SkillType.SLASH: # Example: Use sweep for Slash skills
-             action_state = 'sweep'
-
-        self.state = action_state
-        self.animation.set_state(action_state, force_reset=True)
-        
-        # Calculate action duration based on new animation format
-        animations_length = len(self.animation.config[action_state]['animations'])
-        action_duration = self.animation.config[action_state]['duration'] * animations_length
-        self.attack_timer = action_duration # Use attack_timer
-
-        # --- Execute Skill Logic ---
-        tx, ty = target_pos
-        base_skill.trigger_cooldown(now)
-
-        if base_skill.skill_type == SkillType.PROJECTILE:
-            skill = create_skill(
-                SkillType.PROJECTILE,
-                self.x,
-                self.y,
-                base_skill,
-                tx=tx,
-                ty=ty)
-            self.projectiles.append(skill)
-            effects.append(
-                VisualEffect(
-                    self.x,
-                    self.y,
-                    "explosion",
-                    base_skill.color,
-                    20,
-                    0.2))
-
-        elif base_skill.skill_type == SkillType.SUMMON:
-            if len(self.summons) < self.summon_limit:
-                skill = create_skill(
-                    SkillType.SUMMON, self.x, self.y, base_skill)
-                self.summons.append(skill)
-                effects.append(
-                    VisualEffect(
-                        self.x,
-                        self.y,
-                        "heal",
-                        base_skill.color,
-                        30,
-                        0.5))
-
-        elif base_skill.skill_type == SkillType.HEAL:
-            skill = create_skill(SkillType.HEAL, self.x, self.y, base_skill)
-            self.health = min(
-                self.max_health,
-                self.health +
-                base_skill.heal_amount)
-            effects.append(skill)
-            effects.append(
-                VisualEffect(
-                    self.x,
-                    self.y,
-                    "heal",
-                    base_skill.color,
-                    40,
-                    0.8))
-
-        elif base_skill.skill_type == SkillType.AOE:
-            skill = create_skill(SkillType.AOE, tx, ty, base_skill)
-            effects.append(skill)
-            effects.append(
-                VisualEffect(
-                    tx,
-                    ty,
-                    "explosion",
-                    base_skill.color,
-                    base_skill.radius,
-                    0.5))
-
-            for e in enemies:
-                dist = math.hypot(e.x - tx, e.y - ty)
-                if dist <= base_skill.radius:
-                    e.health -= base_skill.damage
-                    effects.append(
-                        VisualEffect(
-                            e.x,
-                            e.y,
-                            "explosion",
-                            base_skill.color,
-                            20,
-                            0.2))
-
-        elif base_skill.skill_type == SkillType.SLASH:
-            # Create a Slash skill around the player
-            slash_skill = create_skill(
-                SkillType.SLASH, self.x, self.y, base_skill,
-                player_x=self.x, player_y=self.y, cursor_x=tx, cursor_y=ty
-            )
-            effects.append(slash_skill)
-            # Create a VisualEffect for the slash
-            slash_effect = VisualEffect(
-                self.x, self.y, "slash", base_skill.color,
-                radius=base_skill.radius, duration=0.3
-            )
-            slash_effect.start_angle = slash_skill.start_angle
-            slash_effect.sweep_angle = slash_skill.sweep_angle
-            effects.append(slash_effect)
-
-            for enemy in enemies:
-                # Calculate angle to the enemy
-                dx = enemy.x - self.x
-                dy = enemy.y - self.y
-                angle_to_enemy = math.atan2(dy, dx)
-
-                # Normalize angles to be within [0, 2*pi]
-                start_angle = (slash_skill.start_angle +
-                               2 * math.pi) % (2 * math.pi)
-                end_angle = (
-                    start_angle + slash_skill.sweep_angle) % (2 * math.pi)
-                angle_to_enemy = (angle_to_enemy + 2 * math.pi) % (2 * math.pi)
-
-                # Check if the enemy is within the sweep angle and radius
-                if start_angle <= angle_to_enemy <= end_angle and math.hypot(
-                        dx, dy) <= base_skill.radius:
-                    enemy.health -= base_skill.damage
-
-        elif base_skill.skill_type == SkillType.CHAIN:
-            targets = [(self.x, self.y)]
-            remaining = sorted(
-                enemies,
-                key=lambda e: math.hypot(
-                    e.x -
-                    tx,
-                    e.y -
-                    ty))[
-                :3]
-
-            for e in remaining:
-                targets.append((e.x, e.y))
-                e.health -= base_skill.damage
-                effects.append(
-                    VisualEffect(
-                        e.x,
-                        e.y,
-                        "explosion",
-                        base_skill.color,
-                        25,
-                        0.3))
-
-            if targets:
-                skill = create_skill(
-                    SkillType.CHAIN, 0, 0, base_skill, targets=targets)
-                effects.append(skill)
-
-        # elif base_skill.skill_type == SkillType.SHIELD:
-        #     shield = Shield(self, 50, base_skill.color, base_skill.duration)
-        #     effects.append(shield)
-        #     # Add shield activation effects
-        #     effects.append(VisualEffect(self.x, self.y, "heal",
-        #                               base_skill.color, 40, 0.6))
-        #     effects.append(VisualEffect(self.x, self.y, "explosion",
-        #                               base_skill.color, 35, 0.5))
-
+    def cast_skill(self, skill_idx, mouse_pos, enemies, now, effects):
+        return self.deck.use_skill(skill_idx, mouse_pos[0], mouse_pos[1])
 
     def take_damage(self, amt):
         if self.state == 'dying' or not self.alive: 

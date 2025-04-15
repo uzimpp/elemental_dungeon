@@ -17,5 +17,4 @@ Vine Whip,WOOD,SLASH,30,0,100,0,TRUE,0,3.0,Slash that pulls enemies closer
 Thorn Spray,WOOD,PROJECTILE,15,8,5,0,FALSE,0,1.0,Shoots multiple thorns
 Rock Throw,ROCK,PROJECTILE,40,8,10,0,FALSE,0,2.0,Heavy rock projectile
 Earth Shatter,ROCK,AOE,80,0,120,0,FALSE,0,15.0,Large ground-breaking AOE
-Rock Summon,ROCK,SUMMON,0,0,0,0,FALSE,0,8.0,Summons a rock golem
 Holy Nova,LIGHT,AOE,60,0,90,0,FALSE,0,10.0,Burst of holy energy
