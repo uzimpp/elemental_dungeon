@@ -178,6 +178,7 @@ class Game:
         self.player.handle_input(dt)
 
         # 3. Update deck
+        print(f"[Game] Updating deck with {len(self.enemies)} enemies. First enemy at: {self.enemies[0].x:.1f}, {self.enemies[0].y:.1f} if available")
         self.player.deck.update(dt, self.enemies)
     
         # 4. Resolve collisions
