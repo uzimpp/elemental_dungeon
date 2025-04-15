@@ -117,6 +117,10 @@ ATTACK_COOLDOWN = 1
 ENEMY_ANIMATION_CONFIG = ANIMATION_CONFIG
 ENEMY_SPRITE_PATH = "sprites/enemy_sheet.png"
 
+
+SHADOW_SUMMON_ANIMATION_CONFIG = ANIMATION_CONFIG
+SHADOW_SUMMON_SPRITE_PATH = "sprites/shadow_summon_sheet.png"
+
 # File names
 LOG_FILENAME = "data/log.csv"
 SKILLS_FILENAME = "data/skills.csv"

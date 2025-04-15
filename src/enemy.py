@@ -203,8 +203,7 @@ class Enemy(Entity):
             # Draw the sprite
             surf.blit(current_sprite, (int(draw_x), int(draw_y)))
         else:
-            # Fallback to triangle if no sprite available
-            self.draw_triangle(surf)
+            raise Exception("[Enemy] No animation")
         
         # HP bar
         bar_x = self.x - 25
