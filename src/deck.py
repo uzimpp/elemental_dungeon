@@ -11,8 +11,8 @@ from visual_effects import VisualEffect
 class Deck:
     """Centralized manager for player skills, projectiles, and summons"""
     def __init__(self, owner):
-        self.owner = owner  # Reference to the player
-        self.skills = []    # Available skills
+        self.owner = owner
+        self.skills = []
         self.active_projectiles = []
         self.active_summons = []
         self.summon_limit = 5
@@ -270,14 +270,14 @@ class Deck:
 
         else:
              print(f"[Deck] Warning: Skill type {skill.skill_type} activation not fully implemented.")
-
-
         return True # Skill was successfully used (even if effect not fully implemented)
     
     def update(self, dt, enemies):
         """Update all active entities managed by the deck"""
-        print(f"[Deck] Updating {len(self.active_projectiles)} projectiles and {len(self.active_summons)} summons with {len(enemies)} enemies")
-        
+        self._update_projectile(dt,enemies)
+        self._update_summons(dt, enemies)
+    
+    def _update_projectile(self, dt, enemies):
         # --- Update Projectiles ---
         for i in reversed(range(len(self.active_projectiles))):
             projectile = self.active_projectiles[i]
@@ -303,6 +303,7 @@ class Deck:
                     self.active_projectiles.pop(i) # Remove projectile immediately after hit
                     break # Move to next projectile
 
+    def _update_summons(self, dt, enemies):
         # --- Update Summons ---
         for i in reversed(range(len(self.active_summons))):
             summon = self.active_summons[i]
@@ -312,7 +313,6 @@ class Deck:
             if not result:
                 print(f"[Deck] Removing summon {i+1}")
                 self.active_summons.pop(i)
-
 
     def draw(self, surface):
         """Draw all active entities managed by the deck"""
@@ -328,8 +328,10 @@ class Deck:
             summon.draw(surface) # Use SummonEntity's draw
 
     # Keep getters for compatibility if needed by other parts (like Player properties)
+    @property
     def get_projectiles(self):
         return self.active_projectiles
-
+    
+    @property
     def get_summons(self):
         return self.active_summons
