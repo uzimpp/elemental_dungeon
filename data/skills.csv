@@ -4,7 +4,7 @@ Ice Spike,ICE,SLASH,25,0,120,0,FALSE,0,1.5,Moderate damage slash with mid cooldo
 Frost Nova,ICE,AOE,40,0,80,0,FALSE,0,3.0,Area freeze attack,FALSE
 Shadow Slash,SHADOW,SLASH,50,0,80,0,FALSE,0,2.5,Moderate damage slash with mid cooldown,FALSE
 Dark Heal,SHADOW,HEAL,0,0,0,0,FALSE,20,7,"Shadow healing that affects both the player and summons",TRUE
-Summon Wraith,SHADOW,SUMMON,0,0,60,0,FALSE,0,5,Summons a wraith (max 3),FALSE
+Summon Wraith,SHADOW,SUMMON,20,0,0,0,FALSE,0,5,Summons a wraith (max 3),FALSE
 Dark Nova,SHADOW,AOE,100,0,100,0,FALSE,0,30,High damage large AOE but long cooldown,FALSE
 Fire Bolt,FIRE,PROJECTILE,30,12,5,0,FALSE,0,1.0,Basic fire projectile,FALSE
 Fire Wave,FIRE,SLASH,40,0,90,0,FALSE,0,2.0,Wide fire slash attack,FALSE

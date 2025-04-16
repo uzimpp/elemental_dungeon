@@ -89,17 +89,7 @@ class Player(Entity):
             if self.attack_timer <= 0:
                 self.state = 'idle'
                 self.animation.set_state('idle', force_reset=True)           
-            # # For casting/sweeping, prevent animation disturb
-            # if self.state in ['cast', 'sweep'] and self.attack_timer <= 0:
-            #     self.state = 'idle'
-            #     self.animation.set_state('idle', force_reset=True)
-                
 
-            
-            # # For cast/sweep, don't allow any movement while animating
-            # elif self.state in ['cast', 'sweep']:
-            #     return  # Don't process movement during casting
-        
         # 3. Input and Movement
         keys = pygame.key.get_pressed()
         self.is_sprinting = (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]) and self.stamina > 0
@@ -114,16 +104,32 @@ class Player(Entity):
         if keys[pygame.K_s]: move_y += 1
         if keys[pygame.K_a]: move_x -= 1
         if keys[pygame.K_d]: move_x += 1
-        if move_x != 0 and move_y != 0: # Diagonal movement
-            move_x *= 0.7071 
+
+        # Normalize diagonal movement
+        if move_x != 0 and move_y != 0:
+            move_x *= 0.7071  # 1/sqrt(2)
             move_y *= 0.7071
+
         # Apply movement if moving
         is_moving = (move_x != 0 or move_y != 0)
         if is_moving:
             self.x += move_x * current_speed * dt
             self.y += move_y * current_speed * dt
 
-        # Stay within screen boundaries (using sprite size)
+            # Update facing direction based on movement
+            self.dx = move_x
+            self.dy = move_y
+        else:
+            # Point towards mouse when idle
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            idle_dx = mouse_x - self.x
+            idle_dy = mouse_y - self.y
+            dist = math.hypot(idle_dx, idle_dy)
+            if dist > 0:
+                self.dx = idle_dx / dist
+                self.dy = idle_dy / dist
+
+        # Stay within screen boundaries
         self.x = max(self.animation.sprite_width / 2, min(WIDTH - self.animation.sprite_width / 2, self.x))
         self.y = max(self.animation.sprite_height / 2, min(HEIGHT - self.animation.sprite_height / 2, self.y))
 
@@ -146,28 +152,14 @@ class Player(Entity):
                     self.stamina = self.max_stamina
                     self.stamina_depleted_time = None
 
-        # 5. Update facing direction
-        if is_moving:
-            self.dx = move_x / math.hypot(move_x, move_y)
-            self.dy = move_y / math.hypot(move_x, move_y)
-        else:
-            # Point towards mouse when idle
-            mouse_x, mouse_y = pygame.mouse.get_pos()
-            idle_dx = mouse_x - self.x
-            idle_dy = mouse_y - self.y
-            dist = math.hypot(idle_dx, idle_dy)
-            if dist > 0:
-                self.dx = idle_dx / dist
-                self.dy = idle_dy / dist
-
-        # 6. Determine and Set Animation State
+        # 5. Determine and Set Animation State
         if self.state not in ['cast', 'sweep', 'hurt', 'dying']: 
             target_state = 'idle' # Only update animation state if not in a special state
             if is_moving:
                 target_state = 'sprint' if self.is_sprinting else 'walk'
             self.animation.set_state(target_state)
 
-        # 7. Update Animation System
+        # 6. Update Animation System
         self.animation.update(dt, self.dx, self.dy)
 
     def handle_event(self, event, mouse_pos, enemies, now, effects):

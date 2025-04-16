@@ -11,7 +11,7 @@ from config import (
     WHITE, BLACK, RED, BLUE, PURPLE, GREEN,
     ELEMENT_COLORS, SHADOW_SUMMON_SPRITE_PATH, SHADOW_SUMMON_ANIMATION_CONFIG
 )
-
+from visual_effects import VisualEffect
 
 class SkillType(Enum):
     PROJECTILE = auto()
@@ -57,47 +57,88 @@ class ProjectileEntity(Entity):
         )
         self.damage = skill.damage
         self.element = skill.element
-        self.max_life_time = skill.duration
-        self.life_time = 0
+        self.explosion_radius = skill.radius  # Use skill radius for explosion
+        self.explosion_damage = skill.damage  # Use skill damage for explosion
 
         # Calculate velocity
         dx = target_x - start_x
         dy = target_y - start_y
         dist = math.hypot(dx, dy)
         if dist == 0: dist = 1
-        self.dx = (dx / dist) * self.speed
-        self.dy = (dy / dist) * self.speed
+        self.dx = dx / dist  # Normalized direction
+        self.dy = dy / dist  # Normalized direction
 
     def update(self, dt, enemies):
         """Update projectile position and check collisions"""
-        if not self.alive: return False
-
-        self.x += self.dx * dt
-        self.y += self.dy * dt
-        self.life_time += dt
-
-        # Check bounds and lifetime
-        if (self.x < 0 or self.x > WIDTH or
-            self.y < 0 or self.y > HEIGHT or
-            self.life_time >= self.max_life_time):
-            self.alive = False
+        if not self.alive:
             return False
 
-            # Check collision with enemies
+        # Move using normalized direction and speed
+        self.x += self.dx * self.speed * dt
+        self.y += self.dy * self.speed * dt
+
+        # Check screen bounds collision
+        if (self.x < 0 or self.x > WIDTH or 
+            self.y < 0 or self.y > HEIGHT):
+            self.explode(enemies)
+            return False
+
+        # Check collision with enemies
         for enemy in enemies:
-            if not enemy.alive: continue
-            dist = math.hypot(enemy.x - self.x, enemy.y - self.y)
-            if dist < (enemy.radius + self.radius):
+            if not enemy.alive:
+                continue
+            dx = enemy.x - self.x
+            dy = enemy.y - self.y
+            dist = math.hypot(dx, dy)
+            if dist <= (self.radius + enemy.radius):
+                # Apply direct damage to the hit enemy
                 enemy.take_damage(self.damage)
-                self.alive = False
+                self.explode(enemies)
                 return False
 
-        return self.alive
+        return True
+
+    def explode(self, enemies):
+        """Create explosion effect and damage nearby enemies"""
+        if hasattr(self, 'owner') and hasattr(self.owner, 'game') and self.owner.game and hasattr(self.owner.game, 'effects'):
+            # Create explosion visual effect
+            explosion = VisualEffect(
+                self.x, 
+                self.y, 
+                "explosion", 
+                self.color, 
+                self.explosion_radius,  # Use explosion radius
+                0.3   # Duration
+            )
+            self.owner.game.effects.append(explosion)
+
+        # Damage nearby enemies
+        hit_count = 0
+        for enemy in enemies:
+            if not enemy.alive:
+                continue
+            dx = enemy.x - self.x
+            dy = enemy.y - self.y
+            dist = math.hypot(dx, dy)
+            if dist <= self.explosion_radius:
+                hit_count += 1
+                enemy.take_damage(self.explosion_damage)
+
+        self.alive = False
 
     def draw(self, surface):
-        """Draw the projectile"""
+        """Draw the projectile with a glow effect"""
         if self.alive:
+            # Draw glow effect (larger, semi-transparent circle)
+            glow_surface = pygame.Surface((self.radius * 3, self.radius * 3), pygame.SRCALPHA)
+            glow_color = (*self.color, 100)  # Add alpha channel
+            pygame.draw.circle(glow_surface, glow_color, (self.radius * 1.5, self.radius * 1.5), self.radius * 1.5)
+            surface.blit(glow_surface, (int(self.x - self.radius * 1.5), int(self.y - self.radius * 1.5)))
+            
+            # Draw main projectile
             pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
+            # Draw outline
+            pygame.draw.circle(surface, (255, 255, 255), (int(self.x), int(self.y)), self.radius, 1)
 
 class Projectile(BaseSkill):
     """Projectile skill that creates ProjectileEntity instances"""
@@ -131,14 +172,15 @@ class SummonEntity(Entity):
             y=y,
             radius=12,
             max_health=50, # Example health
-            speed=skill.speed * 60, # Convert to pixels per second
+            speed=max(120, skill.speed * 60), # Ensure minimum speed of 120 pixels per second
             color=skill.color
         )
+        print(f"[SummonEntity] Created with speed={self.speed} (from skill.speed={skill.speed})")
         self.damage = skill.damage
+        print(f"[SummonEntity] Damage set to {self.damage}")
         self.element = skill.element
-        self.start_time = time.time()
-        self.max_life_time = float('inf')  # Infinite lifetime
-        self.attack_range = skill.radius # Use skill radius as attack range
+        self.attack_range = max(25, skill.radius) # Use skill radius as attack range, minimum 25 pixels
+        print(f"[SummonEntity] Attack range set to {self.attack_range}")
         self.attack_cooldown = 1.0 # Similar to Enemy's attack cooldown
         self.attack_timer = 0.0    # For tracking attack cooldown, like Enemy
         self.attack_animation_timer = 0.0 # For tracking animation duration
@@ -169,8 +211,10 @@ class SummonEntity(Entity):
             raise Exception(f"Failed to load summon animation: {e}")
 
     def update(self, dt, enemies):
-        """Update summon behavior: find target, move, attack (similar to Enemy.update)"""
+        """Update summon behavior: find target, move, attack"""
         print(f"[SummonEntity] update() called with dt={dt:.3f}, alive={self.alive}, health={self.health}, state={self.state}")
+        print(f"[SummonEntity] Checking interactions with {len(enemies)} enemies")
+        print(f"[SummonEntity] Current position: ({self.x:.1f}, {self.y:.1f}), attack timer: {self.attack_timer:.1f}")
         
         # If entity is dead, only update dying animation and do nothing else
         if not self.alive or self.health <= 0:
@@ -209,12 +253,6 @@ class SummonEntity(Entity):
             
             return True  # Don't move or attack during hurt/attack animations
         
-        # Print enemies list to debug
-        print(f"[SummonEntity] Checking for targets among {len(enemies)} enemies")
-        for i, enemy in enumerate(enemies):
-            if enemy.alive:
-                print(f"[SummonEntity] Enemy {i}: at ({enemy.x:.1f}, {enemy.y:.1f}), alive={enemy.alive}")
-        
         # Find closest enemy (target)
         target = None
         min_dist = float('inf')
@@ -224,23 +262,15 @@ class SummonEntity(Entity):
                 if dist < min_dist:
                     min_dist = dist
                     target = enemy
-        
-        # Print target info
-        if target:
-            print(f"[SummonEntity] Found target at ({target.x:.1f}, {target.y:.1f}), distance={min_dist:.1f}")
-        else:
-            print("[SummonEntity] No target found")
-        
-        # Update attack timer (like in Enemy class)
+
+        # Update attack timer
         if self.attack_timer > 0:
             self.attack_timer -= dt
-            print(f"[SummonEntity] Attack timer: {self.attack_timer:.1f}")
-        
-        # Try to attack if we can (similar to Enemy.update)
+            print(f"[SummonEntity] Attack cooldown: {self.attack_timer:.1f}s remaining")
+
+        # Try to attack if we can
         attack_distance = self.radius + self.attack_range
         if target and min_dist < attack_distance and self.attack_timer <= 0:
-            print(f"[SummonEntity] Attacking enemy at ({target.x:.1f}, {target.y:.1f}), distance={min_dist:.1f} < {attack_distance}")
-            
             # Set attack animation
             self.state = 'sweep'  # Use sweep as attack animation
             self.animation.set_state('sweep', force_reset=True)
@@ -251,12 +281,17 @@ class SummonEntity(Entity):
             self.attack_animation_timer = attack_duration
             
             # Perform the attack
-            print(f"[SummonEntity] Enemy health before attack: {target.health}")
+            target_health_before = target.health
             target.take_damage(self.damage)
-            print(f"[SummonEntity] Enemy health after attack: {target.health}, damage dealt: {self.damage}")
+
+            # Add visual effect for attack
+            if hasattr(target, 'game') and target.game and hasattr(target.game, 'effects'):
+                hit_effect = VisualEffect(target.x, target.y, "explosion", self.color, 15, 0.2)
+                target.game.effects.append(hit_effect)
+                print(f"[SummonEntity] Added hit visual effect")
+                
             self.attack_timer = self.attack_cooldown  # Reset attack timer
             self.last_attack_time = time.time()       # Update last attack time
-            print(f"[SummonEntity] Dealt {self.damage} damage to target, reset attack_timer to {self.attack_cooldown}")
             return True  # Don't move after deciding to attack
         
         # Move toward target if not attacking
@@ -268,23 +303,25 @@ class SummonEntity(Entity):
                 self.dx = dx / min_dist
                 self.dy = dy / min_dist
             
-            # Force minimum speed of 60 pixels per second
-            effective_speed = max(60, self.speed)
-            
             # Set walking animation if not already
             if self.state != 'walk':
                 self.state = 'walk'
                 self.animation.set_state('walk')
             
-            # Move toward target using the move method from Entity
+            # Force minimum movement speed (60 pixels per second)
+            effective_speed = max(60, self.speed)
+            
+            # Move toward target
+            move_dist = effective_speed * dt
             old_x, old_y = self.x, self.y
             
-            # Direct movement for debugging
-            move_dist = effective_speed * dt
+            # Apply movement
             self.x += self.dx * move_dist
             self.y += self.dy * move_dist
-            print(f"[SummonEntity] Moving from ({old_x:.1f},{old_y:.1f}) to ({self.x:.1f},{self.y:.1f})")
-            print(f"[SummonEntity] Movement: ({self.dx:.2f},{self.dy:.2f}) * {move_dist:.1f}")
+            
+            # Verify movement actually happened
+            actual_dist_moved = math.hypot(self.x - old_x, self.y - old_y)
+            print(f"[SummonEntity] Moving toward target: ({old_x:.1f}, {old_y:.1f}) -> ({self.x:.1f}, {self.y:.1f}), moved {actual_dist_moved:.1f} pixels")
             
             # Update animation with movement direction
             self.animation.update(dt, self.dx, self.dy)
@@ -296,11 +333,8 @@ class SummonEntity(Entity):
             self.animation.update(dt)
         
         # Keep within screen bounds
-        old_x, old_y = self.x, self.y
         self.x = max(self.radius, min(WIDTH - self.radius, self.x))
         self.y = max(self.radius, min(HEIGHT - self.radius, self.y))
-        if old_x != self.x or old_y != self.y:
-            print(f"[SummonEntity] Position clamped from ({old_x:.1f},{old_y:.1f}) to ({self.x:.1f},{self.y:.1f})")
         
         return True
 

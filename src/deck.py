@@ -16,7 +16,15 @@ class Deck:
         self.active_projectiles = []
         self.active_summons = []
         self.summon_limit = 5
-        
+
+    @property
+    def get_projectiles(self):
+        return self.active_projectiles
+    
+    @property
+    def get_summons(self):
+        return self.active_summons
+
     def load_from_csv(self, filename):
         """Load skills from CSV file into this deck"""
         try:
@@ -62,7 +70,6 @@ class Deck:
                             sprite_path=sprite_path,
                             animation_config=animation_config
                         )
-                        print(f"[Deck] Created Summon skill: {skill.name} with sprite: {sprite_path}")
                     elif skill_type == SkillType.HEAL:
                         # Parse the heal_summons parameter if it exists
                         heal_summons = True  # Default to True for backward compatibility
@@ -127,7 +134,6 @@ class Deck:
             return False
 
         skill = self.skills[index] # Get the skill *definition*
-
         if not skill.is_off_cooldown(now):
             print(f"[Deck] Skill '{skill.name}' is on cooldown.")
             return False
@@ -176,8 +182,11 @@ class Deck:
             spawn_x = self.owner.x + (dx / dist) * spawn_distance
             spawn_y = self.owner.y + (dy / dist) * spawn_distance
 
+
             # Create the actual projectile entity at the calculated position
             projectile_entity = ProjectileEntity(spawn_x, spawn_y, target_x, target_y, skill)
+            projectile_entity.owner = self.owner  # Set the owner reference
+            
             self.active_projectiles.append(projectile_entity)
             print(f"[Deck] Created ProjectileEntity instance at ({spawn_x}, {spawn_y}).")
             
@@ -274,38 +283,35 @@ class Deck:
     
     def update(self, dt, enemies):
         """Update all active entities managed by the deck"""
-        self._update_projectile(dt,enemies)
+        print(f"[Deck] update() called with {len(enemies)} enemies ({len([e for e in enemies if e.alive])} alive)")
+        self._update_projectiles(dt, enemies)
         self._update_summons(dt, enemies)
-    
-    def _update_projectile(self, dt, enemies):
-        # --- Update Projectiles ---
-        for i in reversed(range(len(self.active_projectiles))):
+
+    def _update_projectiles(self, dt, enemies):
+        """Update all active projectiles"""
+        print(f"[Deck] Updating {len(self.active_projectiles)} projectiles with {len(enemies)} enemies")
+        if len(enemies) > 0:
+            print(f"[Deck] First enemy at ({enemies[0].x:.1f}, {enemies[0].y:.1f}), alive={enemies[0].alive}, health={enemies[0].health}")
+        
+        # Process projectiles in reverse order for safe removal
+        for i in range(len(self.active_projectiles) - 1, -1, -1):
             projectile = self.active_projectiles[i]
-            if not projectile.update(dt, enemies): # Use ProjectileEntity's update
-                self.active_projectiles.pop(i)
+            # Only update if no collision occurred
+            if projectile.update(dt, enemies):
                 continue
-
-            # Check collisions
-            for enemy in enemies:
-                if not enemy.alive: continue
-                dist = math.hypot(enemy.x - projectile.x, enemy.y - projectile.y)
-                if dist < (enemy.radius + projectile.radius):
-                    print(f"[Deck] Projectile hit enemy at ({enemy.x:.0f}, {enemy.y:.0f})")
-                    enemy.take_damage(projectile.damage)
-                    projectile.alive = False # Mark projectile for removal
-
-                    # Create hit effect
-                    game_effects_list = getattr(getattr(self.owner, 'game', None), 'effects', None)
-                    if game_effects_list is not None:
-                        effect = VisualEffect(projectile.x, projectile.y, "explosion", projectile.color, 15, 0.2)
-                        game_effects_list.append(effect)
-
-                    self.active_projectiles.pop(i) # Remove projectile immediately after hit
-                    break # Move to next projectile
+            else:
+                # Projectile expired or hit screen edge
+                print(f"[Deck] Projectile {i} expired or hit something")
+                self.active_projectiles.pop(i)
 
     def _update_summons(self, dt, enemies):
-        # --- Update Summons ---
-        for i in reversed(range(len(self.active_summons))):
+        """Update all active summons"""
+        print(f"[Deck] Updating {len(self.active_summons)} summons with {len(enemies)} enemies")
+        if len(enemies) > 0:
+            print(f"[Deck] First enemy at ({enemies[0].x:.1f}, {enemies[0].y:.1f}), alive={enemies[0].alive}, health={enemies[0].health}")
+        
+        # Process summons in reverse order for safe removal
+        for i in range(len(self.active_summons) - 1, -1, -1):
             summon = self.active_summons[i]
             print(f"[Deck] Updating summon {i+1} at ({summon.x:.1f}, {summon.y:.1f}), state: {summon.state}")
             result = summon.update(dt, enemies)
@@ -316,22 +322,13 @@ class Deck:
 
     def draw(self, surface):
         """Draw all active entities managed by the deck"""
-        print(f"[Deck] Drawing {len(self.active_projectiles)} projectiles and {len(self.active_summons)} summons")
+        print(f"[CRITICAL] Drawing {len(self.active_projectiles)} projectiles")
         
         # Draw projectiles
-        for projectile in self.active_projectiles:
-            projectile.draw(surface) # Use ProjectileEntity's draw
+        for i, projectile in enumerate(self.active_projectiles):
+            print(f"[CRITICAL] Drawing projectile {i} at ({projectile.x:.1f}, {projectile.y:.1f}), alive={projectile.alive}")
+            projectile.draw(surface)
             
         # Draw summons
-        for i, summon in enumerate(self.active_summons):
-            print(f"[Deck] Drawing summon {i+1}/{len(self.active_summons)} at ({summon.x:.1f}, {summon.y:.1f})")
-            summon.draw(surface) # Use SummonEntity's draw
-
-    # Keep getters for compatibility if needed by other parts (like Player properties)
-    @property
-    def get_projectiles(self):
-        return self.active_projectiles
-    
-    @property
-    def get_summons(self):
-        return self.active_summons
+        for summon in self.active_summons:
+            summon.draw(surface)

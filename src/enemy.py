@@ -172,7 +172,9 @@ class Enemy(Entity):
             return
         
         if amount > 0:
+            print(f"[Enemy] Taking {amount} damage at ({self.x:.1f}, {self.y:.1f}), health: {self.health}/{self.max_health}")
             self.health -= amount
+            print(f"[Enemy] Health after damage: {self.health}/{self.max_health}")
             
             if self.health <= 0:
                 # Mark as dying but don't set alive=False yet (let animation finish)
@@ -182,6 +184,7 @@ class Enemy(Entity):
                 animations_length = len(self.animation.config['dying']['animations'])
                 death_duration = self.animation.config['dying']['duration'] * animations_length
                 self.attack_animation_timer = death_duration
+                print(f"[Enemy] KILLED! Starting death animation for {death_duration:.2f}s")
             else:
                 # Only show hurt animation if not already in a more important state
                 if self.state not in ['dying', 'sweep']:
@@ -190,6 +193,7 @@ class Enemy(Entity):
                     animations_length = len(self.animation.config['hurt']['animations'])
                     hurt_duration = self.animation.config['hurt']['duration'] * animations_length
                     self.attack_animation_timer = hurt_duration
+                    print(f"[Enemy] Showing hurt animation for {hurt_duration:.2f}s")
 
     def draw(self, surf):
         # Get the current sprite from the animation system
