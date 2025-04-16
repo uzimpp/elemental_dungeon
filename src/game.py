@@ -340,19 +340,20 @@ class Game:
         # for effect in self.effects:
         #     effect.draw(self.screen)
                 
-        # 2. Draw projectiles
-        for projectile in self.player.get_projectiles():
-            projectile.draw(self.screen)
         
-        # 3. Draw entities (enemies, player, summons)
+        # 2. Draw entities (enemies, player, summons)
         for enemy in self.enemies:
             enemy.draw(self.screen)
-        
+
+        # 3. Draw player's projectiles and summons
         for summon in self.player.get_summons():
             summon.draw(self.screen)
-            
-        self.player.draw(self.screen)
         
+        for projectile in self.player.get_projectiles():
+            projectile.draw(self.screen)
+
+        self.player.draw(self.screen)
+
         # 4. Draw overhead effects (top layer)
         for effect in self.effects:
             effect.draw(self.screen)

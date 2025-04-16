@@ -95,7 +95,7 @@ class Projectile(BaseSkill):
             # Check collision with enemies
             for e in enemies:
                 dist = math.hypot(e.x - self.x, e.y - self.y)
-                if dist < (e.radius + self.radius):
+                if dist < (e.radius + self.radius - 2):
                     e.health -= self.damage
                     self.active = False
                     break
@@ -105,6 +105,7 @@ class Projectile(BaseSkill):
             surf, self.color, (int(
                 self.x), int(
                 self.y)), self.radius)
+        pygame.draw.circle(surf, (255,0,0), (int(self.x), int(self.y)), self.radius, 1)
 
 
 class Summons(BaseSkill):
