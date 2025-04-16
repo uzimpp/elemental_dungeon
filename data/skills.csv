@@ -1,21 +1,20 @@
-name,element,skill_type,damage,speed,radius,duration,pull,heal_amount,cooldown,description
-Ice Bolt,ICE,PROJECTILE,20,10,5,0,FALSE,0,0.5,Low damage but spammable projectile
-Ice Spike,ICE,SLASH,25,0,120,0,FALSE,0,1.5,Moderate damage slash with mid cooldown
-Frost Nova,ICE,AOE,40,0,80,0,FALSE,0,3.0,Area freeze attack
-Shadow Slash,SHADOW,SLASH,50,0,80,0,FALSE,0,2.5,Moderate damage slash with mid cooldown
-Dark Heal,SHADOW,HEAL,0,0,0,0,FALSE,20,7,Heals 20 HP with moderate cooldown
-Summon Wraith,SHADOW,SUMMON,0,0,60,0,FALSE,0,5,Summons a wraith (max 3)
-Dark Nova,SHADOW,AOE,100,0,100,0,FALSE,0,30,High damage large AOE but long cooldown
-Fire Bolt,FIRE,PROJECTILE,30,12,5,0,FALSE,0,1.0,Basic fire projectile
-Fire Wave,FIRE,SLASH,40,0,90,0,FALSE,0,2.0,Wide fire slash attack
-Fire Nova,FIRE,AOE,60,0,70,0,FALSE,0,5.0,Explosive fire burst
-Lightning Bolt,THUNDER,PROJECTILE,25,15,5,0.2,FALSE,0,1.0,Fast lightning projectile
-Chain Lightning,THUNDER,CHAIN,20,0,150,0.5,FALSE,0,5.0,Jumps between multiple enemies
-Thunder Strike,THUNDER,AOE,70,0,80,0.3,FALSE,0,8.0,Area lightning strike
-Nature's Touch,WOOD,HEAL,0,0,0,0,FALSE,30,10.0,Strong healing ability
-Vine Whip,WOOD,SLASH,30,0,100,0,TRUE,0,3.0,Slash that pulls enemies closer
-Thorn Spray,WOOD,PROJECTILE,15,8,5,0,FALSE,0,1.0,Shoots multiple thorns
-Rock Throw,ROCK,PROJECTILE,40,8,10,0,FALSE,0,2.0,Heavy rock projectile
-Earth Shatter,ROCK,AOE,80,0,120,0,FALSE,0,15.0,Large ground-breaking AOE
-Rock Summon,ROCK,SUMMON,0,0,0,0,FALSE,0,8.0,Summons a rock golem
-Holy Nova,LIGHT,AOE,60,0,90,0,FALSE,0,10.0,Burst of holy energy
+name,element,skill_type,damage,speed,radius,duration,pull,heal_amount,cooldown,description,heal_summons
+Ice Bolt,ICE,PROJECTILE,20,10,5,0,FALSE,0,0.5,Low damage but spammable projectile,FALSE
+Ice Spike,ICE,SLASH,25,0,120,0,FALSE,0,1.5,Moderate damage slash with mid cooldown,FALSE
+Frost Nova,ICE,AOE,40,0,80,0,FALSE,0,3.0,Area freeze attack,FALSE
+Shadow Slash,SHADOW,SLASH,50,0,80,0,FALSE,0,2.5,Moderate damage slash with mid cooldown,FALSE
+Dark Heal,SHADOW,HEAL,0,0,0,0,FALSE,20,7,"Shadow healing that affects both the player and summons",TRUE
+Summon Wraith,SHADOW,SUMMON,0,0,60,0,FALSE,0,5,Summons a wraith (max 3),FALSE
+Dark Nova,SHADOW,AOE,100,0,100,0,FALSE,0,30,High damage large AOE but long cooldown,FALSE
+Fire Bolt,FIRE,PROJECTILE,30,12,5,0,FALSE,0,1.0,Basic fire projectile,FALSE
+Fire Wave,FIRE,SLASH,40,0,90,0,FALSE,0,2.0,Wide fire slash attack,FALSE
+Fire Nova,FIRE,AOE,60,0,70,0,FALSE,0,5.0,Explosive fire burst,FALSE
+Lightning Bolt,THUNDER,PROJECTILE,25,15,5,0.2,FALSE,0,1.0,Fast lightning projectile,FALSE
+Chain Lightning,THUNDER,CHAIN,20,0,150,0.5,FALSE,0,5.0,Jumps between multiple enemies,FALSE
+Thunder Strike,THUNDER,AOE,70,0,80,0.3,FALSE,0,8.0,Area lightning strike,FALSE
+Nature's Touch,WOOD,HEAL,0,0,0,0,FALSE,30,10.0,"Strong healing ability that only affects the player",FALSE
+Vine Whip,WOOD,SLASH,30,0,100,0,TRUE,0,3.0,Slash that pulls enemies closer,FALSE
+Thorn Spray,WOOD,PROJECTILE,15,8,5,0,FALSE,0,1.0,Shoots multiple thorns,FALSE
+Rock Throw,ROCK,PROJECTILE,40,8,10,0,FALSE,0,2.0,Heavy rock projectile,FALSE
+Earth Shatter,ROCK,AOE,80,0,120,0,FALSE,0,15.0,Large ground-breaking AOE,FALSE
+Holy Nova,LIGHT,AOE,60,0,90,0,FALSE,0,10.0,Burst of holy energy,FALSE

@@ -3,16 +3,22 @@
 
 <img width="100%" alt="Screenshot 2568-04-09 at 10 06 45" src="https://github.com/user-attachments/assets/ef749a41-918e-4b93-bdfd-3b6749ad4566" />
 
-## 🎮 What is Incantato??
+## 🎮 What is Incantato?
 
-Incantato is a 2D survival wave-based game combining strategic deck-building with elemental-themed skills. Players must:
-* Choose and combine different elemental skills to create winning strategies
-* Survive endless waves of increasingly challenging enemies
-* Master stamina management and strategic skill usage
-* Experiment with various skill combinations to reach higher waves
+**Incantato** is a fast-paced survival game where you'll:
 
-Your goal is to survive as many waves as possible, with each wave becoming progressively more difficult!
+* Build a deck of powerful elemental skills
+* Fight against waves of challenging enemies
+* Master strategic skill combinations
 
+### 🏆 Your Goal
+Survive as many waves as possible! Each wave becomes progressively more difficult with stronger and more numerous enemies.
+
+### 🔑 Key Features
+* **Deck Building**: Choose 4 unique skills to create your strategy
+* **Wave Survival**: Test your skills against endless enemy waves
+* **Resource Management**: Balance stamina usage and skill cooldowns
+* **Strategic Gameplay**: Experiment with different skill combinations
 
 ## 🕹️ Game Features & Controls
 
