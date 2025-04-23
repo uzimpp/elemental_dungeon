@@ -1,3 +1,6 @@
+# Game Name
+GAME_NAME = "Incantato"
+
 # Screen constants
 WIDTH = 1028
 HEIGHT = 720
