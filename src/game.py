@@ -104,15 +104,15 @@ class Game:
                 x,
                 y,
                 self.wave_number,
-                15,
+                ENEMY_RADIUS,
                 ENEMY_BASE_SPEED,
                 ENEMY_BASE_HP,
                 WAVE_MULTIPLIER,
                 RED,
                 ENEMY_DAMAGE,
-                ATTACK_COOLDOWN)
+                ATTACK_COOLDOWN,
+                ATTACK_RADIUS)
             self.enemies.append(e)
-
    
 
     def build_deck_interactively(self, skill_list):

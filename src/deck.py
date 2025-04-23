@@ -4,7 +4,8 @@ import time
 from skill import SkillType, ProjectileEntity, SummonEntity, Projectile, Summon, Heal, AOE, Slash, Chain
 from config import (
     SHADOW_SUMMON_SPRITE_PATH,
-    SHADOW_SUMMON_ANIMATION_CONFIG
+    SHADOW_SUMMON_ANIMATION_CONFIG,
+    ATTACK_RADIUS
 )
 from visual_effects import VisualEffect
 
@@ -68,7 +69,8 @@ class Deck:
                             cooldown=float(row["cooldown"]),
                             description=row["description"],
                             sprite_path=sprite_path,
-                            animation_config=animation_config
+                            animation_config=animation_config,
+                            attack_radius=ATTACK_RADIUS
                         )
                     elif skill_type == SkillType.HEAL:
                         # Parse the heal_summons parameter if it exists
@@ -184,7 +186,7 @@ class Deck:
 
 
             # Create the actual projectile entity at the calculated position
-            projectile_entity = ProjectileEntity(spawn_x, spawn_y, target_x, target_y, skill)
+            projectile_entity = skill.create(skill, spawn_x, spawn_y, target_x, target_y)
             projectile_entity.owner = self.owner  # Set the owner reference
             
             self.active_projectiles.append(projectile_entity)
@@ -213,7 +215,7 @@ class Deck:
             spawn_y = self.owner.y + (dy / dist) * spawn_distance
 
             # Create the actual summon entity at the calculated position
-            summon_entity = SummonEntity(spawn_x, spawn_y, skill)
+            summon_entity = skill.create(skill, spawn_x, spawn_y, ATTACK_RADIUS)
             self.active_summons.append(summon_entity)
             print(f"[Deck] Created SummonEntity instance at ({spawn_x}, {spawn_y}) with sprite: {skill.sprite_path}")
             
@@ -258,7 +260,6 @@ class Deck:
             
             # Apply damage to enemies in radius
             AOE.activate(skill, target_x, target_y, enemies)
-
         elif skill.skill_type == SkillType.SLASH:
             print(f"[Deck] Activated Slash skill '{skill.name}'.")
             # Slash creates a visual effect and applies damage in an arc
@@ -270,13 +271,11 @@ class Deck:
             
             # Apply damage to enemies in arc
             Slash.activate(skill, self.owner.x, self.owner.y, target_x, target_y, enemies)
-
         # --- Handle CHAIN etc. ---
         elif skill.skill_type == SkillType.CHAIN:
              print(f"[Deck] Activated Chain skill '{skill.name}' (Not fully implemented).")
              # Chain needs logic to find targets and create visual links/damage
              pass
-
         else:
              print(f"[Deck] Warning: Skill type {skill.skill_type} activation not fully implemented.")
         return True # Skill was successfully used (even if effect not fully implemented)

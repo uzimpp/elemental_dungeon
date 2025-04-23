@@ -1,5 +1,6 @@
 import pygame
 import math
+from config import RENDER_SIZE, SPRITE_SIZE
 
 class SpriteSheet:
     """Utility class to handle loading and extracting sprites from a sheet."""
@@ -66,7 +67,7 @@ class CharacterAnimation:
         # print("[DEBUG] Finished loading all frames.") # Keep for debugging
 
     def _load_all_frames_from_sheet(self):
-        """Loads the entire sprite sheet into a 2D list: all_frames[row][col]"""
+        """Loads and scales the entire sprite sheet."""
         # Determine sheet dimensions based on known rows and max columns needed
         num_rows = len(self.DIRECTION_ROWS)
         max_col = 0
@@ -83,6 +84,12 @@ class CharacterAnimation:
                  sprite = self.sprite_sheet.get_sprite(x, y,
                                                      self.sprite_width,
                                                      self.sprite_height)
+                 # Scale sprite to render size
+                 scale_factor = RENDER_SIZE / SPRITE_SIZE
+                 if scale_factor != 1:
+                     sprite = pygame.transform.scale(sprite, 
+                                                   (int(self.sprite_width * scale_factor), 
+                                                    int(self.sprite_height * scale_factor)))
                  row_frames.append(sprite)
              all_frames.append(row_frames)
         return all_frames

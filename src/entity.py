@@ -3,7 +3,7 @@ import math
 from config import WIDTH, HEIGHT
 
 class Entity:
-    def __init__(self, x, y, radius, max_health, speed, color):
+    def __init__(self, x, y, radius, max_health, speed, color, attack_radius=0):
         # Position and movement
         self.x = x
         self.y = y
@@ -23,6 +23,7 @@ class Entity:
         # Direction
         self.dx = 1
         self.dy = 0
+        self.attack_radius = attack_radius
 
     def move(self, dx, dy, dt):
         """Move the entity by the given delta x and y, scaled by dt (delta time)"""
@@ -56,6 +57,17 @@ class Entity:
             # Draw the entity circle
             pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), self.radius)
             
+            # Draw attack radius if debug is enabled and attack radius is set
+            if self.attack_radius > 0:
+                # Create a transparent surface for the attack radius indicator
+                radius_surf = pygame.Surface((self.attack_radius * 2, self.attack_radius * 2), pygame.SRCALPHA)
+                # Draw a semi-transparent circle for the attack radius
+                pygame.draw.circle(radius_surf, (*self.color, 40), (self.attack_radius, self.attack_radius), self.attack_radius)
+                # Draw circle outline
+                pygame.draw.circle(radius_surf, (*self.color, 100), (self.attack_radius, self.attack_radius), self.attack_radius, 2)
+                # Blit the radius surface to the screen
+                screen.blit(radius_surf, (int(self.x - self.attack_radius), int(self.y - self.attack_radius)))
+            
             # Draw health bar
             self.draw_health_bar(screen)
 
@@ -79,25 +91,3 @@ class Entity:
     def update(self, dt):
         """Update method to be overridden by child classes"""
         pass 
-
-    def draw_triangle(self, surf):
-        """Helper method to draw a directional triangle"""
-        # Calculate three points of the triangle
-        angle = math.atan2(self.dy, self.dx)
-        
-        # Front point (nose of triangle)
-        front_x = self.x + math.cos(angle) * self.radius
-        front_y = self.y + math.sin(angle) * self.radius
-        
-        # Back points (base of triangle)
-        back_angle1 = angle + math.pi * 2/3  # 120 degrees
-        back_angle2 = angle - math.pi * 2/3  # -120 degrees
-        
-        back_x1 = self.x + math.cos(back_angle1) * self.radius
-        back_y1 = self.y + math.sin(back_angle1) * self.radius
-        
-        back_x2 = self.x + math.cos(back_angle2) * self.radius
-        back_y2 = self.y + math.sin(back_angle2) * self.radius
-        
-        points = [(front_x, front_y), (back_x1, back_y1), (back_x2, back_y2)]
-        pygame.draw.polygon(surf, self.color, points) 

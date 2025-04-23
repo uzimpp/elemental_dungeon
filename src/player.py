@@ -6,7 +6,7 @@ import random
 from utils import angle_diff
 from deck import Deck
 from visual_effects import VisualEffect, DashAfterimage
-from config import (WIDTH, HEIGHT, PLAYER_SPRITE_PATH, PLAYER_ANIMATION_CONFIG, SHADOW_SUMMON_SPRITE_PATH, SHADOW_SUMMON_ANIMATION_CONFIG)
+from config import (WIDTH, HEIGHT, PLAYER_SPRITE_PATH, PLAYER_ANIMATION_CONFIG, SPRITE_SIZE, ATTACK_RADIUS)
 from entity import Entity
 from animation import CharacterAnimation
 
@@ -52,8 +52,8 @@ class Player(Entity):
         self.animation = CharacterAnimation(
             sprite_sheet_path=sprite_path,
             config=PLAYER_ANIMATION_CONFIG,
-            sprite_width=32,
-            sprite_height=32
+            sprite_width=SPRITE_SIZE,
+            sprite_height=SPRITE_SIZE
         )
         self.state = 'idle'  # Add player state tracking
         self.is_sprinting = False
@@ -262,15 +262,16 @@ class Player(Entity):
                     self.attack_timer = hurt_duration
 
     def draw(self, surf):
-        # Get the current sprite from the animation system
         current_sprite = self.animation.get_current_sprite()
-
-        # Calculate top-left position for blitting (center the sprite)
-        draw_x = self.x - self.animation.sprite_width / 2
-        draw_y = self.y - self.animation.sprite_height / 2
-
-        # Draw the sprite
         if current_sprite:
-             surf.blit(current_sprite, (int(draw_x), int(draw_y)))
+            # Scale the sprite
+            scale = 2  # Adjust scale factor as needed
+            scaled_sprite = pygame.transform.scale(current_sprite, 
+                                                  (self.animation.sprite_width * scale, 
+                                                   self.animation.sprite_height * scale))
+            # Calculate top-left position for blitting
+            draw_x = self.x - (self.animation.sprite_width * scale) / 2
+            draw_y = self.y - (self.animation.sprite_height * scale) / 2
+            surf.blit(scaled_sprite, (int(draw_x), int(draw_y)))
         # else: # Debugging print
         #      print("[DEBUG] !!! current_sprite is None in Player.draw !!!")

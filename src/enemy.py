@@ -4,7 +4,7 @@ import time
 from utils import draw_hp_bar
 from entity import Entity
 from animation import CharacterAnimation
-from config import (ENEMY_SPRITE_PATH, ENEMY_ANIMATION_CONFIG, WIDTH, HEIGHT)
+from config import (ENEMY_SPRITE_PATH, ENEMY_ANIMATION_CONFIG, SPRITE_SIZE, ATTACK_RADIUS)
 
 
 class Enemy(Entity):
@@ -19,21 +19,22 @@ class Enemy(Entity):
             wave_multiplier,
             color,
             damage,
-            attack_cooldown):
+            attack_cooldown,
+            attack_radius=ATTACK_RADIUS):
         # Call parent class constructor
-        super().__init__(x, y, radius, base_hp * (wave_number * wave_multiplier), base_speed, color)
+        super().__init__(x, y, radius, base_hp * (wave_number * wave_multiplier), base_speed, color, attack_radius)
         
         # Enemy specific attributes
         self.damage = damage
         self.attack_cooldown = attack_cooldown
         self.attack_timer = 0.0
-        
+        self.attack_radius = attack_radius
         # Animation setup
         self.animation = CharacterAnimation(
             sprite_sheet_path=ENEMY_SPRITE_PATH,
             config=ENEMY_ANIMATION_CONFIG,
-            sprite_width=32,
-            sprite_height=32
+            sprite_width=SPRITE_SIZE,
+            sprite_height=SPRITE_SIZE
         )
         self.state = 'idle'
         self.attack_animation_timer = 0.0
@@ -90,21 +91,30 @@ class Enemy(Entity):
         if self.attack_timer > 0:
             self.attack_timer -= dt
 
-        # Try to attack if we can
-        if closest_obj and closest_dist < (self.radius + closest_obj[3]) and self.attack_timer <= 0:
-            # Set attack animation
-            self.state = 'sweep'  # Use sweep as attack animation
-            self.animation.set_state('sweep', force_reset=True)
+        # Try to attack if we can - account for target's radius in the distance check
+        if closest_obj:
+            # Get target's radius to properly calculate attack distance
+            target_radius = closest_obj[3]  # Index 3 contains the radius in closest_obj tuple
             
-            # Calculate attack animation duration
-            animations_length = len(self.animation.config['sweep']['animations'])
-            attack_duration = self.animation.config['sweep']['duration'] * animations_length
-            self.attack_animation_timer = attack_duration
+            # Effective attack range is the distance between centers minus both radii
+            # If this is less than attack_radius, enemy can attack
+            effective_distance = closest_dist - self.radius - target_radius
             
-            # Perform the attack
-            self.attack(closest_type, closest_obj[4])  # Pass the actual object
-            self.attack_timer = self.attack_cooldown
-            return  # Don't move after deciding to attack
+            if effective_distance <= self.attack_radius and self.attack_timer <= 0:
+                # Set attack animation
+                self.state = 'sweep'  # Use sweep as attack animation
+                self.animation.set_state('sweep', force_reset=True)
+                
+                # Calculate attack animation duration
+                animations_length = len(self.animation.config['sweep']['animations'])
+                attack_duration = self.animation.config['sweep']['duration'] * animations_length
+                self.attack_animation_timer = attack_duration
+                
+                # Perform the attack
+                self.attack(closest_type, closest_obj[4])  # Pass the actual object
+                self.attack_timer = self.attack_cooldown
+                print(f"[Enemy] Attacking {closest_type} at distance {closest_dist:.1f} (effective: {effective_distance:.1f})")
+                return  # Don't move after deciding to attack
 
         # 2) Then move toward target if not attacking
         if closest_obj and closest_dist > 0:
@@ -203,9 +213,12 @@ class Enemy(Entity):
             # Calculate top-left position for blitting (center the sprite)
             draw_x = self.x - self.animation.sprite_width / 2
             draw_y = self.y - self.animation.sprite_height / 2
-
+            scale = 2  # Adjust scale factor as needed
+            scaled_sprite = pygame.transform.scale(current_sprite, 
+                                                  (self.animation.sprite_width * scale, 
+                                                   self.animation.sprite_height * scale))
             # Draw the sprite
-            surf.blit(current_sprite, (int(draw_x), int(draw_y)))
+            surf.blit(scaled_sprite, (int(draw_x), int(draw_y)))
         else:
             raise Exception("[Enemy] No animation")
         

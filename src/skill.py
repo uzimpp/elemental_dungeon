@@ -7,9 +7,9 @@ from utils import draw_hp_bar, angle_diff
 from animation import CharacterAnimation
 from entity import Entity  # Import the Entity base class
 from config import (
-    WIDTH, HEIGHT, FPS,
-    WHITE, BLACK, RED, BLUE, PURPLE, GREEN,
-    ELEMENT_COLORS, SHADOW_SUMMON_SPRITE_PATH, SHADOW_SUMMON_ANIMATION_CONFIG
+    WIDTH, HEIGHT,
+    WHITE, GREEN,
+    ELEMENT_COLORS, SHADOW_SUMMON_SPRITE_PATH, SHADOW_SUMMON_ANIMATION_CONFIG, SPRITE_SIZE
 )
 from visual_effects import VisualEffect
 
@@ -139,6 +139,17 @@ class ProjectileEntity(Entity):
             pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
             # Draw outline
             pygame.draw.circle(surface, (255, 255, 255), (int(self.x), int(self.y)), self.radius, 1)
+            
+            # Draw explosion radius if debug mode is enabled
+            if hasattr(self, 'explosion_radius') and self.explosion_radius > 0:
+                # Create a transparent surface for the explosion radius
+                radius_surf = pygame.Surface((self.explosion_radius * 2, self.explosion_radius * 2), pygame.SRCALPHA)
+                # Draw a semi-transparent circle
+                pygame.draw.circle(radius_surf, (*self.color, 30), (self.explosion_radius, self.explosion_radius), self.explosion_radius)
+                # Draw circle outline
+                pygame.draw.circle(radius_surf, (*self.color, 80), (self.explosion_radius, self.explosion_radius), self.explosion_radius, 2)
+                # Blit the radius surface
+                surface.blit(radius_surf, (int(self.x - self.explosion_radius), int(self.y - self.explosion_radius)))
 
 class Projectile(BaseSkill):
     """Projectile skill that creates ProjectileEntity instances"""
@@ -166,21 +177,20 @@ class Projectile(BaseSkill):
 
 class SummonEntity(Entity):
     """Entity class for summons that behaves like other game entities"""
-    def __init__(self, x, y, skill):
+    def __init__(self, x, y, skill, attack_radius):
         super().__init__(
             x=x,
             y=y,
             radius=12,
             max_health=50, # Example health
             speed=max(120, skill.speed * 60), # Ensure minimum speed of 120 pixels per second
-            color=skill.color
+            color=skill.color,
+            attack_radius=attack_radius
         )
         print(f"[SummonEntity] Created with speed={self.speed} (from skill.speed={skill.speed})")
         self.damage = skill.damage
         print(f"[SummonEntity] Damage set to {self.damage}")
         self.element = skill.element
-        self.attack_range = max(25, skill.radius) # Use skill radius as attack range, minimum 25 pixels
-        print(f"[SummonEntity] Attack range set to {self.attack_range}")
         self.attack_cooldown = 1.0 # Similar to Enemy's attack cooldown
         self.attack_timer = 0.0    # For tracking attack cooldown, like Enemy
         self.attack_animation_timer = 0.0 # For tracking animation duration
@@ -200,8 +210,8 @@ class SummonEntity(Entity):
             self.animation = CharacterAnimation(
                 sprite_sheet_path=sprite_path,
                 config=animation_config,
-                sprite_width=32,
-                sprite_height=32
+                sprite_width=SPRITE_SIZE,
+                sprite_height=SPRITE_SIZE
             )
             # Force the animation to idle state
             self.animation.set_state('idle', force_reset=True)
@@ -269,8 +279,7 @@ class SummonEntity(Entity):
             print(f"[SummonEntity] Attack cooldown: {self.attack_timer:.1f}s remaining")
 
         # Try to attack if we can
-        attack_distance = self.radius + self.attack_range
-        if target and min_dist < attack_distance and self.attack_timer <= 0:
+        if target and min_dist < self.attack_radius and self.attack_timer <= 0:
             # Set attack animation
             self.state = 'sweep'  # Use sweep as attack animation
             self.animation.set_state('sweep', force_reset=True)
@@ -281,7 +290,6 @@ class SummonEntity(Entity):
             self.attack_animation_timer = attack_duration
             
             # Perform the attack
-            target_health_before = target.health
             target.take_damage(self.damage)
 
             # Add visual effect for attack
@@ -376,13 +384,20 @@ class SummonEntity(Entity):
     def draw(self, surface):
         """Draw summon with sprite, includes HP bar (similar to Enemy.draw)"""
         # Get the current sprite from the animation system
+        if not self.alive:
+            return
         current_sprite = self.animation.get_current_sprite()
 
         if current_sprite:
             # Calculate top-left position for blitting (center the sprite)
             draw_x = self.x - self.animation.sprite_width / 2
             draw_y = self.y - self.animation.sprite_height / 2
-
+            
+            scale = 2  # Adjust scale factor as needed
+            scaled_sprite = pygame.transform.scale(current_sprite, 
+                                              (self.animation.sprite_width * scale, 
+                                               self.animation.sprite_height * scale))
+                                               
             # Draw the sprite
             surface.blit(current_sprite, (int(draw_x), int(draw_y)))
         else:
@@ -397,7 +412,7 @@ class SummonEntity(Entity):
 
 class Summon(BaseSkill):
     """Summon skill that creates SummonEntity instances"""
-    def __init__(self, name, element, damage, speed, radius, duration, cooldown, description, sprite_path, animation_config):
+    def __init__(self, name, element, damage, speed, radius, duration, cooldown, description, sprite_path, animation_config, attack_radius):
         super().__init__(name, element, SkillType.SUMMON, cooldown, description)
         self.damage = damage
         self.speed = speed
@@ -405,11 +420,12 @@ class Summon(BaseSkill):
         self.duration = duration
         self.sprite_path = sprite_path
         self.animation_config = animation_config
-    
+        self.attack_radius = attack_radius
+
     @staticmethod
-    def create(skill, x, y):
+    def create(skill, x, y, attack_radius):
         """Create a SummonEntity instance"""
-        return SummonEntity(x, y, skill)
+        return SummonEntity(x, y, skill, attack_radius)
     
     @staticmethod
     def update(summon, dt, enemies):
