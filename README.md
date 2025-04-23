@@ -134,3 +134,6 @@ verion 0.5
 ## 👤 Creator
 
 - Worakrit Kullanatpokin
+
+## 🤝 Credits
+Special thanks to [Shade](https://merchant-shade.itch.io/16x16-puny-characters) for sprite sheets in the game :D
