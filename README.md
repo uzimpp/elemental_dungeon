@@ -112,7 +112,8 @@ When the game launches:
 
 - `main.py`: Main entry point for the game
 - `game/`: Game engine, player, enemies, and skill classes
-- `assets/`: Game assets (sprites, effects, sounds)
+- `sprites/` : Sprite sheets
+- `assets/`: Game assets (sfx, bgm)
 - `data/`: Data storage for game statistics (CSV files)
 
 ## 🛠 Game Version
@@ -134,3 +135,6 @@ verion 0.5
 ## 👤 Creator
 
 - Worakrit Kullanatpokin
+
+## 🤝 Credits
+Special thanks to [Shade](https://merchant-shade.itch.io/16x16-puny-characters) for sprite sheets in the game :D
