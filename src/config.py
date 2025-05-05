@@ -140,3 +140,5 @@ SHADOW_SUMMON_SPRITE_PATH = "assets/sprites/shadow_summon_sheet.png"
 # File names
 LOG_FILENAME = "data/log.csv"
 SKILLS_FILENAME = "data/skills.csv"
+MENU_BGM_PATH = "assets/music/8 Bit Menu by David Renda.mp3"
+GAME_BGM_PATH = "assets/music/Retro Forest 8-Bit Music.mp3"
