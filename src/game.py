@@ -27,9 +27,8 @@ class Game:
         self.skills_filename = SKILLS_FILENAME
         self.player_name = "Unknown"  # Default name
         
-        # Initialize audio manager
+        # Get the AudioManager singleton instance
         self.audio_manager = AudioManager()
-        self.audio_manager.load_music()
         
         # Initialize state machine
         self.current_state = None
@@ -44,7 +43,7 @@ class Game:
         
         # Start with menu state and play menu music
         self.change_state("MENU")
-        self.audio_manager.play_music("menu")
+        self.audio_manager.play_music("MENU")
     
     def initialize_player(self):
         """Initialize just the player without deck (first phase)"""
@@ -89,7 +88,7 @@ class Game:
         """Complete game initialization after deck is built (second phase)"""
         # Switch to game music when starting gameplay
         self.audio_manager.fade_out(500)  # Fade out the menu music
-        self.audio_manager.play_music("game")  # Start game music
+        self.audio_manager.play_music("PLAYING")  # Start game music
         
         # Spawn first wave of enemies
         self.wave_number = 1
@@ -116,11 +115,11 @@ class Game:
             # From any state to menu
             if new_state == "MENU":
                 self.audio_manager.fade_out(500)
-                self.audio_manager.play_music("menu")
+                self.audio_manager.play_music("MENU")
             # From menu/pause to playing
             elif new_state == "PLAYING" and old_state in ["MenuState", "PausedState"]:
                 self.audio_manager.fade_out(500)
-                self.audio_manager.play_music("game")
+                self.audio_manager.play_music("PLAYING")
             # No music changes needed for other state transitions
 
     def log_csv(self, wave):

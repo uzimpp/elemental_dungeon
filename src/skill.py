@@ -393,17 +393,16 @@ class SummonEntity(Entity):
             # Calculate top-left position for blitting (center the sprite)
             draw_x = self.x - self.animation.sprite_width / 2
             draw_y = self.y - self.animation.sprite_height / 2
-            
+
             scale = 2  # Adjust scale factor as needed
             scaled_sprite = pygame.transform.scale(current_sprite, 
                                               (self.animation.sprite_width * scale, 
                                                self.animation.sprite_height * scale))
-                                               
             # Draw the sprite
             surface.blit(current_sprite, (int(draw_x), int(draw_y)))
         else:
             raise Exception(f"[SummonEntity] No current sprite for state: {self.state}")
-        
+
         # HP bar (only if not dying)
         if self.state != 'dying':
             bar_x = self.x - 25

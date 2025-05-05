@@ -467,7 +467,7 @@ class PausedState(GameState):
         self.menu_font = pygame.font.SysFont("Arial", 32)
         self.options = ["Resume", "Music: On", "Return to Menu", "Quit"]
         self.selected = 0
-        
+
     def enter(self):
         self.selected = 0
         # Update the Music option text based on current state
