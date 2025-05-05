@@ -10,6 +10,7 @@ from enemy import Enemy
 from visual_effects import VisualEffect
 from utils import resolve_overlap, draw_hp_bar, angle_diff
 from game_state import MenuState, PlayerNameState, DeckSelectionState, PlayingState, PausedState, GameOverState
+from audio_manager import AudioManager
 from config import *
 
 
@@ -26,6 +27,10 @@ class Game:
         self.skills_filename = SKILLS_FILENAME
         self.player_name = "Unknown"  # Default name
         
+        # Initialize audio manager
+        self.audio_manager = AudioManager()
+        self.audio_manager.load_music()
+        
         # Initialize state machine
         self.current_state = None
         self.states = {
@@ -37,8 +42,9 @@ class Game:
             "GAME_OVER": GameOverState(self)
         }
         
-        # Start with menu state
+        # Start with menu state and play menu music
         self.change_state("MENU")
+        self.audio_manager.play_music("menu")
     
     def initialize_player(self):
         """Initialize just the player without deck (first phase)"""
@@ -81,21 +87,41 @@ class Game:
     
     def finish_initialization(self):
         """Complete game initialization after deck is built (second phase)"""
+        # Switch to game music when starting gameplay
+        self.audio_manager.fade_out(500)  # Fade out the menu music
+        self.audio_manager.play_music("game")  # Start game music
+        
         # Spawn first wave of enemies
         self.wave_number = 1
         self.spawn_wave()
 
     def change_state(self, new_state):
         """Change the current game state"""
+        old_state = None
         if self.current_state:
+            old_state = self.current_state.__class__.__name__
             self.current_state.exit()
             
         if new_state == "QUIT":
+            # Stop music before quitting
+            self.audio_manager.fade_out(500)
             self.running = False
             return
             
         self.current_state = self.states[new_state]
         self.current_state.enter()
+        
+        # Handle music transitions based on state changes
+        if old_state != self.current_state.__class__.__name__:
+            # From any state to menu
+            if new_state == "MENU":
+                self.audio_manager.fade_out(500)
+                self.audio_manager.play_music("menu")
+            # From menu/pause to playing
+            elif new_state == "PLAYING" and old_state in ["MenuState", "PausedState"]:
+                self.audio_manager.fade_out(500)
+                self.audio_manager.play_music("game")
+            # No music changes needed for other state transitions
 
     def log_csv(self, wave):
         now_str = time.strftime("%Y-%m-%d %H:%M:%S")

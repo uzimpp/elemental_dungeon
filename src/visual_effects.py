@@ -38,8 +38,9 @@ class VisualEffect:
         if effect_type == "slash":
             self.slash_width = 4  # Wider line for slash
             self.particles = []  # Particles for slash trail
-            self.start_angle = start_angle + math.pi / 6
+            self.start_angle = start_angle
             self.sweep_angle = sweep_angle
+            print(f"[VisualEffect] Created slash effect with start_angle={math.degrees(start_angle):.1f}°, sweep_angle={math.degrees(sweep_angle):.1f}°")
         
         # Line specific variables (for chain lightning)
         if effect_type == "line":
@@ -83,8 +84,19 @@ class VisualEffect:
             self.y -= dt * 50
 
         elif self.effect_type == "slash":
-            # Enhanced slash animation
-            self.angle = self.sweep_angle * progress  # Wider sweep
+            # Enhanced slash animation - clockwise sweep
+            # Set sweep progress based on animation progress
+            self.angle = self.sweep_angle * progress
+            
+            # For debugging, log angle at beginning and midpoint
+            if progress < 0.05:  # Beginning of animation
+                start_angle_deg = math.degrees(self.start_angle)
+                current_angle_deg = math.degrees(self.start_angle + self.angle)
+                end_angle_deg = math.degrees(self.start_angle + self.sweep_angle)
+                print(f"[VisualEffect] Slash animation beginning - Start: {start_angle_deg:.1f}°, Current: {current_angle_deg:.1f}°, End: {end_angle_deg:.1f}°")
+            elif 0.45 < progress < 0.55:  # Midpoint of animation
+                current_angle_deg = math.degrees(self.start_angle + self.angle)
+                print(f"[VisualEffect] Slash animation midpoint - Current angle: {current_angle_deg:.1f}°")
 
             # Add particles along the arc
             if progress < 0.5:  # Only add particles in first half of animation

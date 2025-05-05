@@ -431,6 +431,25 @@ class PlayingState(GameState):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     return "PAUSED"
+                
+                # Volume controls
+                elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
+                    # Decrease volume
+                    current_vol = self.game.audio_manager.music_volume
+                    self.game.audio_manager.set_music_volume(current_vol - 0.1)
+                    print(f"Music volume: {self.game.audio_manager.music_volume:.1f}")
+                
+                elif event.key == pygame.K_EQUALS or event.key == pygame.K_KP_PLUS:
+                    # Increase volume
+                    current_vol = self.game.audio_manager.music_volume
+                    self.game.audio_manager.set_music_volume(current_vol + 0.1)
+                    print(f"Music volume: {self.game.audio_manager.music_volume:.1f}")
+                
+                elif event.key == pygame.K_m:
+                    # Toggle music
+                    music_enabled = self.game.audio_manager.toggle_music()
+                    state = "on" if music_enabled else "off"
+                    print(f"Music: {state}")
                     
             # Process other gameplay events
             mouse_pos = pygame.mouse.get_pos()
@@ -446,11 +465,14 @@ class PausedState(GameState):
     def __init__(self, game):
         super().__init__(game)
         self.menu_font = pygame.font.SysFont("Arial", 32)
-        self.options = ["Resume", "Return to Menu", "Quit"]
+        self.options = ["Resume", "Music: On", "Return to Menu", "Quit"]
         self.selected = 0
         
     def enter(self):
         self.selected = 0
+        # Update the Music option text based on current state
+        music_state = "On" if self.game.audio_manager.music_enabled else "Off"
+        self.options[1] = f"Music: {music_state}"
         
     def update(self, dt):
         # No updates while paused
@@ -507,9 +529,14 @@ class PausedState(GameState):
                 elif event.key == pygame.K_RETURN:
                     if self.selected == 0:  # Resume
                         return "PLAYING"
-                    elif self.selected == 1:  # Return to Menu
+                    elif self.selected == 1:  # Toggle Music
+                        # Toggle music on/off
+                        music_enabled = self.game.audio_manager.toggle_music()
+                        music_state = "On" if music_enabled else "Off"
+                        self.options[1] = f"Music: {music_state}"
+                    elif self.selected == 2:  # Return to Menu
                         return "MENU"
-                    elif self.selected == 2:  # Quit
+                    elif self.selected == 3:  # Quit
                         return "QUIT"
         return None
 

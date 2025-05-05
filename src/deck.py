@@ -289,16 +289,41 @@ class Deck:
             print(f"[Deck] Activated Slash skill '{skill.name}'.")
             # Slash creates a visual effect and applies damage in an arc
             if game_effects_list is not None:
-                angle = math.atan2(target_y - self.owner.y,
-                                   target_x - self.owner.x)
+                # Calculate angle from player to target
+                angle = math.atan2(target_y - self.owner.y, target_x - self.owner.x)
+                
+                # Debug angle information
+                angle_degrees = math.degrees(angle)
+                print(f"[Deck] Slash target angle: {angle_degrees:.1f} degrees ({angle:.2f} radians)")
+                
+                # Define sweep parameters
+                arc_width = math.pi / 3  # 60 degree sweep
+                # This is a CLOCKWISE sweep - starting to the left of target angle 
+                # and ending to the right of target angle
+                start_angle = angle - (arc_width / 2)  # Start 30 degrees to the "left" of target
+                sweep_angle = arc_width  # Sweep 60 degrees clockwise
+                
+                # For debugging, calculate end angle
+                end_angle = start_angle + sweep_angle
+                print(f"[Deck] Slash arc: {math.degrees(start_angle):.1f}° to {math.degrees(end_angle):.1f}° (clockwise sweep)")
+                
+                # Create visual effect with the correct start angle and sweep direction
                 effect = VisualEffect(
-                    self.owner.x, self.owner.y, "slash", skill.color, skill.radius, 0.3, start_angle=angle)
+                    self.owner.x, 
+                    self.owner.y, 
+                    "slash", 
+                    skill.color, 
+                    skill.radius, 
+                    0.3, 
+                    start_angle=start_angle,
+                    sweep_angle=sweep_angle
+                )
                 game_effects_list.append(effect)
-                print("[Deck] Added Slash visual effect.")
 
-            # Apply damage to enemies in arc
+            # Apply damage to enemies in arc - hit detection must match the visual
+            # The start and sweep angles need to be passed to ensure consistency
             Slash.activate(skill, self.owner.x, self.owner.y,
-                           target_x, target_y, enemies)
+                           target_x, target_y, enemies, start_angle, sweep_angle)
         elif skill.skill_type == SkillType.CHAIN:
             print(f"[Deck] Activated Chain skill '{skill.name}'")
             

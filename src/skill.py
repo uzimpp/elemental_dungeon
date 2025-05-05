@@ -491,24 +491,64 @@ class Slash(BaseSkill):
         self.duration = duration
 
     @staticmethod
-    def activate(skill, player_x, player_y, target_x, target_y, enemies):
+    def activate(skill, player_x, player_y, target_x, target_y, enemies, start_angle=None, sweep_angle=None):
         """Apply damage to enemies in an arc"""
-        # Calculate angle of slash
-        angle = math.atan2(target_y - player_y, target_x - player_x)
-        arc_width = math.pi / 3  # 60 degree arc
+        # Calculate target angle (used for debugging or if start/sweep not provided)
+        target_angle = math.atan2(target_y - player_y, target_x - player_x)
         
+        # If no start/sweep angles provided, calculate default 60-degree arc
+        if start_angle is None or sweep_angle is None:
+            arc_width = math.pi / 3  # 60 degree arc
+            start_angle = target_angle - arc_width/2
+            sweep_angle = arc_width
+            print("[Slash] Using calculated default slash arc (no angles provided)")
+        
+        # Calculate end angle for hit detection
+        end_angle = start_angle + sweep_angle
+        
+        # Debug angle information 
+        print(f"[Slash] Target angle: {math.degrees(target_angle):.1f}°")
+        print(f"[Slash] Hit detection arc: {math.degrees(start_angle):.1f}° to {math.degrees(end_angle):.1f}° (clockwise sweep)")
+        
+        hit_count = 0
         for enemy in enemies:
-            if not enemy.alive: continue
+            if not enemy.alive: 
+                continue
+                
             # Calculate distance and angle to enemy
             dx = enemy.x - player_x
             dy = enemy.y - player_y
             dist = math.hypot(dx, dy)
+            
             if dist <= skill.radius:
+                # Calculate enemy angle
                 enemy_angle = math.atan2(dy, dx)
-                diff = abs(angle_diff(angle, enemy_angle))
-                if diff <= arc_width:
+                enemy_angle_deg = math.degrees(enemy_angle)
+                
+                # Normalize all angles to 0-360 degree range for comparison
+                start_deg = (math.degrees(start_angle) + 360) % 360
+                end_deg = (math.degrees(end_angle) + 360) % 360
+                enemy_deg = (enemy_angle_deg + 360) % 360
+                
+                # Check if enemy is within the arc
+                is_in_arc = False
+                if start_deg <= end_deg:
+                    # Simple case: start to end
+                    is_in_arc = start_deg <= enemy_deg <= end_deg
+                else:
+                    # Arc crosses 0/360 boundary
+                    is_in_arc = enemy_deg >= start_deg or enemy_deg <= end_deg
+                
+                # Debug individual enemy angle checks on hit/miss
+                print(f"[Slash] Enemy at ({enemy.x:.0f},{enemy.y:.0f}): angle={enemy_deg:.1f}°, in_arc={is_in_arc}")
+                
+                if is_in_arc:
                     enemy.take_damage(skill.damage)
-                    print(f"[Slash] Hit enemy at ({enemy.x:.0f}, {enemy.y:.0f}) for {skill.damage} damage")
+                    hit_count += 1
+                    print(f"[Slash] HIT enemy for {skill.damage} damage")
+        
+        print(f"[Slash] Total enemies hit: {hit_count}/{len([e for e in enemies if e.alive])}")
+        return hit_count > 0
 
 class Chain(BaseSkill):
     """Chain attack skill implementation"""
