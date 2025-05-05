@@ -122,7 +122,7 @@ PLAYER_RADIUS = RENDER_SIZE / 3
 PLAYER_MAX_HEALTH = 100
 PLAYER_SUMMON_LIMIT = 5
 PLAYER_COLOR = BLUE  # Assuming BLUE is defined elsewhere
-PLAYER_SPRITE_PATH = "sprites/player_sheet.png"
+PLAYER_SPRITE_PATH = "assets/sprites/player_sheet.png"
 PLAYER_ANIMATION_CONFIG = ANIMATION_CONFIG
 
 # Enemy configuration
@@ -131,11 +131,11 @@ ENEMY_BASE_SPEED = 105  # 1.75 * 60
 ENEMY_DAMAGE = 5
 ENEMY_RADIUS = RENDER_SIZE / 3
 ENEMY_ANIMATION_CONFIG = ANIMATION_CONFIG
-ENEMY_SPRITE_PATH = "sprites/enemy_sheet.png"
+ENEMY_SPRITE_PATH = "assets/sprites/enemy_sheet.png"
 
 
 SHADOW_SUMMON_ANIMATION_CONFIG = ANIMATION_CONFIG
-SHADOW_SUMMON_SPRITE_PATH = "sprites/shadow_summon_sheet.png"
+SHADOW_SUMMON_SPRITE_PATH = "assets/sprites/shadow_summon_sheet.png"
 
 # File names
 LOG_FILENAME = "data/log.csv"
