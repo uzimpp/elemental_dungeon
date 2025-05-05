@@ -41,7 +41,7 @@ class Game:
             PLAYER_DASH_COST,
             PLAYER_DASH_DISTANCE,
             PLAYER_STAMINA_COOLDOWN)
-        
+
         # Set game reference
         self.player.game = self
 
@@ -51,7 +51,7 @@ class Game:
         chosen_skills = self.build_deck_interactively(all_skills)
         deck.skills = chosen_skills  # Set chosen skills
         deck.summon_limit = PLAYER_SUMMON_LIMIT
-        
+
         # Set deck on player
         self.player.deck = deck
 
@@ -113,7 +113,6 @@ class Game:
                 ATTACK_COOLDOWN,
                 ATTACK_RADIUS)
             self.enemies.append(e)
-   
 
     def build_deck_interactively(self, skill_list):
         print("=== BUILD YOUR DECK (Pick 4) ===")
@@ -178,12 +177,13 @@ class Game:
         self.player.handle_input(dt)
 
         # 3. Update deck
-        print(f"[Game] Updating deck with {len(self.enemies)} enemies. First enemy at: {self.enemies[0].x:.1f}, {self.enemies[0].y:.1f} if available")
+        print(
+            f"[Game] Updating deck with {len(self.enemies)} enemies. First enemy at: {self.enemies[0].x:.1f}, {self.enemies[0].y:.1f} if available")
         self.player.deck.update(dt, self.enemies)
-    
+
         # 4. Resolve collisions
-        entities = [entity for entity in ([self.player] + 
-                                          self.player.summons + 
+        entities = [entity for entity in ([self.player] +
+                                          self.player.summons +
                                           self.enemies) if entity.alive]
         for i in range(len(entities)):
             for j in range(i + 1, len(entities)):
@@ -230,13 +230,16 @@ class Game:
                          (player_bar_x, player_bar_y, fill_width, bar_height))
         hp_text_str = f"{int(self.player.health)}/{self.player.max_health}"
         hp_text = ui_font.render(hp_text_str, True, UI_COLORS['hp_text'])
-        self.screen.blit(hp_text, (player_bar_x + bar_width + 10, player_bar_y - 2))
+        self.screen.blit(
+            hp_text, (player_bar_x + bar_width + 10, player_bar_y - 2))
 
         # Stamina Bar
-        pygame.draw.rect(self.screen, UI_COLORS['stamina_bar_bg'], (10, 80, 200, 20))
+        pygame.draw.rect(
+            self.screen, UI_COLORS['stamina_bar_bg'], (10, 80, 200, 20))
         st_frac = self.player.stamina / self.player.max_stamina
         st_fill = int(200 * max(st_frac, 0))
-        pygame.draw.rect(self.screen, UI_COLORS['stamina_bar_fill'], (10, 80, st_fill, 20))
+        pygame.draw.rect(
+            self.screen, UI_COLORS['stamina_bar_fill'], (10, 80, st_fill, 20))
         st_text_str = f"{int(self.player.stamina)}/{self.player.max_stamina}"
         st_text = ui_font.render(st_text_str, True, UI_COLORS['stamina_text'])
         self.screen.blit(st_text, (220, 78))
@@ -253,13 +256,17 @@ class Game:
             pygame.draw.rect(self.screen, UI_COLORS['skill_box_bg'],
                              (box_x, box_y, box_width, box_height))
             name_text = skill_font.render(skill.name, True, WHITE)
-            name_rect = name_text.get_rect(centerx=box_x + box_width // 2, top=box_y + 5)
+            name_rect = name_text.get_rect(
+                centerx=box_x + box_width // 2, top=box_y + 5)
             self.screen.blit(name_text, name_rect)
-            self.draw_skill_cooldown(skill, box_x, box_y, box_width, box_height, now, skill_font)
+            self.draw_skill_cooldown(
+                skill, box_x, box_y, box_width, box_height, now, skill_font)
             key_text = skill_font.render(f"[{i + 1}]", True, WHITE)
-            key_rect = key_text.get_rect(bottom=box_y + box_height - 5, centerx=box_x + box_width // 2)
+            key_rect = key_text.get_rect(
+                bottom=box_y + box_height - 5, centerx=box_x + box_width // 2)
             self.screen.blit(key_text, key_rect)
-            pygame.draw.rect(self.screen, skill.color, (box_x, box_y, 5, box_height))
+            pygame.draw.rect(self.screen, skill.color,
+                             (box_x, box_y, 5, box_height))
 
     def draw_skill_cooldown(self, skill, box_x, box_y, box_width, box_height, now, skill_font):
         if not skill.is_off_cooldown(now):
@@ -268,22 +275,23 @@ class Game:
             pygame.draw.rect(self.screen, UI_COLORS['cooldown_overlay'],
                              (box_x, box_y + box_height - cd_height, box_width, cd_height))
             cd_text = skill_font.render(f"{cd_remaining:.1f}s", True, WHITE)
-            cd_rect = cd_text.get_rect(center=(box_x + box_width // 2, box_y + box_height // 2))
+            cd_rect = cd_text.get_rect(
+                center=(box_x + box_width // 2, box_y + box_height // 2))
             self.screen.blit(cd_text, cd_rect)
 
     def draw_game_elements(self):
         # Draw all game objects in proper layers
-        
+
         # 1. Draw entities (enemies, player)
         for enemy in self.enemies:
             enemy.draw(self.screen)
-        
+
         # 2. Draw player
         self.player.draw(self.screen)
-        
+
         # 3. Draw projectiles and summons via deck
         self.player.deck.draw(self.screen)
-        
+
         # 4. Draw overhead effects (top layer)
         for effect in self.effects:
             effect.draw(self.screen)

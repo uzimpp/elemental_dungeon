@@ -89,15 +89,24 @@ ATTACK_RADIUS = 32
 # Remember: Columns are 0-indexed!
 ANIMATION_CONFIG = {
     # State: {animations, frames, duration_per_frame, loop?, directional?, fixed_row?}
-    'idle':   {'animations': [0,1], 'duration': 0.2, 'loop': True, 'directional': True}, # Col 1,2
-    'walk':   {'animations': [2,1,3],'duration': 0.15, 'loop': True, 'directional': True}, # Cols 3, 4
-    'sprint': {'animations': [2,1,3], 'duration': 0.1, 'loop': True, 'directional': True}, # Cols 3,4
-    'sweep': {'animations': [4,5,6,7], 'duration': 0.1, 'loop': False, 'directional': True}, # Cols 5-8
-    'shoot_arrow': {'animations': [8,9,10,11], 'duration': 0.1, 'loop': False, 'directional': True}, # Future: Cols 9-12
-    'cast':   {'animations': [12,13,14], 'duration': 0.1, 'loop': False, 'directional': True},# Cols 13, 14, 15
-    'throw': {'animations': [15,16,17], 'duration': 0.1, 'loop': False, 'directional': True}, # Cols 16, 17, 18
-    'hurt': {'animations': [18,19,20], 'duration': 0.1, 'loop': False, 'directional': True}, # Future?: Col 20 - Likely needs special handling
-    'dying':  {'animations': [21,22,23], 'duration': 0.2, 'loop': False, 'directional': True}, # Cols 21-24. Assume fixed row (e.g., UP Row 4) for dying? Or use last direction? Let's try fixed row.
+    # Col 1,2
+    'idle':   {'animations': [0, 1], 'duration': 0.2, 'loop': True, 'directional': True},
+    # Cols 3, 4
+    'walk':   {'animations': [2, 1, 3], 'duration': 0.15, 'loop': True, 'directional': True},
+    # Cols 3,4
+    'sprint': {'animations': [2, 1, 3], 'duration': 0.1, 'loop': True, 'directional': True},
+    # Cols 5-8
+    'sweep': {'animations': [4, 5, 6, 7], 'duration': 0.1, 'loop': False, 'directional': True},
+    # Future: Cols 9-12
+    'shoot_arrow': {'animations': [8, 9, 10, 11], 'duration': 0.1, 'loop': False, 'directional': True},
+    # Cols 13, 14, 15
+    'cast':   {'animations': [12, 13, 14], 'duration': 0.1, 'loop': False, 'directional': True},
+    # Cols 16, 17, 18
+    'throw': {'animations': [15, 16, 17], 'duration': 0.1, 'loop': False, 'directional': True},
+    # Future?: Col 20 - Likely needs special handling
+    'hurt': {'animations': [18, 19, 20], 'duration': 0.1, 'loop': False, 'directional': True},
+    # Cols 21-24. Assume fixed row (e.g., UP Row 4) for dying? Or use last direction? Let's try fixed row.
+    'dying':  {'animations': [21, 22, 23], 'duration': 0.2, 'loop': False, 'directional': True},
 }
 
 # Player configuration

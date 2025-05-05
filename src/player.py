@@ -6,32 +6,33 @@ import random
 from utils import angle_diff
 from deck import Deck
 from visual_effects import VisualEffect, DashAfterimage
-from config import (WIDTH, HEIGHT, PLAYER_SPRITE_PATH, PLAYER_ANIMATION_CONFIG, SPRITE_SIZE, ATTACK_RADIUS)
+from config import (WIDTH, HEIGHT, PLAYER_SPRITE_PATH,
+                    PLAYER_ANIMATION_CONFIG, SPRITE_SIZE, ATTACK_RADIUS)
 from entity import Entity
 from animation import CharacterAnimation
 
 
 class Player(Entity):
     def __init__(self, name, x, y,
-            deck,
-            radius,
-            max_health,
-            summon_limit,
-            color,
-            walk_speed,
-            sprint_speed,
-            max_stamina,
-            stamina_regen,
-            sprint_drain,
-            dash_cost,
-            dash_distance,
-            stamina_cooldown):
+                 deck,
+                 radius,
+                 max_health,
+                 summon_limit,
+                 color,
+                 walk_speed,
+                 sprint_speed,
+                 max_stamina,
+                 stamina_regen,
+                 sprint_drain,
+                 dash_cost,
+                 dash_distance,
+                 stamina_cooldown):
         super().__init__(x, y, radius, max_health, walk_speed, color)
-        
+
         self.name = name
         self.game = None  # Will be set by Game class
         self.deck = deck
-        
+
         # Speed attributes
         self.walk_speed = walk_speed
         self.sprint_speed = sprint_speed
@@ -46,7 +47,7 @@ class Player(Entity):
         self.dash_distance = dash_distance
         self.stamina_depleted_time = None
         self.stamina_cooldown = stamina_cooldown
-        
+
         # Animation setup
         sprite_path = PLAYER_SPRITE_PATH
         self.animation = CharacterAnimation(
@@ -58,52 +59,58 @@ class Player(Entity):
         self.state = 'idle'  # Add player state tracking
         self.is_sprinting = False
         self.attack_timer = 0.0  # Timer to manage returning from cast state
-    
+
     @property
     def summons(self):
         """Compatibility property for access to active summons"""
         return self.deck.get_summons
-        
+
     @property
     def projectiles(self):
         """Compatibility property for access to active projectiles"""
         return self.deck.get_projectiles
-    
+
     def handle_input(self, dt):
-        # 1. Prevent input/movement if dying 
+        # 1. Prevent input/movement if dying
         if self.state in ['dying']:
-            self.animation.update(dt) # Keep updating dying animation
+            self.animation.update(dt)  # Keep updating dying animation
             # Check if dying animation is complete
             self.attack_timer -= dt
             if self.attack_timer <= 0:
                 self.alive = False
             return
-        
+
         # 2. Handle casting and hurt states with reduced speed
         speed_multiplier = 1.0  # Default speed multiplier
-        if self.state in ['cast', 'sweep', 'hurt']: 
+        if self.state in ['cast', 'sweep', 'hurt']:
             # Update action timer and animation
             self.attack_timer -= dt
             self.animation.update(dt)
             speed_multiplier = 0.5  # Half speed during hurt animation
             if self.attack_timer <= 0:
                 self.state = 'idle'
-                self.animation.set_state('idle', force_reset=True)           
+                self.animation.set_state('idle', force_reset=True)
 
         # 3. Input and Movement
         keys = pygame.key.get_pressed()
-        self.is_sprinting = (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]) and self.stamina > 0
+        self.is_sprinting = (keys[pygame.K_LSHIFT]
+                             or keys[pygame.K_RSHIFT]) and self.stamina > 0
 
         base_speed = self.sprint_speed if self.is_sprinting else self.walk_speed
-        current_speed = base_speed * speed_multiplier  # Apply the speed multiplier during animation
+        # Apply the speed multiplier during animation
+        current_speed = base_speed * speed_multiplier
 
         # Calculate movement vector
         move_x = 0
         move_y = 0
-        if keys[pygame.K_w]: move_y -= 1
-        if keys[pygame.K_s]: move_y += 1
-        if keys[pygame.K_a]: move_x -= 1
-        if keys[pygame.K_d]: move_x += 1
+        if keys[pygame.K_w]:
+            move_y -= 1
+        if keys[pygame.K_s]:
+            move_y += 1
+        if keys[pygame.K_a]:
+            move_x -= 1
+        if keys[pygame.K_d]:
+            move_x += 1
 
         # Normalize diagonal movement
         if move_x != 0 and move_y != 0:
@@ -130,8 +137,10 @@ class Player(Entity):
                 self.dy = idle_dy / dist
 
         # Stay within screen boundaries
-        self.x = max(self.animation.sprite_width / 2, min(WIDTH - self.animation.sprite_width / 2, self.x))
-        self.y = max(self.animation.sprite_height / 2, min(HEIGHT - self.animation.sprite_height / 2, self.y))
+        self.x = max(self.animation.sprite_width / 2,
+                     min(WIDTH - self.animation.sprite_width / 2, self.x))
+        self.y = max(self.animation.sprite_height / 2,
+                     min(HEIGHT - self.animation.sprite_height / 2, self.y))
 
         # 4. Stamina logic
         if self.is_sprinting and is_moving:
@@ -153,8 +162,8 @@ class Player(Entity):
                     self.stamina_depleted_time = None
 
         # 5. Determine and Set Animation State
-        if self.state not in ['cast', 'sweep', 'hurt', 'dying']: 
-            target_state = 'idle' # Only update animation state if not in a special state
+        if self.state not in ['cast', 'sweep', 'hurt', 'dying']:
+            target_state = 'idle'  # Only update animation state if not in a special state
             if is_moving:
                 target_state = 'sprint' if self.is_sprinting else 'walk'
             self.animation.set_state(target_state)
@@ -172,7 +181,8 @@ class Player(Entity):
             if self.state not in ['cast', 'sweep']:
                 if event.key in [pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4]:
                     skill_idx = event.key - pygame.K_1
-                    self.cast_skill(skill_idx, mouse_pos, enemies, now, effects)
+                    self.cast_skill(skill_idx, mouse_pos,
+                                    enemies, now, effects)
                 elif event.key == pygame.K_SPACE:
                     self.dash(effects)
 
@@ -188,16 +198,18 @@ class Player(Entity):
 
     def dash(self, effects):
         """Dash logic - Triggers an afterimage effect."""
-        if self.state in ['dying', 'cast', 'sweep']: return
+        if self.state in ['dying', 'cast', 'sweep']:
+            return
 
         if self.stamina >= self.dash_cost:
             # --- Create Afterimage ---
             # Capture position and sprite *before* moving
             start_x, start_y = self.x, self.y
-            current_sprite = self.animation.get_current_sprite() # Get sprite before potential direction change
-            if current_sprite: # Make sure sprite is valid
+            # Get sprite before potential direction change
+            current_sprite = self.animation.get_current_sprite()
+            if current_sprite:  # Make sure sprite is valid
                 afterimage = DashAfterimage(start_x, start_y, current_sprite)
-                effects.append(afterimage) # Add to the main effects list
+                effects.append(afterimage)  # Add to the main effects list
 
             # --- Perform Dash ---
             self.stamina -= self.dash_cost
@@ -205,16 +217,22 @@ class Player(Entity):
             keys = pygame.key.get_pressed()
             dash_dx = 0
             dash_dy = 0
-            if keys[pygame.K_w]: dash_dy -= 1
-            if keys[pygame.K_s]: dash_dy += 1
-            if keys[pygame.K_a]: dash_dx -= 1
-            if keys[pygame.K_d]: dash_dx += 1
+            if keys[pygame.K_w]:
+                dash_dy -= 1
+            if keys[pygame.K_s]:
+                dash_dy += 1
+            if keys[pygame.K_a]:
+                dash_dx -= 1
+            if keys[pygame.K_d]:
+                dash_dx += 1
 
             if dash_dx == 0 and dash_dy == 0:
                 # Maybe dash in facing direction?
-                angle_rad = math.radians(self.animation.current_direction_angle)
+                angle_rad = math.radians(
+                    self.animation.current_direction_angle)
                 nx, ny = math.cos(angle_rad), math.sin(angle_rad)
-                if abs(nx) < 0.001 and abs(ny) < 0.001 : # Avoid zero vector if facing perfectly up/down in atan2
+                # Avoid zero vector if facing perfectly up/down in atan2
+                if abs(nx) < 0.001 and abs(ny) < 0.001:
                     print("Cannot determine dash direction.")
                     # self.stamina += self.dash_cost # Refund stamina if dash fails?
                     return
@@ -227,8 +245,10 @@ class Player(Entity):
             self.y += ny * self.dash_distance
 
             # Clamp to screen
-            self.x = max(self.animation.sprite_width / 2, min(WIDTH - self.animation.sprite_width / 2, self.x))
-            self.y = max(self.animation.sprite_height / 2, min(HEIGHT - self.animation.sprite_height / 2, self.y))
+            self.x = max(self.animation.sprite_width / 2,
+                         min(WIDTH - self.animation.sprite_width / 2, self.x))
+            self.y = max(self.animation.sprite_height / 2,
+                         min(HEIGHT - self.animation.sprite_height / 2, self.y))
         else:
             print("Not enough stamina to dash!")
 
@@ -236,7 +256,7 @@ class Player(Entity):
         return self.deck.use_skill(skill_idx, mouse_pos[0], mouse_pos[1], enemies, now)
 
     def take_damage(self, amt):
-        if self.state == 'dying' or not self.alive: 
+        if self.state == 'dying' or not self.alive:
             return  # Can't take damage if already dying/dead
         if amt > 0:
             self.health -= amt
@@ -248,8 +268,10 @@ class Player(Entity):
                     self.state = 'dying'
                     self.animation.set_state('dying', force_reset=True)
                     # Don't set self.alive = False yet, let animation finish
-                    animations_length = len(self.animation.config['dying']['animations'])
-                    death_duration = self.animation.config['dying']['duration'] * animations_length
+                    animations_length = len(
+                        self.animation.config['dying']['animations'])
+                    death_duration = self.animation.config['dying']['duration'] * \
+                        animations_length
                     self.attack_timer = death_duration
             else:
                 # Play hurt animation if not already in a more important state
@@ -257,8 +279,10 @@ class Player(Entity):
                     self.state = 'hurt'
                     self.animation.set_state('hurt', force_reset=True)
                     # Set a short timer for hurt animation
-                    animations_length = len(self.animation.config['hurt']['animations'])
-                    hurt_duration = self.animation.config['hurt']['duration'] * animations_length
+                    animations_length = len(
+                        self.animation.config['hurt']['animations'])
+                    hurt_duration = self.animation.config['hurt']['duration'] * \
+                        animations_length
                     self.attack_timer = hurt_duration
 
     def draw(self, surf):
@@ -266,9 +290,9 @@ class Player(Entity):
         if current_sprite:
             # Scale the sprite
             scale = 2  # Adjust scale factor as needed
-            scaled_sprite = pygame.transform.scale(current_sprite, 
-                                                  (self.animation.sprite_width * scale, 
-                                                   self.animation.sprite_height * scale))
+            scaled_sprite = pygame.transform.scale(current_sprite,
+                                                   (self.animation.sprite_width * scale,
+                                                    self.animation.sprite_height * scale))
             # Calculate top-left position for blitting
             draw_x = self.x - (self.animation.sprite_width * scale) / 2
             draw_y = self.y - (self.animation.sprite_height * scale) / 2

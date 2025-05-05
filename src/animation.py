@@ -2,8 +2,10 @@ import pygame
 import math
 from config import RENDER_SIZE, SPRITE_SIZE
 
+
 class SpriteSheet:
     """Utility class to handle loading and extracting sprites from a sheet."""
+
     def __init__(self, image_path):
         try:
             self.sprite_sheet = pygame.image.load(image_path).convert_alpha()
@@ -11,7 +13,7 @@ class SpriteSheet:
             print(f"Error loading sprite sheet: {image_path}")
             print(e)
             # You might want to provide a default fallback image or exit
-            raise SystemExit() # Or handle it differently
+            raise SystemExit()  # Or handle it differently
 
     def get_sprite(self, x, y, width, height):
         """Extracts a single sprite (surface) from the sheet."""
@@ -20,6 +22,7 @@ class SpriteSheet:
         # Blit the relevant part of the sprite sheet onto the blank surface
         sprite.blit(self.sprite_sheet, (0, 0), (x, y, width, height))
         return sprite
+
 
 class CharacterAnimation:
     """Handles state-based character animation from an 8-directional sprite sheet."""
@@ -57,10 +60,10 @@ class CharacterAnimation:
         self.sprite_height = sprite_height
 
         self.current_state = 'idle'
-        self.current_frame_index = 0 # Index within the *current state's* animation sequence
+        self.current_frame_index = 0  # Index within the *current state's* animation sequence
         self.frame_timer = 0.0
         self.current_direction_angle = 90  # Start facing DOWN
-        self.animation_finished = False # Flag for non-looping animations
+        self.animation_finished = False  # Flag for non-looping animations
 
         # Pre-load all frames from the sheet for efficiency
         self.all_frames = self._load_all_frames_from_sheet()
@@ -71,34 +74,33 @@ class CharacterAnimation:
         # Determine sheet dimensions based on known rows and max columns needed
         num_rows = len(self.DIRECTION_ROWS)
         max_col = 0
-        
+
         for state_data in self.config.values():
             max_col = max(max_col, max(state_data['animations']) + 1)
 
         all_frames = []
         for row in range(num_rows):
-             row_frames = []
-             for col in range(max_col):
-                 x = col * self.sprite_width
-                 y = row * self.sprite_height
-                 sprite = self.sprite_sheet.get_sprite(x, y,
-                                                     self.sprite_width,
-                                                     self.sprite_height)
-                 # Scale sprite to render size
-                 scale_factor = RENDER_SIZE / SPRITE_SIZE
-                 if scale_factor != 1:
-                     sprite = pygame.transform.scale(sprite, 
-                                                   (int(self.sprite_width * scale_factor), 
-                                                    int(self.sprite_height * scale_factor)))
-                 row_frames.append(sprite)
-             all_frames.append(row_frames)
+            row_frames = []
+            for col in range(max_col):
+                x = col * self.sprite_width
+                y = row * self.sprite_height
+                sprite = self.sprite_sheet.get_sprite(x, y,
+                                                      self.sprite_width,
+                                                      self.sprite_height)
+                # Scale sprite to render size
+                scale_factor = RENDER_SIZE / SPRITE_SIZE
+                if scale_factor != 1:
+                    sprite = pygame.transform.scale(sprite,
+                                                    (int(self.sprite_width * scale_factor),
+                                                     int(self.sprite_height * scale_factor)))
+                row_frames.append(sprite)
+            all_frames.append(row_frames)
         return all_frames
-
 
     def _get_closest_direction_angle(self, target_angle_rad):
         """Finds the closest of the 8 movement directions to the target angle."""
-        if target_angle_rad is None: # Handle cases where direction is irrelevant or fixed
-             return self.current_direction_angle
+        if target_angle_rad is None:  # Handle cases where direction is irrelevant or fixed
+            return self.current_direction_angle
 
         target_angle_deg = math.degrees(target_angle_rad)
         target_angle_deg = (target_angle_deg + 360) % 360
@@ -107,7 +109,8 @@ class CharacterAnimation:
             diff = abs(a1 - a2) % 360
             return min(diff, 360 - diff)
 
-        closest_angle = min(self.ANGLES, key=lambda angle: angle_diff(angle, target_angle_deg))
+        closest_angle = min(
+            self.ANGLES, key=lambda angle: angle_diff(angle, target_angle_deg))
         return closest_angle
 
     def set_state(self, new_state, force_reset=False):
@@ -118,14 +121,15 @@ class CharacterAnimation:
                 self.current_state = new_state
                 self.current_frame_index = 0
                 self.frame_timer = 0.0
-                self.animation_finished = False # Reset finished flag on state change
+                self.animation_finished = False  # Reset finished flag on state change
             else:
-                print(f"Warning: Attempted to set unknown animation state '{new_state}'")
+                print(
+                    f"Warning: Attempted to set unknown animation state '{new_state}'")
 
     def update(self, dt, move_dx=0, move_dy=0):
         """Updates the animation frame and direction based on state and movement."""
         if self.current_state not in self.config:
-            return # Unknown state
+            return  # Unknown state
 
         state_cfg = self.config[self.current_state]
         is_directional = state_cfg.get('directional', False)
@@ -137,57 +141,64 @@ class CharacterAnimation:
         if is_directional:
             is_moving = (move_dx != 0 or move_dy != 0)
             if is_moving:
-                 movement_angle_rad = math.atan2(move_dy, move_dx)
-                 self.current_direction_angle = self._get_closest_direction_angle(movement_angle_rad)
+                movement_angle_rad = math.atan2(move_dy, move_dx)
+                self.current_direction_angle = self._get_closest_direction_angle(
+                    movement_angle_rad)
             # Else: keep the last direction if not moving but in a directional state (like idle)
 
         # --- Update Frame ---
         if self.animation_finished and not loop:
-             return # Don't update frame if a non-looping animation is done
+            return  # Don't update frame if a non-looping animation is done
 
         self.frame_timer += dt
         if self.frame_timer >= duration:
-            self.frame_timer -= duration # Use subtraction for accuracy
+            self.frame_timer -= duration  # Use subtraction for accuracy
 
             if self.current_frame_index < num_frames - 1:
                 self.current_frame_index += 1
             elif loop:
-                self.current_frame_index = 0 # Loop back to start
+                self.current_frame_index = 0  # Loop back to start
             else:
-                self.animation_finished = True # Mark as finished
-
+                self.animation_finished = True  # Mark as finished
 
     def get_current_sprite(self):
         """Returns the current sprite surface based on state and direction."""
         if self.current_state not in self.config:
-             print(f"Warning: Current animation state '{self.current_state}' not in config.")
-             return self.all_frames[0][0] # Return a default sprite
+            print(
+                f"Warning: Current animation state '{self.current_state}' not in config.")
+            return self.all_frames[0][0]  # Return a default sprite
 
         state_cfg = self.config[self.current_state]
         is_directional = state_cfg.get('directional', False)
 
         # Determine row index
-        row_index = 0 # Default row?
+        row_index = 0  # Default row?
         if is_directional:
-             if self.current_direction_angle in self.DIRECTION_ROWS:
-                 row_index = self.DIRECTION_ROWS[self.current_direction_angle]
-             else:
-                 print(f"Warning: Current direction angle {self.current_direction_angle} not in mapping.")
-                 row_index = self.DIRECTION_ROWS[90] # Default to down?
+            if self.current_direction_angle in self.DIRECTION_ROWS:
+                row_index = self.DIRECTION_ROWS[self.current_direction_angle]
+            else:
+                print(
+                    f"Warning: Current direction angle {self.current_direction_angle} not in mapping.")
+                row_index = self.DIRECTION_ROWS[90]  # Default to down?
         else:
-             # For non-directional, maybe use a fixed row specified in config?
-             row_index = state_cfg.get('fixed_row', 0) # Example: defaults to row 0 if not specified
+            # For non-directional, maybe use a fixed row specified in config?
+            # Example: defaults to row 0 if not specified
+            row_index = state_cfg.get('fixed_row', 0)
 
         # Determine column index
         animations = state_cfg['animations']
-        frame_idx = min(self.current_frame_index, len(animations) - 1)  # Safety check
-        col_index = animations[frame_idx]  # Use the column directly from animations array
+        frame_idx = min(self.current_frame_index, len(
+            animations) - 1)  # Safety check
+        # Use the column directly from animations array
+        col_index = animations[frame_idx]
 
         # Get the sprite
         try:
             sprite = self.all_frames[row_index][col_index]
             return sprite
         except IndexError:
-            print(f"!!! Error getting sprite: Row {row_index}, Col {col_index} out of bounds!")
-            print(f"    State={self.current_state}, Angle={self.current_direction_angle}, FrameIdx={self.current_frame_index}")
-            return self.all_frames[0][0] # Return default sprite on error
+            print(
+                f"!!! Error getting sprite: Row {row_index}, Col {col_index} out of bounds!")
+            print(
+                f"    State={self.current_state}, Angle={self.current_direction_angle}, FrameIdx={self.current_frame_index}")
+            return self.all_frames[0][0]  # Return default sprite on error

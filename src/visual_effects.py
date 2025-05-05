@@ -133,12 +133,14 @@ class VisualEffect:
         # Draw the effect
         surf.blit(effect_surf, (self.x - self.radius, self.y - self.radius))
 
+
 class DashAfterimage:
     """A fading afterimage effect using a specific sprite."""
+
     def __init__(self, x, y, sprite, duration=0.2, start_alpha=150):
         self.x = x
         self.y = y
-        self.sprite = sprite.copy() # Copy the surface to modify alpha
+        self.sprite = sprite.copy()  # Copy the surface to modify alpha
         self.duration = duration
         self.start_alpha = start_alpha
         self.start_time = time.time()
@@ -156,7 +158,8 @@ class DashAfterimage:
 
         # Calculate current alpha (fade out)
         current_alpha = self.start_alpha * (1.0 - progress)
-        self.sprite.set_alpha(int(max(0, current_alpha))) # Apply alpha to the copied sprite
+        # Apply alpha to the copied sprite
+        self.sprite.set_alpha(int(max(0, current_alpha)))
 
     def draw(self, surf):
         if not self.active or not self.sprite:
@@ -167,5 +170,5 @@ class DashAfterimage:
         draw_y = self.y - self.height / 2
         surf.blit(self.sprite, (int(draw_x), int(draw_y)))
 
-    def is_ground_effect(self): # Helper for potential layering in game.py
-         return True # Treat afterimage as a ground effect maybe?
+    def is_ground_effect(self):  # Helper for potential layering in game.py
+        return True  # Treat afterimage as a ground effect maybe?
