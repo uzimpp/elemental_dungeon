@@ -15,8 +15,9 @@ class VisualEffect:
             radius=30,
             duration=0.3,
             start_angle=0,
-            sweep_angle=math.pi /
-            3):
+            sweep_angle=math.pi / 3,
+            end_x=None,
+            end_y=None):
         self.x = x
         self.y = y
         self.effect_type = effect_type
@@ -25,6 +26,8 @@ class VisualEffect:
         self.duration = duration
         self.start_time = time.time()
         self.active = True
+        self.end_x = end_x  # For line effect
+        self.end_y = end_y  # For line effect
 
         # Animation variables
         self.current_size = 0
@@ -37,6 +40,28 @@ class VisualEffect:
             self.particles = []  # Particles for slash trail
             self.start_angle = start_angle + math.pi / 6
             self.sweep_angle = sweep_angle
+        
+        # Line specific variables (for chain lightning)
+        if effect_type == "line":
+            self.line_width = radius  # Use radius as line width
+            self.particles = []  # Particles along the line
+            
+            # Generate initial particles if we have end coordinates
+            if self.end_x is not None and self.end_y is not None:
+                num_particles = 15  # Number of particles along the line
+                for i in range(num_particles):
+                    t = i / (num_particles - 1)  # Interpolation factor
+                    px = x + (self.end_x - x) * t
+                    py = y + (self.end_y - y) * t
+                    jitter = 5  # Randomize slightly for more organic look
+                    px += random.uniform(-jitter, jitter)
+                    py += random.uniform(-jitter, jitter)
+                    self.particles.append({
+                        'x': px,
+                        'y': py,
+                        'alpha': 255,
+                        'size': random.randint(2, 5)
+                    })
 
     def update(self, dt):
         elapsed = time.time() - self.start_time
@@ -81,29 +106,65 @@ class VisualEffect:
 
             # Remove faded particles
             self.particles = [p for p in self.particles if p['alpha'] > 0]
+            
+        elif self.effect_type == "line":
+            # Update particle alphas for fading
+            for p in self.particles:
+                # Fade out faster than the main effect for a flickering look
+                fade_speed = random.uniform(10, 25)
+                p['alpha'] = max(0, p['alpha'] - fade_speed)
+                
+                # Add slight movement to particles
+                jitter = 2
+                p['x'] += random.uniform(-jitter, jitter)
+                p['y'] += random.uniform(-jitter, jitter)
+            
+            # Remove faded particles
+            self.particles = [p for p in self.particles if p['alpha'] > 0]
+            
+            # Add new particles for a continuous effect
+            if progress < 0.7 and self.end_x is not None and self.end_y is not None:
+                for _ in range(3):  # Add new particles each frame
+                    t = random.random()  # Random position along the line
+                    px = self.x + (self.end_x - self.x) * t
+                    py = self.y + (self.end_y - self.y) * t
+                    jitter = 8  # Larger jitter for more lightning-like effect
+                    px += random.uniform(-jitter, jitter)
+                    py += random.uniform(-jitter, jitter)
+                    self.particles.append({
+                        'x': px,
+                        'y': py,
+                        'alpha': 200 + random.randint(0, 55),  # Varying brightness
+                        'size': random.randint(2, 5)
+                    })
 
     def draw(self, surf):
         if not self.active:
             return
 
-        # Create a surface for transparency
-        effect_surf = pygame.Surface(
-            (self.radius * 2, self.radius * 2), pygame.SRCALPHA)
-        center = (self.radius, self.radius)
-
         if self.effect_type == "explosion":
             # Draw expanding circle
             alpha_color = (*self.color, int(self.alpha))
-            pygame.draw.circle(
-                effect_surf, alpha_color, center, int(
-                    self.current_size))
+            # Create a surface for transparency
+            effect_surf = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
+            center = (self.radius, self.radius)
+            pygame.draw.circle(effect_surf, alpha_color, center, int(self.current_size))
+            surf.blit(effect_surf, (self.x - self.radius, self.y - self.radius))
 
         elif self.effect_type == "heal":
             # Draw healing particles
+            # Create a surface for transparency
+            effect_surf = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
+            center = (self.radius, self.radius)
             alpha_color = (*self.color, int(self.alpha))
             pygame.draw.circle(effect_surf, alpha_color, center, 5)
+            surf.blit(effect_surf, (self.x - self.radius, self.y - self.radius))
 
         elif self.effect_type == "slash":
+            # Create a surface for transparency
+            effect_surf = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
+            center = (self.radius, self.radius)
+            
             # Draw main slash arc
             alpha_color = (*self.color, int(self.alpha))
             rect = (0, 0, self.radius * 2, self.radius * 2)
@@ -129,9 +190,33 @@ class VisualEffect:
             pygame.draw.arc(effect_surf, alpha_color, inner_rect,
                             self.start_angle, self.start_angle + self.angle,
                             max(1, self.slash_width - 2))
-
-        # Draw the effect
-        surf.blit(effect_surf, (self.x - self.radius, self.y - self.radius))
+                            
+            surf.blit(effect_surf, (self.x - self.radius, self.y - self.radius))
+            
+        elif self.effect_type == "line":
+            # For chain lightning, we directly draw on the surface rather than creating a new one
+            if self.end_x is not None and self.end_y is not None:
+                # Debug info
+                print(f"[VisualEffect] Drawing line from ({self.x:.1f}, {self.y:.1f}) to ({self.end_x:.1f}, {self.end_y:.1f})")
+                print(f"[VisualEffect] Line color: {self.color}, alpha: {self.alpha:.1f}, width: {self.line_width}")
+                
+                # Draw main lightning bolt line
+                alpha_color = (*self.color, int(self.alpha * 0.7))  # Semi-transparent main line
+                pygame.draw.line(surf, alpha_color, (int(self.x), int(self.y)), 
+                               (int(self.end_x), int(self.end_y)), max(1, int(self.line_width * 0.3)))
+                
+                # Draw particles for lightning effect
+                for p in self.particles:
+                    particle_color = (*self.color, int(p['alpha']))
+                    pygame.draw.circle(surf, particle_color, (int(p['x']), int(p['y'])), p['size'])
+                    
+                # Draw a glow effect along the line
+                for i in range(3):  # Multiple layers for glow
+                    glow_alpha = int(self.alpha * (0.3 - i * 0.1))  # Decreasing alpha for outer glow
+                    glow_color = (*self.color, glow_alpha)
+                    glow_width = int(self.line_width * (0.5 + i * 0.5))  # Increasing width for outer glow
+                    pygame.draw.line(surf, glow_color, (int(self.x), int(self.y)), 
+                                  (int(self.end_x), int(self.end_y)), glow_width)
 
 
 class DashAfterimage:

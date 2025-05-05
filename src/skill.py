@@ -31,6 +31,7 @@ class BaseSkill:
         self.description = description
         self.last_use_time = 0
         self.color = self._get_color_from_element(element)
+        self.owner = None  # Reference to the owner entity (e.g., player)
 
     def _get_color_from_element(self, element):
         if element in ELEMENT_COLORS:
@@ -511,22 +512,30 @@ class Slash(BaseSkill):
 
 class Chain(BaseSkill):
     """Chain attack skill implementation"""
-    def __init__(self, name, element, damage, radius, duration, pull, cooldown, description):
+    def __init__(self, name, element, damage, radius, duration, pull, cooldown, description, max_targets=3, chain_range=150):
         super().__init__(name, element, SkillType.CHAIN, cooldown, description)
         self.damage = damage
         self.radius = radius
         self.duration = duration
         self.pull = pull
+        self.max_targets = max_targets  # Maximum number of targets to chain to
+        self.chain_range = chain_range  # Range for chaining between targets
     
     @staticmethod
     def activate(skill, player_x, player_y, target_x, target_y, enemies):
-        """Apply damage to enemies in a chain, possibly pulling them"""
-        # Find the closest enemy in the direction
-        target = None
+        """Apply damage to enemies in a chain, hitting multiple targets in sequence"""
+        # Find all valid targets
+        valid_enemies = [e for e in enemies if e.alive]
+        if not valid_enemies:
+            return
+            
+        hit_enemies = []  # Track which enemies we've already hit
+        
+        # Find the initial target (enemy in the direction of click)
+        first_target = None
         min_dist = float('inf')
         
-        for enemy in enemies:
-            if not enemy.alive: continue
+        for enemy in valid_enemies:
             dist = math.hypot(enemy.x - player_x, enemy.y - player_y)
             if dist <= skill.radius:
                 # Check if enemy is in the general direction of the target point
@@ -536,29 +545,103 @@ class Chain(BaseSkill):
                 target_angle = math.atan2(target_y - player_y, target_x - player_x)
                 diff = abs(angle_diff(target_angle, enemy_angle))
                 
-                # Consider enemies in a 45-degree cone in target direction
-                if diff <= math.pi / 4 and dist < min_dist:
+                # Consider enemies in a 60-degree cone (wider than before) in target direction
+                if diff <= math.pi / 3 and dist < min_dist:
                     min_dist = dist
-                    target = enemy
+                    first_target = enemy
         
-        if target:
-            # Apply damage
-            target.take_damage(skill.damage)
-            print(f"[Chain] Hit enemy at ({target.x:.0f}, {target.y:.0f}) for {skill.damage} damage")
+        if not first_target:
+            print("[Chain] No initial target found")
+            return
             
-            # Apply pull effect if enabled
-            if skill.pull:
-                pull_strength = 60  # Pull strength in pixels
-                pull_dir_x = player_x - target.x
-                pull_dir_y = player_y - target.y
-                pull_dist = math.hypot(pull_dir_x, pull_dir_y)
+        # Hit the first target
+        current_target = first_target
+        hit_enemies.append(current_target)
+        current_target.take_damage(skill.damage)
+        print(f"[Chain] Hit initial enemy at ({current_target.x:.0f}, {current_target.y:.0f}) for {skill.damage} damage")
+        
+        # Apply pull effect if enabled to the first target
+        if skill.pull:
+            pull_strength = 60  # Pull strength in pixels
+            pull_dir_x = player_x - current_target.x
+            pull_dir_y = player_y - current_target.y
+            pull_dist = math.hypot(pull_dir_x, pull_dir_y)
+            
+            if pull_dist > 0:
+                # Normalize and scale by pull strength
+                pull_x = (pull_dir_x / pull_dist) * min(pull_strength, pull_dist)
+                pull_y = (pull_dir_y / pull_dist) * min(pull_strength, pull_dist)
                 
-                if pull_dist > 0:
-                    # Normalize and scale by pull strength
-                    pull_x = (pull_dir_x / pull_dist) * min(pull_strength, pull_dist)
-                    pull_y = (pull_dir_y / pull_dist) * min(pull_strength, pull_dist)
+                # Apply pull
+                current_target.x += pull_x
+                current_target.y += pull_y
+                print(f"[Chain] Pulled enemy by ({pull_x:.0f}, {pull_y:.0f})")
+        
+        # Create visual effect for the chain
+        effects_list = None
+        if hasattr(skill, 'owner') and skill.owner:
+            if hasattr(skill.owner, 'game') and skill.owner.game:
+                if hasattr(skill.owner.game, 'effects'):
+                    effects_list = skill.owner.game.effects
+        
+        if effects_list is not None:
+            # Create line effect from player to first target
+            chain_effect = VisualEffect(
+                player_x, 
+                player_y, 
+                "line",  # Assuming there's a line effect type
+                skill.color,
+                10,  # Thickness
+                0.2,  # Duration
+                end_x=current_target.x,
+                end_y=current_target.y
+            )
+            effects_list.append(chain_effect)
+            print(f"[Chain] Added visual effect for chain from player to first target")
+        
+        # Now chain to additional targets
+        last_x, last_y = current_target.x, current_target.y
+        
+        # Chain to additional targets up to max_targets
+        for _ in range(1, getattr(skill, 'max_targets', 3)):
+            # Find the next closest enemy that hasn't been hit yet
+            next_target = None
+            min_chain_dist = float('inf')
+            
+            for enemy in valid_enemies:
+                if enemy in hit_enemies:
+                    continue  # Skip already hit enemies
                     
-                    # Apply pull
-                    target.x += pull_x
-                    target.y += pull_y
-                    print(f"[Chain] Pulled enemy by ({pull_x:.0f}, {pull_y:.0f})")
+                chain_dist = math.hypot(enemy.x - last_x, enemy.y - last_y)
+                if chain_dist <= getattr(skill, 'chain_range', 150):
+                    if chain_dist < min_chain_dist:
+                        min_chain_dist = chain_dist
+                        next_target = enemy
+            
+            # If no more targets in range, stop chaining
+            if not next_target:
+                break
+                
+            # Hit the next target
+            hit_enemies.append(next_target)
+            next_target.take_damage(skill.damage)
+            print(f"[Chain] Chained to enemy at ({next_target.x:.0f}, {next_target.y:.0f}) for {skill.damage} damage")
+            
+            # Create visual effect for the chain
+            if effects_list is not None:
+                # Create line effect from last target to next target
+                chain_effect = VisualEffect(
+                    last_x, 
+                    last_y, 
+                    "line",
+                    skill.color,
+                    10,
+                    0.2,
+                    end_x=next_target.x,
+                    end_y=next_target.y
+                )
+                effects_list.append(chain_effect)
+                print(f"[Chain] Added visual effect for chain link")
+            
+            # Update last position for next chain
+            last_x, last_y = next_target.x, next_target.y

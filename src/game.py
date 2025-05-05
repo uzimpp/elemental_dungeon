@@ -9,6 +9,7 @@ from player import Player
 from enemy import Enemy
 from visual_effects import VisualEffect
 from utils import resolve_overlap, draw_hp_bar, angle_diff
+from game_state import MenuState, PlayerNameState, DeckSelectionState, PlayingState, PausedState, GameOverState
 from config import *
 
 
@@ -20,14 +21,34 @@ class Game:
         self.clock = pygame.time.Clock()
         self.running = True
         self.effects = []
-
-        self.player_name = input("Enter player name: ") or "Unknown"
+        self.wave_number = 1
+        self.enemies = []
+        self.skills_filename = SKILLS_FILENAME
+        self.player_name = "Unknown"  # Default name
+        
+        # Initialize state machine
+        self.current_state = None
+        self.states = {
+            "MENU": MenuState(self),
+            "NAME_ENTRY": PlayerNameState(self),
+            "DECK_SELECTION": DeckSelectionState(self),
+            "PLAYING": PlayingState(self),
+            "PAUSED": PausedState(self),
+            "GAME_OVER": GameOverState(self)
+        }
+        
+        # Start with menu state
+        self.change_state("MENU")
+    
+    def initialize_player(self):
+        """Initialize just the player without deck (first phase)"""
+        # Player name is now set by the PlayerNameState
 
         # Create player first with no deck
         self.player = Player(
             self.player_name,
-            WIDTH // 2,
-            HEIGHT // 2,
+            WIDTH,
+            HEIGHT,
             None,  # No deck yet
             PLAYER_RADIUS,
             PLAYER_MAX_HEALTH,
@@ -45,22 +66,36 @@ class Game:
         # Set game reference
         self.player.game = self
 
-        # Create and initialize deck
-        deck = Deck(self.player)  # Create deck with player reference
-        all_skills = deck.load_from_csv(SKILLS_FILENAME)
-        chosen_skills = self.build_deck_interactively(all_skills)
-        deck.skills = chosen_skills  # Set chosen skills
-        deck.summon_limit = PLAYER_SUMMON_LIMIT
-
-        # Set deck on player
-        self.player.deck = deck
-
-        self.wave_number = 1
-        self.enemies = []
-        self.spawn_wave()
-
+        # Create deck without skills yet
+        self.deck = Deck(self.player)
+        
+        # Set empty deck on player
+        self.player.deck = self.deck
+        
+        # Set summon limit
+        self.deck.summon_limit = PLAYER_SUMMON_LIMIT
+        
+        # Game tracking
         self.game_start_time = time.time()
         self.effects = []
+    
+    def finish_initialization(self):
+        """Complete game initialization after deck is built (second phase)"""
+        # Spawn first wave of enemies
+        self.wave_number = 1
+        self.spawn_wave()
+
+    def change_state(self, new_state):
+        """Change the current game state"""
+        if self.current_state:
+            self.current_state.exit()
+            
+        if new_state == "QUIT":
+            self.running = False
+            return
+            
+        self.current_state = self.states[new_state]
+        self.current_state.enter()
 
     def log_csv(self, wave):
         now_str = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -114,6 +149,8 @@ class Game:
                 ATTACK_RADIUS)
             self.enemies.append(e)
 
+    # This method is now replaced by the DeckSelectionState
+    # but kept for reference or fallback if needed
     def build_deck_interactively(self, skill_list):
         print("=== BUILD YOUR DECK (Pick 4) ===")
         for i, sk in enumerate(skill_list):
@@ -143,73 +180,34 @@ class Game:
         while self.running:
             # Convert milliseconds to seconds for dt
             dt = self.clock.tick(FPS) / 1000.0
-            self.handle_events()
-            self.update(dt)
-            self.draw()
+            
+            # Get all events
+            events = pygame.event.get()
+            
+            # Handle current state events
+            next_state = self.current_state.handle_events(events)
+            if next_state:
+                self.change_state(next_state)
+                continue  # Skip this frame to properly initialize new state
 
-            if self.player.health <= 0:
-                print("Player died!")
-                self.log_csv(self.wave_number)
-                self.running = False
+            # Update current state
+            next_state = self.current_state.update(dt)
+            if next_state:
+                self.change_state(next_state)
+                continue
+
+            # Render current state
+            self.current_state.render(self.screen)
+            pygame.display.flip()
 
         pygame.quit()
         sys.exit()
 
-    def handle_events(self):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.running = False
-            else:
-                mouse_pos = pygame.mouse.get_pos()
-                now = time.time()
-                result = self.player.handle_event(
-                    event, mouse_pos, self.enemies, now, self.effects)
-                if result == 'exit':
-                    self.log_csv(self.wave_number)
-                    self.running = False
-
-    def update(self, dt):
-        # 1. Update enemy positions and attacks
-        for e in self.enemies:
-            e.update(self.player, dt)
-
-        # 2. Handle player input (movement)
-        self.player.handle_input(dt)
-
-        # 3. Update deck
-        print(
-            f"[Game] Updating deck with {len(self.enemies)} enemies. First enemy at: {self.enemies[0].x:.1f}, {self.enemies[0].y:.1f} if available")
-        self.player.deck.update(dt, self.enemies)
-
-        # 4. Resolve collisions
-        entities = [entity for entity in ([self.player] +
-                                          self.player.summons +
-                                          self.enemies) if entity.alive]
-        for i in range(len(entities)):
-            for j in range(i + 1, len(entities)):
-                resolve_overlap(entities[i], entities[j])
-
-        # 5. Clean up dead entities
-        self.enemies = [e for e in self.enemies if e.alive]
-
-        # 6. Wave logic
-        if len(self.enemies) == 0:
-            self.wave_number += 1
-            self.spawn_wave()
-
-        # 7. Update visual effects
-        for eff in self.effects:
-            eff.update(dt)
-        self.effects = [ef for ef in self.effects if ef.active]
-
-    def draw(self):
-        self.screen.fill(WHITE)
-        self.draw_wave_info()
-        self.draw_player_bars()
-        self.draw_skill_ui()
-        self.draw_game_elements()
-        pygame.display.flip()
-
+    # These methods are used by the state classes
+    def resolve_overlap(self, entity1, entity2):
+        """Wrapper to call the utility function"""
+        resolve_overlap(entity1, entity2)
+        
     def draw_wave_info(self):
         ui_font = pygame.font.SysFont("Arial", 24)
         wave_text = ui_font.render(f"WAVE: {self.wave_number}", True, BLACK)
@@ -278,23 +276,6 @@ class Game:
             cd_rect = cd_text.get_rect(
                 center=(box_x + box_width // 2, box_y + box_height // 2))
             self.screen.blit(cd_text, cd_rect)
-
-    def draw_game_elements(self):
-        # Draw all game objects in proper layers
-
-        # 1. Draw entities (enemies, player)
-        for enemy in self.enemies:
-            enemy.draw(self.screen)
-
-        # 2. Draw player
-        self.player.draw(self.screen)
-
-        # 3. Draw projectiles and summons via deck
-        self.player.deck.draw(self.screen)
-
-        # 4. Draw overhead effects (top layer)
-        for effect in self.effects:
-            effect.draw(self.screen)
 
 
 def main():

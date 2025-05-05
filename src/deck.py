@@ -150,6 +150,9 @@ class Deck:
         skill.trigger_cooldown()  # Use the method in BaseSkill
         print(
             f"[Deck] Using skill '{skill.name}' (Type: {skill.skill_type}) towards ({target_x}, {target_y})")
+            
+        # Set the owner reference on the skill for visual effects
+        skill.owner = self.owner
 
         # --- Set Player Animation State ---
         action_state = 'cast'  # Default animation
@@ -296,12 +299,14 @@ class Deck:
             # Apply damage to enemies in arc
             Slash.activate(skill, self.owner.x, self.owner.y,
                            target_x, target_y, enemies)
-        # --- Handle CHAIN etc. ---
         elif skill.skill_type == SkillType.CHAIN:
-            print(
-                f"[Deck] Activated Chain skill '{skill.name}' (Not fully implemented).")
-            # Chain needs logic to find targets and create visual links/damage
-            pass
+            print(f"[Deck] Activated Chain skill '{skill.name}'")
+            
+            # Call the Chain's activate method to perform the chain logic
+            Chain.activate(skill, self.owner.x, self.owner.y, target_x, target_y, enemies)
+            
+            # The Chain.activate method will create its own visual effects
+            # when it has the owner reference to access game.effects
         else:
             print(
                 f"[Deck] Warning: Skill type {skill.skill_type} activation not fully implemented.")
@@ -310,19 +315,14 @@ class Deck:
 
     def update(self, dt, enemies):
         """Update all active entities managed by the deck"""
-        print(
-            f"[Deck] update() called with {len(enemies)} enemies ({len([e for e in enemies if e.alive])} alive)")
+        # Less verbose logging
+        if len(self.active_projectiles) > 0 or len(self.active_summons) > 0:
+            print(f"[Deck] Updating {len(self.active_projectiles)} projectiles and {len(self.active_summons)} summons")
         self._update_projectiles(dt, enemies)
         self._update_summons(dt, enemies)
 
     def _update_projectiles(self, dt, enemies):
         """Update all active projectiles"""
-        print(
-            f"[Deck] Updating {len(self.active_projectiles)} projectiles with {len(enemies)} enemies")
-        if len(enemies) > 0:
-            print(
-                f"[Deck] First enemy at ({enemies[0].x:.1f}, {enemies[0].y:.1f}), alive={enemies[0].alive}, health={enemies[0].health}")
-
         # Process projectiles in reverse order for safe removal
         for i in range(len(self.active_projectiles) - 1, -1, -1):
             projectile = self.active_projectiles[i]
@@ -331,36 +331,22 @@ class Deck:
                 continue
             else:
                 # Projectile expired or hit screen edge
-                print(f"[Deck] Projectile {i} expired or hit something")
                 self.active_projectiles.pop(i)
 
     def _update_summons(self, dt, enemies):
         """Update all active summons"""
-        print(
-            f"[Deck] Updating {len(self.active_summons)} summons with {len(enemies)} enemies")
-        if len(enemies) > 0:
-            print(
-                f"[Deck] First enemy at ({enemies[0].x:.1f}, {enemies[0].y:.1f}), alive={enemies[0].alive}, health={enemies[0].health}")
-
         # Process summons in reverse order for safe removal
         for i in range(len(self.active_summons) - 1, -1, -1):
             summon = self.active_summons[i]
-            print(
-                f"[Deck] Updating summon {i+1} at ({summon.x:.1f}, {summon.y:.1f}), state: {summon.state}")
             result = summon.update(dt, enemies)
-            print(f"[Deck] Summon update result: {result}")
             if not result:
                 print(f"[Deck] Removing summon {i+1}")
                 self.active_summons.pop(i)
 
     def draw(self, surface):
         """Draw all active entities managed by the deck"""
-        print(f"[CRITICAL] Drawing {len(self.active_projectiles)} projectiles")
-
         # Draw projectiles
-        for i, projectile in enumerate(self.active_projectiles):
-            print(
-                f"[CRITICAL] Drawing projectile {i} at ({projectile.x:.1f}, {projectile.y:.1f}), alive={projectile.alive}")
+        for projectile in self.active_projectiles:
             projectile.draw(surface)
 
         # Draw summons
