@@ -36,7 +36,7 @@ Survive as many waves as possible! Each wave becomes progressively more difficul
 | Type | Description | How to Use | Tips |
 |------------|-------------|------------|----------------|
 | **Projectile** | Fast-moving attacks that travel in straight lines and deal damage on impact | Aim with mouse cursor, press corresponding skill key (1-4) to fire | Great for distant targets; aim ahead of moving enemies for better accuracy |
-| **Summons** | Creates AI allies that automatically seek and attack nearby enemies | Press skill key to summon at your location; AI controls the summon afterward | Use to distract enemies while you reposition; effective "tanks" for drawing enemy attention |
+| **Summons** | Creates allies that automatically seek and attack nearby enemies | Press skill key to summon at your location; AI controls the summon afterward | Use to distract enemies while you reposition; effective "tanks" for drawing enemy attention |
 | **AOE (Area of Effect)** | Creates expanding damage zones that affect multiple enemies within range | Aim with mouse to target location, press skill key to activate | Most effective against groups of enemies; place strategically to control enemy movement |
 | **Slash** | Short-range arc attack that deals high damage directly in front of player | Face direction with mouse, press skill key to execute a quick slash attack | High damage but requires close range; combo with dash for hit-and-run tactics |
 | **Chain** | Automatically targets the closest enemy and jumps to nearby targets | Press skill key to activate; automatically finds and chains between targets | Excellent against clustered enemies; no need for precise aiming |
