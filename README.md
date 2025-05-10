@@ -137,5 +137,5 @@ verion 0.5
 - Worakrit Kullanatpokin
 
 ## 🤝 Credits
-Sprite sheets: [Shade](https://merchant-shade.itch.io/16x16-puny-characters)
+Sprite sheets: [Shade](https://merchant-shade.itch.io/16x16-puny-characters)<br/>
 Background Music: https://www.FesliyanStudios.com
