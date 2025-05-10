@@ -10,7 +10,7 @@ from enemy import Enemy
 from visual_effects import VisualEffect
 from utils import resolve_overlap, draw_hp_bar, angle_diff
 from game_state import *
-from audio_manager import AudioManager
+from audio_manager import Audio
 from config import Config as C
 
 
@@ -21,14 +21,20 @@ class Game:
         pygame.display.set_caption(C.GAME_NAME)
         self.clock = pygame.time.Clock()
         self.running = True
+        
+        # Visual effects list
         self.effects = []
+        
+        # Game state tracking
         self.wave_number = 1
-        self.enemies = []
         self.skills_filename = C.SKILLS_FILENAME
         self.player_name = "Unknown"  # Default name
         
+        # Sprite groups for collision detection
+        self.enemy_group = pygame.sprite.Group()
+        
         # Initialize audio manager
-        self.audio_manager = AudioManager()
+        self.audio_manager = Audio()
         self.audio_manager.load_music()
         
         # Initialize state machine
@@ -89,7 +95,7 @@ class Game:
         """Complete game initialization after deck is built (second phase)"""
         # Switch to game music when starting gameplay
         self.audio_manager.fade_out(500)  # Fade out the menu music
-        self.audio_manager.play_music("game")  # Start game music
+        self.audio_manager.play_music("PLAYING")  # Start game music
         
         # Spawn first wave of enemies
         self.wave_number = 1
@@ -120,7 +126,7 @@ class Game:
             # From menu/pause to playing
             elif new_state == "PLAYING" and old_state in ["MenuState", "PausedState"]:
                 self.audio_manager.fade_out(500)
-                self.audio_manager.play_music("game")
+                self.audio_manager.play_music("PLAYING")
             # No music changes needed for other state transitions
 
     def log_csv(self, wave):
@@ -155,8 +161,10 @@ class Game:
             ])
 
     def spawn_wave(self):
-        self.enemies.clear()
-        # spawn 5 enemies each wave
+        # Clear enemy group and list
+        self.enemy_group.empty()
+        
+        # spawn enemies based on wave number
         n_enemies = 5 + self.wave_number
         for _ in range(n_enemies):
             x = random.randint(20, C.WIDTH - 20)
@@ -173,34 +181,14 @@ class Game:
                 C.ENEMY_DAMAGE,
                 C.ATTACK_COOLDOWN,
                 C.ATTACK_RADIUS)
-            self.enemies.append(e)
-
-    # This method is now replaced by the DeckSelectionState
-    # but kept for reference or fallback if needed
-    def build_deck_interactively(self, skill_list):
-        print("=== BUILD YOUR DECK (Pick 4) ===")
-        for i, sk in enumerate(skill_list):
-            print(f"{i + 1}. [{sk.element}] {sk.name} - {sk.description}")
-
-        chosen = []
-        picks_needed = 4
-        while len(chosen) < picks_needed:
-            c = input(f"Pick skill #{len(chosen) + 1} (1-{len(skill_list)}): ")
-            if not c.isdigit():
-                print("Invalid input. Enter a number.")
-                continue
-            idx = int(c) - 1
-            if idx < 0 or idx >= len(skill_list):
-                print("Out of range. Try again.")
-                continue
-            chosen_skill = skill_list[idx]
-            chosen.append(chosen_skill)
-            print(f"Added {chosen_skill.name}.")
-
-        print("=== Final Deck ===")
-        for s in chosen:
-            print(f"- {s.name}")
-        return chosen
+            
+            # Add to sprite group
+            self.enemy_group.add(e)
+    
+    @property
+    def enemies(self):
+        """Property to maintain backward compatibility"""
+        return list(self.enemy_group.sprites())
 
     def run(self):
         while self.running:
@@ -233,6 +221,43 @@ class Game:
     def resolve_overlap(self, entity1, entity2):
         """Wrapper to call the utility function"""
         resolve_overlap(entity1, entity2)
+        
+    def check_collisions(self):
+        """Use sprite collide for efficient collision detection"""
+        # Check collisions between player projectiles and enemies
+        for projectile in self.player.deck.projectiles:
+            # Check for collision with enemies
+            collided_enemies = pygame.sprite.spritecollide(
+                projectile, 
+                self.enemy_group, 
+                False, 
+                pygame.sprite.collide_circle
+            )
+            
+            if collided_enemies:
+                # Handle collision - projectile hits first enemy
+                enemy = collided_enemies[0]
+                enemy.take_damage(projectile.damage)
+                projectile.explode(self.enemies)
+                break  # Stop checking after first collision
+        
+        # Check collisions between player summons and enemies
+        for summon in self.player.deck.summons:
+            # Use distance-based collision for summon attacks
+            # This is handled in the summon's update method
+            pass
+        
+        # Check collisions between player and enemies
+        collided_enemies = pygame.sprite.spritecollide(
+            self.player, 
+            self.enemy_group, 
+            False, 
+            pygame.sprite.collide_circle
+        )
+        
+        for enemy in collided_enemies:
+            # Push enemies away from player
+            self.resolve_overlap(self.player, enemy)
         
     def draw_wave_info(self):
         ui_font = pygame.font.SysFont("Arial", 24)
@@ -305,7 +330,6 @@ class Game:
 
 
 def main():
-    pygame.init()
     game = Game()
     game.run()
 

@@ -2,10 +2,46 @@
 import time
 import math
 import pygame
+import random
 from visual_effects import DashAfterimage
 from config import Config as C
 from entity import Entity
 from animation import CharacterAnimation
+
+
+class Camera:
+    def __init__(self):
+        self.offset = pygame.math.Vector2(0, 0)
+        self.shake_intensity = 0
+        self.shake_duration = 0
+        self.shake_start_time = 0
+        
+    def start_shake(self, intensity=5, duration=0.3):
+        self.shake_intensity = intensity
+        self.shake_duration = duration
+        self.shake_start_time = time.time()
+        
+    def update(self):
+        # Update camera shake
+        if self.shake_duration > 0:
+            elapsed = time.time() - self.shake_start_time
+            if elapsed < self.shake_duration:
+                # Calculate shake intensity based on remaining time (fade out)
+                remaining_pct = 1 - (elapsed / self.shake_duration)
+                current_intensity = self.shake_intensity * remaining_pct
+                
+                # Apply random offset
+                self.offset.x = random.uniform(-current_intensity, current_intensity)
+                self.offset.y = random.uniform(-current_intensity, current_intensity)
+            else:
+                # Shake finished
+                self.shake_duration = 0
+                self.offset.x = 0
+                self.offset.y = 0
+
+    def apply(self, pos):
+        # Apply camera offset to a position
+        return pos + self.offset
 
 
 class Player(Entity):
@@ -56,6 +92,9 @@ class Player(Entity):
         self.state = 'idle'  # Add player state tracking
         self.is_sprinting = False
         self.attack_timer = 0.0  # Timer to manage returning from cast state
+        
+        # Camera setup
+        self.camera = Camera()
 
     @property
     def summons(self):
@@ -167,6 +206,9 @@ class Player(Entity):
 
         # 6. Update Animation System
         self.animation.update(dt, self.dx, self.dy)
+        
+        # 7. Update camera
+        self.camera.update()
 
     def handle_event(self, event, mouse_pos, enemies, now, effects):
         # Ignore events if dying
@@ -253,10 +295,16 @@ class Player(Entity):
         return self.deck.use_skill(skill_idx, mouse_pos[0], mouse_pos[1], enemies, now)
 
     def take_damage(self, amt):
-        if self.state == 'dying' or not self.alive:
-            return  # Can't take damage if already dying/dead
+        if not self.alive:
+            return  # Can't take damage if already dead
+            
         if amt > 0:
             self.health -= amt
+            
+            # Start camera shake based on damage amount
+            shake_intensity = min(10, amt / 2)  # Scale shake based on damage
+            self.camera.start_shake(intensity=shake_intensity, duration=0.3)
+            
             if self.health <= 0:
                 # Player has died
                 self.health = 0
@@ -270,6 +318,7 @@ class Player(Entity):
                     death_duration = self.animation.config['dying']['duration'] * \
                         animations_length
                     self.attack_timer = death_duration
+                    # We'll set alive = False when animation finishes
             else:
                 # Play hurt animation if not already in a more important state
                 if self.state not in ['cast', 'sweep', 'dying']:
@@ -290,9 +339,10 @@ class Player(Entity):
             scaled_sprite = pygame.transform.scale(current_sprite,
                                                    (self.animation.sprite_width * scale,
                                                     self.animation.sprite_height * scale))
-            # Calculate top-left position for blitting
-            draw_x = self.x - (self.animation.sprite_width * scale) / 2
-            draw_y = self.y - (self.animation.sprite_height * scale) / 2
+            # Calculate top-left position for blitting with camera offset
+            cam_pos = self.camera.apply(pygame.math.Vector2(self.x, self.y))
+            draw_x = cam_pos.x - (self.animation.sprite_width * scale) / 2
+            draw_y = cam_pos.y - (self.animation.sprite_height * scale) / 2
             surf.blit(scaled_sprite, (int(draw_x), int(draw_y)))
         # else: # Debugging print
         #      print("[DEBUG] !!! current_sprite is None in Player.draw !!!")

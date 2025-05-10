@@ -1,6 +1,7 @@
 import csv
 import math
 import time
+import pygame
 from skill import SkillType, Projectile, Summon, Heal, AOE, Slash, Chain
 from config import Config as C
 from visual_effects import VisualEffect
@@ -12,17 +13,19 @@ class Deck:
     def __init__(self, owner):
         self.owner = owner
         self.skills = []
-        self.active_projectiles = []
-        self.active_summons = []
+        
+        # Replace lists with sprite groups
+        self.projectiles = pygame.sprite.Group()
+        self.summons = pygame.sprite.Group()
         self.summon_limit = 5
 
     @property
     def get_projectiles(self):
-        return self.active_projectiles
+        return list(self.projectiles.sprites())
 
     @property
     def get_summons(self):
-        return self.active_summons
+        return list(self.summons.sprites())
 
     def load_from_csv(self, filename):
         """Load skills from CSV file into this deck"""
@@ -144,8 +147,6 @@ class Deck:
 
         # --- Skill Activation ---
         skill.trigger_cooldown()  # Use the method in BaseSkill
-        print(
-            f"[Deck] Using skill '{skill.name}' (Type: {skill.skill_type}) towards ({target_x}, {target_y})")
             
         # Set the owner reference on the skill for visual effects
         skill.owner = self.owner
@@ -164,8 +165,6 @@ class Deck:
             animations = anim_config.get('animations', [])
             duration_per_frame = anim_config.get('duration', 0.1)
             self.owner.attack_timer = len(animations) * duration_per_frame
-            print(
-                f"[Deck] Set player state to '{action_state}' for {self.owner.attack_timer:.2f}s")
         else:
             print(
                 f"Warning: Animation config not found for state '{action_state}'. Setting default timer.")
@@ -198,22 +197,20 @@ class Deck:
                 skill, spawn_x, spawn_y, target_x, target_y)
             projectile_entity.owner = self.owner  # Set the owner reference
 
-            self.active_projectiles.append(projectile_entity)
-            print(
-                f"[Deck] Created ProjectileEntity instance at ({spawn_x}, {spawn_y}).")
+            # Add to sprite group
+            self.projectiles.add(projectile_entity)
 
             # Add visual effect for casting at the spawn location
             if game_effects_list is not None:
                 effect = VisualEffect(
                     spawn_x, spawn_y, "explosion", skill.color, 10, 0.2)
                 game_effects_list.append(effect)
-                print("[Deck] Added projectile cast visual effect.")
 
         elif skill.skill_type == SkillType.SUMMON:
-            if len(self.active_summons) >= self.summon_limit:
-                print(
-                    f"[Deck] Summon limit ({self.summon_limit}) reached. Removing oldest.")
-                self.active_summons.pop(0)  # Remove oldest summon
+            if len(self.summons) >= self.summon_limit:
+                # Remove oldest summon
+                oldest_summon = next(iter(self.summons))
+                oldest_summon.kill()
 
             # Calculate spawn position near player in direction of mouse
             dx = target_x - self.owner.x
@@ -229,27 +226,23 @@ class Deck:
             # Create the actual summon entity at the calculated position
             summon_entity = skill.create(
                 skill, spawn_x, spawn_y, C.ATTACK_RADIUS)
-            self.active_summons.append(summon_entity)
-            print(
-                f"[Deck] Created SummonEntity instance at ({spawn_x}, {spawn_y}) with sprite: {skill.sprite_path}")
+            
+            # Add to sprite group
+            self.summons.add(summon_entity)
 
             # Add visual effect for summoning at the spawn location
             if game_effects_list is not None:
                 effect = VisualEffect(
                     spawn_x, spawn_y, "explosion", skill.color, 20, 0.3)
                 game_effects_list.append(effect)
-                print("[Deck] Added summon visual effect.")
 
         elif skill.skill_type == SkillType.HEAL:
             # Get summons for healing (if applicable)
-            summons = self.active_summons if hasattr(
+            summons_to_heal = list(self.summons.sprites()) if hasattr(
                 skill, 'heal_summons') and skill.heal_summons else None
 
             # Activate the heal skill with both player and summons
-            Heal.activate(skill, self.owner, summons)
-
-            print(
-                f"[Deck] Applied Heal skill to player and {len(self.active_summons) if summons else 0} summons.")
+            Heal.activate(skill, self.owner, summons_to_heal)
 
             # Add visual effect for healing
             if game_effects_list is not None:
@@ -258,18 +251,15 @@ class Deck:
                 game_effects_list.append(effect)
 
                 # Add effects for healed summons too
-                if summons:
-                    for summon in summons:
+                if summons_to_heal:
+                    for summon in summons_to_heal:
                         if summon.alive and summon.health < summon.max_health:
                             effect = VisualEffect(
                                 summon.x, summon.y, "heal", skill.color, 20, 0.3)
                             game_effects_list.append(effect)
 
-                print("[Deck] Added heal visual effects.")
-
         elif skill.skill_type == SkillType.AOE:
             # AOE primarily creates a visual effect and might apply damage immediately or over time
-            print(f"[Deck] Activated AOE skill '{skill.name}'.")
             if game_effects_list is not None:
                 # Ensure duration is not zero
                 # Minimum duration of 0.1 seconds
@@ -277,20 +267,15 @@ class Deck:
                 effect = VisualEffect(
                     target_x, target_y, "explosion", skill.color, skill.radius, duration)
                 game_effects_list.append(effect)
-                print("[Deck] Added AOE visual effect.")
 
             # Apply damage to enemies in radius
             AOE.activate(skill, target_x, target_y, enemies)
+            
         elif skill.skill_type == SkillType.SLASH:
-            print(f"[Deck] Activated Slash skill '{skill.name}'.")
             # Slash creates a visual effect and applies damage in an arc
             if game_effects_list is not None:
                 # Calculate angle from player to target
                 angle = math.atan2(target_y - self.owner.y, target_x - self.owner.x)
-                
-                # Debug angle information
-                angle_degrees = math.degrees(angle)
-                print(f"[Deck] Slash target angle: {angle_degrees:.1f} degrees ({angle:.2f} radians)")
                 
                 # Define sweep parameters
                 arc_width = math.pi / 3  # 60 degree sweep
@@ -298,10 +283,6 @@ class Deck:
                 # and ending to the right of target angle
                 start_angle = angle - (arc_width / 2)  # Start 30 degrees to the "left" of target
                 sweep_angle = arc_width  # Sweep 60 degrees clockwise
-                
-                # For debugging, calculate end angle
-                end_angle = start_angle + sweep_angle
-                print(f"[Deck] Slash arc: {math.degrees(start_angle):.1f}° to {math.degrees(end_angle):.1f}° (clockwise sweep)")
                 
                 # Create visual effect with the correct start angle and sweep direction
                 effect = VisualEffect(
@@ -320,56 +301,49 @@ class Deck:
             # The start and sweep angles need to be passed to ensure consistency
             Slash.activate(skill, self.owner.x, self.owner.y,
                            target_x, target_y, enemies, start_angle, sweep_angle)
+                           
         elif skill.skill_type == SkillType.CHAIN:
-            print(f"[Deck] Activated Chain skill '{skill.name}'")
-            
             # Call the Chain's activate method to perform the chain logic
             Chain.activate(skill, self.owner.x, self.owner.y, target_x, target_y, enemies)
-            
-            # The Chain.activate method will create its own visual effects
-            # when it has the owner reference to access game.effects
-        else:
-            print(
-                f"[Deck] Warning: Skill type {skill.skill_type} activation not fully implemented.")
-        # Skill was successfully used (even if effect not fully implemented)
+
+        # Skill was successfully used
         return True
 
     def update(self, dt, enemies):
         """Update all active entities managed by the deck"""
-        # Less verbose logging
-        if len(self.active_projectiles) > 0 or len(self.active_summons) > 0:
-            print(f"[Deck] Updating {len(self.active_projectiles)} projectiles and {len(self.active_summons)} summons")
         self._update_projectiles(dt, enemies)
         self._update_summons(dt, enemies)
 
     def _update_projectiles(self, dt, enemies):
         """Update all active projectiles"""
-        # Process projectiles in reverse order for safe removal
-        for i in range(len(self.active_projectiles) - 1, -1, -1):
-            projectile = self.active_projectiles[i]
-            # Only update if no collision occurred
-            if projectile.update(dt, enemies):
-                continue
-            else:
-                # Projectile expired or hit screen edge
-                self.active_projectiles.pop(i)
+        # Use list comprehension to safely remove dead projectiles after update
+        dead_projectiles = []
+        for projectile in self.projectiles:
+            if not projectile.update(dt, enemies):
+                dead_projectiles.append(projectile)
+        
+        # Remove dead projectiles
+        for projectile in dead_projectiles:
+            self.projectiles.remove(projectile)
 
     def _update_summons(self, dt, enemies):
         """Update all active summons"""
-        # Process summons in reverse order for safe removal
-        for i in range(len(self.active_summons) - 1, -1, -1):
-            summon = self.active_summons[i]
-            result = summon.update(dt, enemies)
-            if not result:
-                print(f"[Deck] Removing summon {i+1}")
-                self.active_summons.pop(i)
+        # Use list comprehension to safely remove dead summons after update
+        dead_summons = []
+        for summon in self.summons:
+            if not summon.update(dt, enemies):
+                dead_summons.append(summon)
+        
+        # Remove dead summons
+        for summon in dead_summons:
+            self.summons.remove(summon)
 
     def draw(self, surface):
         """Draw all active entities managed by the deck"""
         # Draw projectiles
-        for projectile in self.active_projectiles:
+        for projectile in self.projectiles:
             projectile.draw(surface)
 
         # Draw summons
-        for summon in self.active_summons:
+        for summon in self.summons:
             summon.draw(surface)

@@ -1,33 +1,32 @@
 import pygame
 import os.path
-from config import MENU_BGM_PATH, GAME_BGM_PATH
+from config import Config as C
 
-class AudioManager:
+class Audio:
     """Handles all audio playback including background music and sound effects"""
     
     def __init__(self):
-        # Initialize pygame mixer
         pygame.mixer.init()
         
         # Music properties
         self.current_music = None
         self.music_volume = 0.5  # Default volume (0.0 to 1.0)
         
-        # Sound effects properties
+        # Sound effects dictionary (name -> Sound object)
         self.sound_effects = {}
         self.sfx_volume = 0.7  # Default volume (0.0 to 1.0)
         
         # Preload background music tracks
         self.music_tracks = {
-            "MENU": MENU_BGM_PATH,
-            "PLAYING": GAME_BGM_PATH,
+            "MENU": C.MENU_BGM_PATH,
+            "PLAYING": C.GAME_BGM_PATH,
         }
         
         # Status flags
         self.music_enabled = True
         self.sound_enabled = True
         
-        # Check if music files exist
+        # Preload music files
         self._check_music_files()
     
     def _check_music_files(self):
@@ -36,24 +35,13 @@ class AudioManager:
         for track_name, track_path in self.music_tracks.items():
             if not os.path.exists(track_path):
                 missing_files.append((track_name, track_path))
-        
-        if missing_files:
-            print("\n===== MUSIC FILES MISSING =====")
-            print("The following music files were not found:")
-            for name, path in missing_files:
-                print(f" - {name}: {path}")
-            print("\nTo add music:")
-            print("1. Download MP3 files")
-            print("2. Create the directory:", os.path.dirname(MENU_BGM_PATH))
-            print("3. Add the files with the configured names")
-            print("============================\n")
+                print(f"Warning: Music file not found: {track_path}")
     
     def load_music(self):
         """Pre-checks if music files exist to avoid runtime errors"""
         for track_name, track_path in self.music_tracks.items():
             if not os.path.exists(track_path):
                 print(f"Warning: Music file not found: {track_path}")
-                # Continue anyway - missing files will be handled gracefully
         return True
     
     def play_music(self, track_name, loop=True):
@@ -86,7 +74,6 @@ class AudioManager:
             loop_count = -1 if loop else 0  # -1 means infinite loop
             pygame.mixer.music.play(loop_count)
             self.current_music = track_name
-            print(f"Playing music track: {track_name}")
         except pygame.error as e:
             print(f"Error playing music: {e}")
             self.current_music = None  # Reset current music on error

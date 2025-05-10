@@ -56,36 +56,51 @@ class ProjectileEntity(Entity):
         self.element = skill.element
         self.explosion_radius = skill.radius  # Use skill radius for explosion
         self.explosion_damage = skill.damage  # Use skill damage for explosion
+        
+        # Create proper sprite image
+        size = max(10, self.radius * 2)
+        self.image = pygame.Surface((size, size), pygame.SRCALPHA)
+        
+        # Draw projectile with glow effect
+        glow_radius = size // 2
+        glow_color = (*self.color, 100)  # Semi-transparent
+        pygame.draw.circle(self.image, glow_color, (size//2, size//2), glow_radius)
+        pygame.draw.circle(self.image, self.color, (size//2, size//2), self.radius)
+        pygame.draw.circle(self.image, (255, 255, 255), (size//2, size//2), self.radius, 1)
+        
+        # Set rect
+        self.rect = self.image.get_rect(center=(start_x, start_y))
 
-        # Calculate velocity
-        dx = target_x - start_x
-        dy = target_y - start_y
-        dist = math.hypot(dx, dy)
-        if dist == 0: dist = 1
-        self.dx = dx / dist  # Normalized direction
-        self.dy = dy / dist  # Normalized direction
+        # Calculate velocity vector
+        direction = pygame.math.Vector2(target_x - start_x, target_y - start_y)
+        if direction.length() > 0:
+            direction.normalize_ip()
+        self.direction = direction
 
     def update(self, dt, enemies):
         """Update projectile position and check collisions"""
         if not self.alive:
             return False
 
-        # Move using normalized direction and speed
-        self.x += self.dx * self.speed * dt
-        self.y += self.dy * self.speed * dt
+        # Move using Vector2 and update position
+        movement = self.direction * self.speed * dt
+        self.pos += movement
+        self.rect.center = (int(self.pos.x), int(self.pos.y))
 
         # Check screen bounds collision
-        if (self.x < 0 or self.x > C.WIDTH or 
-            self.y < 0 or self.y > C.HEIGHT):
+        if (self.pos.x < 0 or self.pos.x > C.WIDTH or 
+            self.pos.y < 0 or self.pos.y > C.HEIGHT):
             self.explode(enemies)
             return False
 
-        # Check collision with enemies
+        # Check collision with enemies using pygame rect collision
         for enemy in enemies:
             if not enemy.alive:
                 continue
-            dx = enemy.x - self.x
-            dy = enemy.y - self.y
+                
+            # Check approximate distance first (optimization)
+            dx = enemy.x - self.pos.x
+            dy = enemy.y - self.pos.y
             dist = math.hypot(dx, dy)
             if dist <= (self.radius + enemy.radius):
                 # Apply direct damage to the hit enemy
@@ -100,8 +115,8 @@ class ProjectileEntity(Entity):
         if hasattr(self, 'owner') and hasattr(self.owner, 'game') and self.owner.game and hasattr(self.owner.game, 'effects'):
             # Create explosion visual effect
             explosion = VisualEffect(
-                self.x, 
-                self.y, 
+                self.pos.x, 
+                self.pos.y, 
                 "explosion", 
                 self.color, 
                 self.explosion_radius,  # Use explosion radius
@@ -110,34 +125,22 @@ class ProjectileEntity(Entity):
             self.owner.game.effects.append(explosion)
 
         # Damage nearby enemies
-        hit_count = 0
         for enemy in enemies:
             if not enemy.alive:
                 continue
-            dx = enemy.x - self.x
-            dy = enemy.y - self.y
+            dx = enemy.x - self.pos.x
+            dy = enemy.y - self.pos.y
             dist = math.hypot(dx, dy)
             if dist <= self.explosion_radius:
-                hit_count += 1
                 enemy.take_damage(self.explosion_damage)
 
+        # Set alive to false - this will trigger the kill() method
         self.alive = False
 
     def draw(self, surface):
         """Draw the projectile with a glow effect"""
         if self.alive:
-            # Draw glow effect (larger, semi-transparent circle)
-            glow_surface = pygame.Surface((self.radius * 3, self.radius * 3), pygame.SRCALPHA)
-            glow_color = (*self.color, 100)  # Add alpha channel
-            pygame.draw.circle(glow_surface, glow_color, (self.radius * 1.5, self.radius * 1.5), self.radius * 1.5)
-            surface.blit(glow_surface, (int(self.x - self.radius * 1.5), int(self.y - self.radius * 1.5)))
-            
-            # Draw main projectile
-            pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
-            # Draw outline
-            pygame.draw.circle(surface, (255, 255, 255), (int(self.x), int(self.y)), self.radius, 1)
-            
-            # Draw explosion radius if debug mode is enabled
+            # Display explosion radius if debug mode is enabled
             if hasattr(self, 'explosion_radius') and self.explosion_radius > 0:
                 # Create a transparent surface for the explosion radius
                 radius_surf = pygame.Surface((self.explosion_radius * 2, self.explosion_radius * 2), pygame.SRCALPHA)
@@ -146,7 +149,10 @@ class ProjectileEntity(Entity):
                 # Draw circle outline
                 pygame.draw.circle(radius_surf, (*self.color, 80), (self.explosion_radius, self.explosion_radius), self.explosion_radius, 2)
                 # Blit the radius surface
-                surface.blit(radius_surf, (int(self.x - self.explosion_radius), int(self.y - self.explosion_radius)))
+                surface.blit(radius_surf, (int(self.pos.x - self.explosion_radius), int(self.pos.y - self.explosion_radius)))
+            
+            # Draw the sprite
+            surface.blit(self.image, self.rect)
 
 class Projectile(BaseSkill):
     """Projectile skill that creates ProjectileEntity instances"""
@@ -219,27 +225,27 @@ class SummonEntity(Entity):
 
     def update(self, dt, enemies):
         """Update summon behavior: find target, move, attack"""
-        print(f"[SummonEntity] update() called with dt={dt:.3f}, alive={self.alive}, health={self.health}, state={self.state}")
-        print(f"[SummonEntity] Checking interactions with {len(enemies)} enemies")
-        print(f"[SummonEntity] Current position: ({self.x:.1f}, {self.y:.1f}), attack timer: {self.attack_timer:.1f}")
-        
         # If entity is dead, only update dying animation and do nothing else
-        if not self.alive or self.health <= 0:
-            if self.state != 'dying':
-                self.state = 'dying'
-                self.animation.set_state('dying', force_reset=True)
-                animations_length = len(self.animation.config['dying']['animations'])
-                death_duration = self.animation.config['dying']['duration'] * animations_length
-                self.attack_animation_timer = death_duration
-                
+        if not self.alive and self.state == 'dying':
             # Just update animation and check if it's time to set alive=False
             self.animation.update(dt)
             if self.attack_animation_timer > 0:
                 self.attack_animation_timer -= dt
                 if self.attack_animation_timer <= 0:
-                    self.alive = False
-            return False  # Don't do anything else if dying/dead
+                    # Actually kill the entity when animation completes
+                    self.alive = False  # This will call sprite.kill()
+            return False
         
+        # Regular update for living summons
+        if self.health <= 0 and self.state != 'dying':
+            # Start death animation
+            self.state = 'dying'
+            self.animation.set_state('dying', force_reset=True)
+            animations_length = len(self.animation.config['dying']['animations'])
+            death_duration = self.animation.config['dying']['duration'] * animations_length
+            self.attack_animation_timer = death_duration
+            return True
+
         # Handle hurt and attack animations
         if self.state in ['hurt', 'sweep']:
             self.attack_animation_timer -= dt
@@ -273,7 +279,6 @@ class SummonEntity(Entity):
         # Update attack timer
         if self.attack_timer > 0:
             self.attack_timer -= dt
-            print(f"[SummonEntity] Attack cooldown: {self.attack_timer:.1f}s remaining")
 
         # Try to attack if we can
         if target and min_dist < self.attack_radius and self.attack_timer <= 0:
@@ -290,10 +295,9 @@ class SummonEntity(Entity):
             target.take_damage(self.damage)
 
             # Add visual effect for attack
-            if hasattr(target, 'game') and target.game and hasattr(target.game, 'effects'):
+            if hasattr(self, 'owner') and hasattr(self.owner, 'game') and self.owner.game and hasattr(self.owner.game, 'effects'):
                 hit_effect = VisualEffect(target.x, target.y, "explosion", self.color, 15, 0.2)
-                target.game.effects.append(hit_effect)
-                print(f"[SummonEntity] Added hit visual effect")
+                self.owner.game.effects.append(hit_effect)
                 
             self.attack_timer = self.attack_cooldown  # Reset attack timer
             self.last_attack_time = time.time()       # Update last attack time
@@ -318,15 +322,9 @@ class SummonEntity(Entity):
             
             # Move toward target
             move_dist = effective_speed * dt
-            old_x, old_y = self.x, self.y
             
             # Apply movement
-            self.x += self.dx * move_dist
-            self.y += self.dy * move_dist
-            
-            # Verify movement actually happened
-            actual_dist_moved = math.hypot(self.x - old_x, self.y - old_y)
-            print(f"[SummonEntity] Moving toward target: ({old_x:.1f}, {old_y:.1f}) -> ({self.x:.1f}, {self.y:.1f}), moved {actual_dist_moved:.1f} pixels")
+            self.move(self.dx, self.dy, dt)
             
             # Update animation with movement direction
             self.animation.update(dt, self.dx, self.dy)
@@ -355,7 +353,7 @@ class SummonEntity(Entity):
     def take_damage(self, amount):
         """Override take_damage to handle animations"""
         # Don't take damage if already dead
-        if not self.alive or self.health <= 0:
+        if not self.alive:
             return
 
         if amount > 0:
@@ -364,11 +362,13 @@ class SummonEntity(Entity):
             if self.health <= 0:
                 # Mark as dying but don't set alive=False yet (let animation finish)
                 self.health = 0
-                self.state = 'dying'
-                self.animation.set_state('dying', force_reset=True)
-                animations_length = len(self.animation.config['dying']['animations'])
-                death_duration = self.animation.config['dying']['duration'] * animations_length
-                self.attack_animation_timer = death_duration
+                if self.state != 'dying':
+                    self.state = 'dying'
+                    self.animation.set_state('dying', force_reset=True)
+                    animations_length = len(self.animation.config['dying']['animations'])
+                    death_duration = self.animation.config['dying']['duration'] * animations_length
+                    self.attack_animation_timer = death_duration
+                    # We'll set alive=False when animation completes
             else:
                 # Only show hurt animation if not already in a more important state
                 if self.state not in ['dying', 'sweep']:

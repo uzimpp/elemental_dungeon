@@ -365,8 +365,7 @@ class PlayingState(GameState):
         
     def update(self, dt):
         # 1. Update enemy positions and attacks
-        for e in self.game.enemies:
-            e.update(self.game.player, dt)
+        self.game.enemy_group.update(self.game.player, dt)
 
         # 2. Handle player input (movement)
         self.game.player.handle_input(dt)
@@ -374,19 +373,14 @@ class PlayingState(GameState):
         # 3. Update deck
         self.game.player.deck.update(dt, self.game.enemies)
 
-        # 4. Resolve collisions
-        entities = [entity for entity in ([self.game.player] + 
-                                          self.game.player.summons + 
-                                          self.game.enemies) if entity.alive]
-        for i in range(len(entities)):
-            for j in range(i + 1, len(entities)):
-                self.game.resolve_overlap(entities[i], entities[j])
+        # 4. Check collisions using sprite groups
+        self.game.check_collisions()
 
         # 5. Clean up dead entities
-        self.game.enemies = [e for e in self.game.enemies if e.alive]
+        # This is now handled by the sprite groups' update methods
 
         # 6. Wave logic
-        if len(self.game.enemies) == 0:
+        if len(self.game.enemy_group) == 0:
             self.game.wave_number += 1
             self.game.spawn_wave()
 
@@ -409,8 +403,8 @@ class PlayingState(GameState):
         self.game.draw_skill_ui()
         
         # Draw all game objects in proper layers
-        # 1. Draw entities (enemies, player)
-        for enemy in self.game.enemies:
+        # 1. Draw enemies
+        for enemy in self.game.enemy_group:
             enemy.draw(screen)
 
         # 2. Draw player
