@@ -1,6 +1,6 @@
 import pygame
 import time
-
+from audio import Audio
 class GameState:
     """Base class for all game states"""
     def __init__(self, game):
@@ -39,22 +39,17 @@ class MenuState(GameState):
         self.selected = 0
     
     def enter(self):
-        # Setup or reset menu state
         self.selected = 0
-        
+    
     def update(self, dt):
-        # Menu animations, if any
         pass
     
     def render(self, screen):
-        # Clear screen with background
         screen.fill((50, 50, 100))
         
-        # Draw title
         title = self.title_font.render("INCANTATO", True, (255, 255, 255))
         screen.blit(title, (screen.get_width()//2 - title.get_width()//2, 100))
         
-        # Draw menu options
         for i, option in enumerate(self.options):
             color = (255, 255, 0) if i == self.selected else (255, 255, 255)
             text = self.menu_font.render(option, True, color)
@@ -72,10 +67,9 @@ class MenuState(GameState):
                 elif event.key == pygame.K_DOWN:
                     self.selected = (self.selected + 1) % len(self.options)
                 elif event.key == pygame.K_RETURN:
-                    if self.selected == 0:  # Play
-                        # Go to name entry screen instead of initializing directly
+                    if self.selected == 0:
                         return "NAME_ENTRY"
-                    elif self.selected == 1:  # Quit
+                    elif self.selected == 1:
                         return "QUIT"
         return None
 
@@ -356,7 +350,6 @@ class PlayingState(GameState):
         super().__init__(game)
         
     def enter(self):
-        # Nothing special needed when entering play state
         pass
         
     def exit(self):
@@ -428,22 +421,15 @@ class PlayingState(GameState):
                 
                 # Volume controls
                 elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
-                    # Decrease volume
-                    current_vol = self.game.audio_manager.music_volume
-                    self.game.audio_manager.set_music_volume(current_vol - 0.1)
-                    print(f"Music volume: {self.game.audio_manager.music_volume:.1f}")
+                    current_vol = self.game.audio.music_volume
+                    self.game.audio.set_music_volume(current_vol - 0.1)
                 
                 elif event.key == pygame.K_EQUALS or event.key == pygame.K_KP_PLUS:
-                    # Increase volume
-                    current_vol = self.game.audio_manager.music_volume
-                    self.game.audio_manager.set_music_volume(current_vol + 0.1)
-                    print(f"Music volume: {self.game.audio_manager.music_volume:.1f}")
+                    current_vol = self.game.audio.music_volume
+                    self.game.audio.set_music_volume(current_vol + 0.1)
                 
                 elif event.key == pygame.K_m:
-                    # Toggle music
-                    music_enabled = self.game.audio_manager.toggle_music()
-                    state = "on" if music_enabled else "off"
-                    print(f"Music: {state}")
+                    self.game.audio.toggle_music()
                     
             # Process other gameplay events
             mouse_pos = pygame.mouse.get_pos()
@@ -464,24 +450,19 @@ class PausedState(GameState):
         
     def enter(self):
         self.selected = 0
-        # Update the Music option text based on current state
-        music_state = "On" if self.game.audio_manager.music_enabled else "Off"
+        music_state = "On" if self.game.audio.music_enabled else "Off"
         self.options[1] = f"Music: {music_state}"
         
     def update(self, dt):
-        # No updates while paused
         pass
         
     def render(self, screen):
-        # First draw the game in the background
         screen.fill((255, 255, 255))
         
-        # Draw game information
         self.game.draw_wave_info()
         self.game.draw_player_bars()
         self.game.draw_skill_ui()
         
-        # Draw game elements
         for enemy in self.game.enemies:
             enemy.draw(screen)
             
@@ -491,16 +472,13 @@ class PausedState(GameState):
         for effect in self.game.effects:
             effect.draw(screen)
         
-        # Draw semi-transparent overlay
         overlay = pygame.Surface((screen.get_width(), screen.get_height()), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 128))  # Black with alpha
+        overlay.fill((0, 0, 0, 128))
         screen.blit(overlay, (0, 0))
         
-        # Draw pause title
         title = self.menu_font.render("GAME PAUSED", True, (255, 255, 255))
         screen.blit(title, (screen.get_width()//2 - title.get_width()//2, 150))
         
-        # Draw menu options
         for i, option in enumerate(self.options):
             color = (255, 255, 0) if i == self.selected else (255, 255, 255)
             text = self.menu_font.render(option, True, color)
@@ -514,23 +492,22 @@ class PausedState(GameState):
                 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    return "PLAYING"  # Resume game
+                    return "PLAYING"
                     
                 if event.key == pygame.K_UP:
                     self.selected = (self.selected - 1) % len(self.options)
                 elif event.key == pygame.K_DOWN:
                     self.selected = (self.selected + 1) % len(self.options)
                 elif event.key == pygame.K_RETURN:
-                    if self.selected == 0:  # Resume
+                    if self.selected == 0:
                         return "PLAYING"
-                    elif self.selected == 1:  # Toggle Music
-                        # Toggle music on/off
-                        music_enabled = self.game.audio_manager.toggle_music()
+                    elif self.selected == 1:
+                        music_enabled = self.game.audio.toggle_music()
                         music_state = "On" if music_enabled else "Off"
                         self.options[1] = f"Music: {music_state}"
-                    elif self.selected == 2:  # Return to Menu
+                    elif self.selected == 2:
                         return "MENU"
-                    elif self.selected == 3:  # Quit
+                    elif self.selected == 3:
                         return "QUIT"
         return None
 

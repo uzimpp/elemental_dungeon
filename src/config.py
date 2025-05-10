@@ -7,7 +7,7 @@ class Config:
     GAME_NAME = "Incantato"
 
     # Screen constants
-    WIDTH = 1028
+    WIDTH = 1280
     HEIGHT = 720
     FPS = 60
 
@@ -86,7 +86,7 @@ class Config:
     PLAYER_SPRINT_SPEED = 180  # 3.0 * 60
     ENEMY_BASE_SPEED = 105  # 1.75 * 60
     SPRITE_SIZE = 32
-    RENDER_SIZE = WIDTH // 16
+    RENDER_SIZE = 64
     ATTACK_COOLDOWN = 1.25
     ATTACK_RADIUS = 32
 
@@ -147,3 +147,4 @@ class Config:
     SKILLS_FILENAME = "data/skills.csv"
     MENU_BGM_PATH = "assets/music/menu.mp3"
     GAME_BGM_PATH = "assets/music/retro-forest.mp3"
+    FONT_PATH = "assets/fonts/Quintessential-Regular.ttf"

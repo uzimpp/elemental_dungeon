@@ -67,7 +67,6 @@ class CharacterAnimation:
 
         # Pre-load all frames from the sheet for efficiency
         self.all_frames = self._load_all_frames_from_sheet()
-        # print("[DEBUG] Finished loading all frames.") # Keep for debugging
 
     def _load_all_frames_from_sheet(self):
         """Loads and scales the entire sprite sheet."""
@@ -84,15 +83,7 @@ class CharacterAnimation:
             for col in range(max_col):
                 x = col * self.sprite_width
                 y = row * self.sprite_height
-                sprite = self.sprite_sheet.get_sprite(x, y,
-                                                      self.sprite_width,
-                                                      self.sprite_height)
-                # Scale sprite to render size
-                scale_factor = C.RENDER_SIZE / C.SPRITE_SIZE
-                if scale_factor != 1:
-                    sprite = pygame.transform.scale(sprite,
-                                                    (int(self.sprite_width * scale_factor),
-                                                     int(self.sprite_height * scale_factor)))
+                sprite = self.sprite_sheet.get_sprite(x, y, self.sprite_width, self.sprite_height)
                 row_frames.append(sprite)
             all_frames.append(row_frames)
         return all_frames
@@ -117,14 +108,13 @@ class CharacterAnimation:
         """Changes the current animation state if different."""
         if new_state != self.current_state or force_reset:
             if new_state in self.config:
-                # print(f"[DEBUG] Animation State Change: {self.current_state} -> {new_state}") # Keep for debugging
                 self.current_state = new_state
                 self.current_frame_index = 0
                 self.frame_timer = 0.0
                 self.animation_finished = False  # Reset finished flag on state change
             else:
-                print(
-                    f"Warning: Attempted to set unknown animation state '{new_state}'")
+                # Silently fail with invalid states
+                pass
 
     def update(self, dt, move_dx=0, move_dy=0):
         """Updates the animation frame and direction based on state and movement."""
@@ -164,32 +154,27 @@ class CharacterAnimation:
     def get_current_sprite(self):
         """Returns the current sprite surface based on state and direction."""
         if self.current_state not in self.config:
-            print(
-                f"Warning: Current animation state '{self.current_state}' not in config.")
+            # Return a default sprite if state is invalid
             return self.all_frames[0][0]  # Return a default sprite
 
         state_cfg = self.config[self.current_state]
         is_directional = state_cfg.get('directional', False)
 
         # Determine row index
-        row_index = 0  # Default row?
+        row_index = 0  # Default row
         if is_directional:
             if self.current_direction_angle in self.DIRECTION_ROWS:
                 row_index = self.DIRECTION_ROWS[self.current_direction_angle]
             else:
-                print(
-                    f"Warning: Current direction angle {self.current_direction_angle} not in mapping.")
-                row_index = self.DIRECTION_ROWS[90]  # Default to down?
+                # Use default down direction if angle not found
+                row_index = self.DIRECTION_ROWS[90]
         else:
-            # For non-directional, maybe use a fixed row specified in config?
-            # Example: defaults to row 0 if not specified
+            # For non-directional, maybe use a fixed row specified in config
             row_index = state_cfg.get('fixed_row', 0)
 
         # Determine column index
         animations = state_cfg['animations']
-        frame_idx = min(self.current_frame_index, len(
-            animations) - 1)  # Safety check
-        # Use the column directly from animations array
+        frame_idx = min(self.current_frame_index, len(animations) - 1)  # Safety check
         col_index = animations[frame_idx]
 
         # Get the sprite
@@ -197,8 +182,5 @@ class CharacterAnimation:
             sprite = self.all_frames[row_index][col_index]
             return sprite
         except IndexError:
-            print(
-                f"!!! Error getting sprite: Row {row_index}, Col {col_index} out of bounds!")
-            print(
-                f"    State={self.current_state}, Angle={self.current_direction_angle}, FrameIdx={self.current_frame_index}")
-            return self.all_frames[0][0]  # Return default sprite on error
+            # Return default sprite on error
+            return self.all_frames[0][0]

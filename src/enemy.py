@@ -1,6 +1,4 @@
-import pygame
 import math
-import time
 from utils import draw_hp_bar
 from entity import Entity
 from animation import CharacterAnimation
@@ -21,16 +19,18 @@ class Enemy(Entity):
             damage,
             attack_cooldown,
             attack_radius=C.ATTACK_RADIUS):
+        # Calculate scaled health based on wave
+        scaled_hp = base_hp * (wave_number * wave_multiplier)
+        
         # Call parent class constructor
-        super().__init__(x, y, radius, base_hp * (wave_number *
-                                                  wave_multiplier), base_speed, color, attack_radius)
+        super().__init__(x, y, radius, scaled_hp, base_speed, color, attack_radius)
 
         # Enemy specific attributes
         self.damage = damage
         self.attack_cooldown = attack_cooldown
         self.attack_timer = 0.0
-        self.attack_radius = attack_radius
-        # Animation setup
+        
+        # Initialize animation
         self.animation = CharacterAnimation(
             sprite_sheet_path=C.ENEMY_SPRITE_PATH,
             config=C.ENEMY_ANIMATION_CONFIG,
@@ -38,104 +38,57 @@ class Enemy(Entity):
             sprite_height=C.SPRITE_SIZE
         )
         self.state = 'idle'
-        self.attack_animation_timer = 0.0
+        self.animation.set_state('idle', force_reset=True)
 
     def update(self, player, dt):
-        # If entity is dead, only update dying animation and do nothing else
-        if not self.alive and self.state == 'dying':
-            # Just update animation and check if it's time to set alive=False
-            self.animation.update(dt)
-            if self.attack_animation_timer > 0:
-                self.attack_animation_timer -= dt
-                if self.attack_animation_timer <= 0:
-                    # Actually kill the entity now that animation is complete
-                    self.alive = False  # This will call sprite.kill()
+        # If entity is dead or in special animation states, let base class handle it
+        if not self.alive or self.state in ['dying', 'hurt', 'sweep']:
+            super().update_animation(dt)
             return
-
-        # Regular update for living enemies
-        if self.health <= 0 and self.state != 'dying':
-            # Start death animation
-            self.state = 'dying'
-            self.animation.set_state('dying', force_reset=True)
-            animations_length = len(self.animation.config['dying']['animations'])
-            death_duration = self.animation.config['dying']['duration'] * animations_length
-            self.attack_animation_timer = death_duration
-            return
-
-        # Handle hurt and attack animations
-        if self.state in ['hurt', 'sweep']:
-            self.attack_animation_timer -= dt
-            self.animation.update(dt)
-
-            # If animation is done, return to appropriate state
-            if self.attack_animation_timer <= 0:
-                if self.health <= 0:
-                    self.state = 'dying'
-                    self.animation.set_state('dying', force_reset=True)
-                    animations_length = len(self.animation.config['dying']['animations'])
-                    death_duration = self.animation.config['dying']['duration'] * animations_length
-                    self.attack_animation_timer = death_duration
-                else:
-                    # Reset to idle or walking based on whether there's a target
-                    closest_type, closest_dist, closest_obj = self.get_closest_target(player)
-                    if closest_obj and closest_dist > 0:
-                        self.state = 'walk'
-                        self.animation.set_state('walk', force_reset=True)
-                    else:
-                        self.state = 'idle'
-                        self.animation.set_state('idle', force_reset=True)
-
-        # Don't move or attack during hurt/attack animations
-        if self.state in ['hurt', 'sweep']:
-            return
-
-        # 1) Check for attack BEFORE moving
-        closest_type, closest_dist, closest_obj = self.get_closest_target(player)
 
         # Update attack timer
         if self.attack_timer > 0:
             self.attack_timer -= dt
 
-        # Try to attack if we can - account for target's radius in the distance check
+        # Find closest target (player or summon)
+        closest_type, closest_dist, closest_obj = self.get_closest_target(player)
+
+        # Decide behavior based on distance
         if closest_obj:
             # Get target's radius to properly calculate attack distance
-            # Index 3 contains the radius in closest_obj tuple
             target_radius = closest_obj[3]
-
-            # Effective attack range is the distance between centers minus both radii
-            # If this is less than attack_radius, enemy can attack
+            target_entity = closest_obj[4]
+            
+            # Effective attack range accounts for both entity radii
             effective_distance = closest_dist - self.radius - target_radius
 
+            # Attack if in range and cooldown is ready
             if effective_distance <= self.attack_radius and self.attack_timer <= 0:
                 # Set attack animation
-                self.state = 'sweep'  # Use sweep as attack animation
+                self.state = 'sweep'
                 self.animation.set_state('sweep', force_reset=True)
-
+                
                 # Calculate attack animation duration
                 animations_length = len(self.animation.config['sweep']['animations'])
                 attack_duration = self.animation.config['sweep']['duration'] * animations_length
                 self.attack_animation_timer = attack_duration
-
+                
                 # Perform the attack
-                # Pass the actual object
-                self.attack(closest_type, closest_obj[4])
+                super().attack(target_entity)
                 self.attack_timer = self.attack_cooldown
-                return  # Don't move after deciding to attack
-
-        # 2) Then move toward target if not attacking
-        if closest_obj and closest_dist > 0:
-            tx = closest_obj[1]
-            ty = closest_obj[2]
-            self.dx, self.dy = self.get_direction_to(tx, ty)
-
+                return
+                
+            # Otherwise, move toward target
             # Set walking animation if not already
             if self.state != 'walk':
                 self.state = 'walk'
                 self.animation.set_state('walk')
-
+                
+            # Get direction to target and move
+            self.dx, self.dy = self.get_direction_to(closest_obj[1], closest_obj[2])
             self.move(self.dx, self.dy, dt)
         else:
-            # If no target, set to idle
+            # If no target, go to idle state
             if self.state != 'idle':
                 self.state = 'idle'
                 self.animation.set_state('idle')
@@ -177,56 +130,11 @@ class Enemy(Entity):
             return 0, 0
         return dx / distance, dy / distance
 
-    def attack(self, target_type, target):
-        """Deal damage to the target."""
-        target.take_damage(self.damage)
-
-    def take_damage(self, amount):
-        """Override take_damage to play hurt animation"""
-        # Don't take damage if already dead
-        if not self.alive:
-            return
-
-        if amount > 0:
-            self.health -= amount
-
-            if self.health <= 0:
-                # Mark as dying but don't set alive=False yet (let animation finish)
-                self.health = 0
-                if self.state != 'dying':
-                    self.state = 'dying'
-                    self.animation.set_state('dying', force_reset=True)
-                    animations_length = len(self.animation.config['dying']['animations'])
-                    death_duration = self.animation.config['dying']['duration'] * animations_length
-                    self.attack_animation_timer = death_duration
-                    # We'll set alive=False when animation completes
-            else:
-                # Only show hurt animation if not already in a more important state
-                if self.state not in ['dying', 'sweep']:
-                    self.state = 'hurt'
-                    self.animation.set_state('hurt', force_reset=True)
-                    animations_length = len(self.animation.config['hurt']['animations'])
-                    hurt_duration = self.animation.config['hurt']['duration'] * animations_length
-                    self.attack_animation_timer = hurt_duration
-
     def draw(self, surf):
-        # Get the current sprite from the animation system
-        current_sprite = self.animation.get_current_sprite()
-
-        if current_sprite:
-            # Calculate top-left position for blitting (center the sprite)
-            draw_x = self.x - self.animation.sprite_width / 2
-            draw_y = self.y - self.animation.sprite_height / 2
-            scale = 2  # Adjust scale factor as needed
-            scaled_sprite = pygame.transform.scale(current_sprite,
-                                                   (self.animation.sprite_width * scale,
-                                                    self.animation.sprite_height * scale))
-            # Draw the sprite
-            surf.blit(scaled_sprite, (int(draw_x), int(draw_y)))
-        else:
-            raise Exception("[Enemy] No animation")
-
-        # HP bar
+        # Use the base class's draw method for animation
+        super().draw(surf)
+        
+        # Add HP bar
         bar_x = self.x - 25
         bar_y = self.y - self.radius - 10
         draw_hp_bar(

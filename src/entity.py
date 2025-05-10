@@ -1,5 +1,4 @@
 import pygame
-import math
 from config import Config as C
 
 
@@ -24,12 +23,20 @@ class Entity(pygame.sprite.Sprite):
         pygame.draw.circle(self.image, color, (radius, radius), radius)
         self.rect = self.image.get_rect(center=(x, y))
 
-        # Direction
+        # Direction as Vector2 for easier math
         self.direction = pygame.math.Vector2(1, 0)
         self.attack_radius = attack_radius
         
         # Internal state - we'll keep this for animation handling
         self._alive = True
+        
+        # Animation state tracking
+        self.state = 'idle'
+        self.animation = None  # Will be set by subclasses
+        self.attack_cooldown = C.ATTACK_COOLDOWN
+        self.attack_animation_timer = 0.0
+        self.attack_timer = 0.0  # For attack cooldown
+
 
     @property
     def alive(self):
@@ -78,19 +85,29 @@ class Entity(pygame.sprite.Sprite):
 
     def move(self, dx, dy, dt):
         """Move the entity by the given delta x and y, scaled by dt (delta time)"""
-        # Calculate new position using Vector2
-        self.direction.x = dx
-        self.direction.y = dy
+        # Set direction vector (normalize if needed)
+        self.dx = dx
+        self.dy = dy
         
         if self.direction.length() > 0:
             self.direction.normalize_ip()
         
+        # Calculate movement
         movement = self.direction * self.speed * dt
-        new_pos = self.pos + movement
-
+        
+        # Apply movement and update rect
+        self.pos += movement
+        
+        # Get entity boundaries
+        entity_radius = self.radius
+        if hasattr(self, 'animation') and self.animation:
+            # Use the scaled sprite size if available
+            scale = C.RENDER_SIZE / C.SPRITE_SIZE
+            entity_radius = max(entity_radius, (self.animation.sprite_width * scale) / 2)
+        
         # Keep entity within screen bounds
-        self.pos.x = max(self.radius, min(C.WIDTH - self.radius, new_pos.x))
-        self.pos.y = max(self.radius, min(C.HEIGHT - self.radius, new_pos.y))
+        self.pos.x = max(entity_radius, min(C.WIDTH - entity_radius, self.pos.x))
+        self.pos.y = max(entity_radius, min(C.HEIGHT - entity_radius, self.pos.y))
         
         # Update rect position to match
         self.rect.center = (int(self.pos.x), int(self.pos.y))
@@ -104,9 +121,25 @@ class Entity(pygame.sprite.Sprite):
             self.health -= amount
             if self.health <= 0:
                 self.health = 0
-                # For entities without animations, mark as dead immediately 
-                if not hasattr(self, 'animation'):
+                if hasattr(self, 'animation') and self.animation is not None:
+                    # Start death animation if we have animation capabilities
+                    if self.state != 'dying':
+                        self.state = 'dying'
+                        self.animation.set_state('dying', force_reset=True)
+                        animations_length = len(self.animation.config['dying']['animations'])
+                        death_duration = self.animation.config['dying']['duration'] * animations_length
+                        self.attack_animation_timer = death_duration
+                else:
+                    # For entities without animations, mark as dead immediately 
                     self.alive = False  # This will call kill() through the property setter
+            elif hasattr(self, 'animation') and self.animation is not None:
+                # Only show hurt animation if not already in a more important state
+                if self.state not in ['dying', 'sweep']:
+                    self.state = 'hurt'
+                    self.animation.set_state('hurt', force_reset=True)
+                    animations_length = len(self.animation.config['hurt']['animations'])
+                    hurt_duration = self.animation.config['hurt']['duration'] * animations_length
+                    self.attack_animation_timer = hurt_duration
 
     def heal(self, amount):
         """Heal the entity"""
@@ -116,19 +149,104 @@ class Entity(pygame.sprite.Sprite):
         if amount > 0:
             self.health = min(self.max_health, self.health + amount)
 
+    def attack(self, target, damage=None):
+        """Generic attack method for entities
+        
+        Args:
+            target: The target to attack
+            damage: Damage amount (uses self's damage attr if None)
+        """
+        if hasattr(self, 'damage'):
+            damage_amount = damage if damage is not None else self.damage
+            target.take_damage(damage_amount)
+        else:
+            # Default minimal damage if no damage attribute exists
+            target.take_damage(1)
+
+    def get_distance_to(self, other_x, other_y):
+        """Calculate distance to another point"""
+        return self.pos.distance_to(pygame.math.Vector2(other_x, other_y))
+
+    def get_direction_to(self, target_x, target_y):
+        """Calculate direction (dx, dy) to a target point, normalized"""
+        direction = pygame.math.Vector2(target_x - self.pos.x, target_y - self.pos.y)
+        if direction.length() > 0:
+            direction.normalize_ip()
+        return direction.x, direction.y
+
+    def update_animation(self, dt):
+        """Update animation state based on timers"""
+        if hasattr(self, 'animation') and self.animation is not None:
+            # Handle dying animation
+            if not self.alive and self.state == 'dying':
+                self.animation.update(dt)
+                if self.attack_animation_timer > 0:
+                    self.attack_animation_timer -= dt
+                    if self.attack_animation_timer <= 0:
+                        # Actually kill the entity when animation completes
+                        self.alive = False
+                return
+
+            # Handle action animations (hurt/attack)
+            if self.state in ['hurt', 'sweep']:
+                self.attack_animation_timer -= dt
+                self.animation.update(dt)
+                
+                # If animation is done, return to idle state
+                if self.attack_animation_timer <= 0:
+                    if self.health <= 0:
+                        self.state = 'dying'
+                        self.animation.set_state('dying', force_reset=True)
+                        animations_length = len(self.animation.config['dying']['animations'])
+                        death_duration = self.animation.config['dying']['duration'] * animations_length
+                        self.attack_animation_timer = death_duration
+                    else:
+                        self.state = 'idle'
+                        self.animation.set_state('idle', force_reset=True)
+            else:
+                # Regular animation update
+                self.animation.update(dt, self.dx, self.dy)
+
     def draw(self, screen):
         """Draw the entity on the screen"""
-        if not self.alive:
-            return  # Don't draw dead entities
+        if not self.alive and (not hasattr(self, 'animation') or self.state != 'dying'):
+            return  # Don't draw dead entities unless they're in dying animation
             
-        # Draw the entity circle (fallback if image not set)
-        if not hasattr(self, 'image') or self.image is None:
-            pygame.draw.circle(screen, self.color,
-                                (int(self.pos.x), int(self.pos.y)), self.radius)
+        # If we have an animation, use it
+        if hasattr(self, 'animation') and self.animation is not None:
+            current_sprite = self.animation.get_current_sprite()
+            if current_sprite:
+                # Use consistent scale factor
+                scale = C.RENDER_SIZE / C.SPRITE_SIZE
+                
+                # Calculate scaled dimensions
+                scaled_width = self.animation.sprite_width * scale
+                scaled_height = self.animation.sprite_height * scale
+                
+                # Calculate top-left position for blitting (center the sprite)
+                draw_x = self.pos.x - scaled_width / 2
+                draw_y = self.pos.y - scaled_height / 2
+                
+                # Scale sprite if needed
+                if scale != 1:
+                    scaled_sprite = pygame.transform.scale(current_sprite,
+                                                   (int(scaled_width),
+                                                    int(scaled_height)))
+                    # Draw the sprite
+                    screen.blit(scaled_sprite, (int(draw_x), int(draw_y)))
+                else:
+                    # Draw without scaling if scale is 1
+                    screen.blit(current_sprite, (int(draw_x), int(draw_y)))
+            else:
+                # Fallback to circle if sprite is not available
+                pygame.draw.circle(screen, self.color,
+                                  (int(self.pos.x), int(self.pos.y)), self.radius)
         else:
-            screen.blit(self.image, self.rect)
+            # Draw the entity circle (fallback if no animation)
+            pygame.draw.circle(screen, self.color,
+                              (int(self.pos.x), int(self.pos.y)), self.radius)
 
-        # Draw attack radius if debug is enabled and attack radius is set
+        # Draw attack radius if set
         if self.attack_radius > 0:
             # Create a transparent surface for the attack radius indicator
             radius_surf = pygame.Surface(
@@ -143,8 +261,9 @@ class Entity(pygame.sprite.Sprite):
             screen.blit(radius_surf, (int(
                 self.pos.x - self.attack_radius), int(self.pos.y - self.attack_radius)))
 
-        # Draw health bar
-        self.draw_health_bar(screen)
+        # Draw health bar if entity is alive or in dying animation
+        if self.alive or (hasattr(self, 'animation') and self.state == 'dying'):
+            self.draw_health_bar(screen)
 
     def draw_health_bar(self, screen):
         """Draw health bar above the entity"""
@@ -165,6 +284,15 @@ class Entity(pygame.sprite.Sprite):
 
     def update(self, dt):
         """Update method to be overridden by child classes"""
+        # Update animation if available
+        if hasattr(self, 'animation') and self.animation is not None:
+            self.update_animation(dt)
+            
+        # Update attack timer
+        if hasattr(self, 'attack_timer') and self.attack_timer > 0:
+            self.attack_timer -= dt
+            
         # Implement basic check - if health is zero, mark as dead
         if self.health <= 0 and self.alive:
-            self.alive = False
+            if not hasattr(self, 'animation') or self.animation is None:
+                self.alive = False
