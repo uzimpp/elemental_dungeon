@@ -1,11 +1,28 @@
 import pygame
 import os.path
+import time
 from config import Config as C
 
 class Audio:
-    """Handles all audio playback including background music and sound effects"""
+    """
+    Audio management system using singleton pattern to ensure
+    only one instance controls all game audio.
+    """
+    _instance = None
     
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(Audio, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+        
     def __init__(self):
+        # Skip initialization if already done
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+            
+        self._initialized = True
+        
         pygame.mixer.init()
         
         # Music properties
@@ -36,74 +53,82 @@ class Audio:
                 print(f"Warning: Music file not found: {track_path}")
         return True
     
-    def play_music(self, track_name, loop=True):
-        """Play a music track by name with optional looping"""
+    def play_music(self, music_key):
+        """Play a music track by key"""
         if not self.music_enabled:
             return
             
-        if self.current_music == track_name:
-            return
+        if music_key == "MENU":
+            pygame.mixer.music.load(C.MENU_BGM_PATH)
+            pygame.mixer.music.play(-1)  # Loop indefinitely
+            self.current_music = music_key
+        elif music_key == "PLAYING":
+            pygame.mixer.music.load(C.GAME_BGM_PATH)
+            pygame.mixer.music.play(-1)  # Loop indefinitely
+            self.current_music = music_key
             
-        if track_name not in self.music_tracks:
-            return
-            
-        track_path = self.music_tracks[track_name]
-        
-        if not os.path.exists(track_path):
-            return
-        
-        pygame.mixer.music.stop()
-        
-        try:
-            pygame.mixer.music.load(track_path)
-            pygame.mixer.music.set_volume(self.music_volume)
-            loop_count = -1 if loop else 0
-            pygame.mixer.music.play(loop_count)
-            self.current_music = track_name
-        except pygame.error:
-            self.current_music = None
+        pygame.mixer.music.set_volume(self.music_volume)
     
     def stop_music(self):
-        """Stop currently playing music"""
+        """Stop the currently playing music"""
         pygame.mixer.music.stop()
         self.current_music = None
     
-    def fade_out(self, time_ms=1000):
-        """Gradually fade out the current music"""
-        pygame.mixer.music.fadeout(time_ms)
-        self.current_music = None
+    def fade_out(self, fade_ms=500):
+        """Fade out the current music"""
+        pygame.mixer.music.fadeout(fade_ms)
     
-    def fade_in(self, track_name, time_ms=1000):
+    def fade_in(self, music_key, fade_ms=500):
         """Fade in a new music track"""
-        if not self.music_enabled or track_name not in self.music_tracks:
+        if not self.music_enabled:
             return
             
-        track_path = self.music_tracks[track_name]
+        # Set volume to 0 and then start fading in
+        orig_volume = self.music_volume
+        pygame.mixer.music.set_volume(0.0)
         
-        if not os.path.exists(track_path):
-            return
+        # Start playing the new track
+        self.play_music(music_key)
+        
+        # Create a fade-in effect using a timer
+        start_time = time.time()
+        
+        def fade_step():
+            elapsed = time.time() - start_time
+            progress = min(elapsed / (fade_ms / 1000), 1.0)
+            pygame.mixer.music.set_volume(progress * orig_volume)
             
-        try:
-            pygame.mixer.music.load(track_path)
-            pygame.mixer.music.set_volume(self.music_volume)
-            pygame.mixer.music.play(-1, fade_ms=time_ms)
-            self.current_music = track_name
-        except pygame.error:
-            self.current_music = None
+            if progress < 1.0:
+                # Continue fading
+                pygame.time.set_timer(pygame.USEREVENT, 50)  # Check again in 50ms
+            else:
+                # Done fading, clear the timer
+                pygame.time.set_timer(pygame.USEREVENT, 0)
+                
+        # Set up the timer for the first step
+        pygame.time.set_timer(pygame.USEREVENT, 50)
+        
+        # The event will be handled in the main game loop
+        return fade_step
     
     def set_music_volume(self, volume):
         """Set music volume (0.0 to 1.0)"""
         self.music_volume = max(0.0, min(1.0, volume))
-        pygame.mixer.music.set_volume(self.music_volume)
+        if self.music_enabled:
+            pygame.mixer.music.set_volume(self.music_volume)
     
     def toggle_music(self):
         """Toggle music on/off"""
         self.music_enabled = not self.music_enabled
+        
         if self.music_enabled:
+            # Resume music if we have a current track
             if self.current_music:
                 self.play_music(self.current_music)
         else:
-            pygame.mixer.music.stop()
+            # Stop music
+            self.stop_music()
+            
         return self.music_enabled
     
     def load_sound(self, name, file_path):
@@ -117,13 +142,13 @@ class Audio:
         else:
             print(f"Sound file not found: {file_path}")
     
-    def play_sound(self, name):
-        """Play a loaded sound effect"""
-        if not self.sound_enabled:
+    def play_sound(self, sound_key):
+        """Play a sound effect by key"""
+        if not self.sound_enabled or sound_key not in self.sound_effects:
             return
             
-        if name in self.sound_effects:
-            self.sound_effects[name].play()
+        self.sound_effects[sound_key].set_volume(self.sfx_volume)
+        self.sound_effects[sound_key].play()
     
     def set_sound_volume(self, volume):
         """Set sound effects volume (0.0 to 1.0)"""

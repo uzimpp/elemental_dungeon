@@ -45,38 +45,23 @@ class Camera:
 
 
 class Player(Entity):
-    def __init__(self, name, width, height,
-                 deck,
-                 radius,
-                 max_health,
-                 summon_limit,
-                 color,
-                 walk_speed,
-                 sprint_speed,
-                 max_stamina,
-                 stamina_regen,
-                 sprint_drain,
-                 dash_cost,
-                 dash_distance,
-                 stamina_cooldown):
-        super().__init__(width//2, height//2, radius, max_health, walk_speed, color)
+    def __init__(self, name, deck):
+        super().__init__(C.WIDTH//2, C.HEIGHT//2, C.SPRITE_SIZE//2, C.PLAYER_MAX_HEALTH, C.PLAYER_WALK_SPEED, C.PLAYER_COLOR)
         self.name = name
-        self.game = None  # Will be set by Game class
         self.deck = deck
 
         # Speed attributes
-        self.walk_speed = walk_speed
-        self.sprint_speed = sprint_speed
-        self.speed = self.walk_speed  # current speed
+        self.walk_speed = C.PLAYER_WALK_SPEED
+        self.sprint_speed = C.PLAYER_SPRINT_SPEED
         # Stamina System
-        self.max_stamina = max_stamina
+        self.max_stamina = C.PLAYER_MAX_STAMINA
         self.stamina = self.max_stamina
-        self.stamina_regen = stamina_regen
-        self.sprint_drain = sprint_drain
-        self.dash_cost = dash_cost
-        self.dash_distance = dash_distance
+        self.stamina_regen = C.PLAYER_STAMINA_REGEN
+        self.sprint_drain = C.PLAYER_SPRINT_DRAIN
+        self.dash_cost = C.PLAYER_DASH_COST
+        self.dash_distance = C.PLAYER_DASH_DISTANCE
         self.stamina_depleted_time = None
-        self.stamina_cooldown = stamina_cooldown
+        self.stamina_cooldown = C.PLAYER_STAMINA_COOLDOWN
         self.is_sprinting = False
 
         self.animation = CharacterAnimation(
@@ -85,7 +70,6 @@ class Player(Entity):
             sprite_width=C.SPRITE_SIZE,
             sprite_height=C.SPRITE_SIZE
         )
-        self.state = 'idle'
         self.animation.set_state('idle', force_reset=True)
         self.camera = Camera()
         self.move_vector = pygame.math.Vector2(0, 0)
@@ -206,7 +190,7 @@ class Player(Entity):
         # Update Animation System
         self.animation.update(dt, self.dx, self.dy)
 
-    def handle_event(self, event, mouse_pos, enemies, now, effects):
+    def handle_event(self, event, mouse_pos, enemies, now, effects=None):
         # Ignore events if dying
         if self.state == 'dying':
             return None
@@ -215,9 +199,9 @@ class Player(Entity):
             if self.state not in ['cast', 'sweep']:
                 if event.key in [pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4]:
                     skill_idx = event.key - pygame.K_1
-                    self.cast_skill(skill_idx, mouse_pos, enemies, now, effects)
+                    self.cast_skill(skill_idx, mouse_pos, enemies, now)
                 elif event.key == pygame.K_SPACE:
-                    self.dash(effects)
+                    self.dash()
 
             if event.key == pygame.K_ESCAPE:
                 return 'exit'
@@ -225,10 +209,10 @@ class Player(Entity):
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if self.state not in ['cast', 'sweep']:
                 if event.button == 1:
-                    self.cast_skill(0, mouse_pos, enemies, now, effects)
+                    self.cast_skill(0, mouse_pos, enemies, now)
         return None
 
-    def dash(self, effects):
+    def dash(self):
         """Dash logic - Triggers an afterimage effect."""
         if self.state in ['dying', 'cast', 'sweep']:
             return
@@ -241,7 +225,7 @@ class Player(Entity):
             current_sprite = self.animation.get_current_sprite()
             if current_sprite:  # Make sure sprite is valid
                 afterimage = DashAfterimage(start_x, start_y, current_sprite)
-                effects.append(afterimage)  # Add to the main effects list
+                self.deck.add_effect(afterimage)  # Add to deck's effects list
 
             # --- Perform Dash ---
             self.stamina -= self.dash_cost
@@ -294,8 +278,8 @@ class Player(Entity):
             
         return dash_vector
 
-    def cast_skill(self, skill_idx, mouse_pos, enemies, now, effects):
-        return self.deck.use_skill(skill_idx, mouse_pos[0], mouse_pos[1], enemies, now)
+    def cast_skill(self, skill_idx, mouse_pos, enemies, now):
+        return self.deck.use_skill(skill_idx, mouse_pos[0], mouse_pos[1], enemies, now, self)
 
     def take_damage(self, amt):
         """Override take_damage to add camera shake effect"""

@@ -4,6 +4,7 @@ import sys
 import time
 import csv
 import random
+import os
 from deck import Deck
 from player import Player
 from enemy import Enemy
@@ -12,6 +13,7 @@ from utils import resolve_overlap, draw_hp_bar, angle_diff
 from game_state import *
 from audio import Audio
 from config import Config as C
+from player_profile import PlayerProfile
 
 
 class Game:
@@ -26,13 +28,12 @@ class Game:
         self.audio = Audio()
         self.audio.load_music()
         
-        # Visual effects list
-        self.effects = []
-        
         # Game state tracking
         self.wave_number = 1
         self.skills_filename = C.SKILLS_FILENAME
-        self.player_name = "Unknown"  # Default name
+        
+        # Initialize player profile singleton
+        self.profile = PlayerProfile()
         
         # Sprite groups for collision detection
         self.enemy_group = pygame.sprite.Group()
@@ -51,49 +52,24 @@ class Game:
         # Start with menu state and play menu music
         self.change_state("MENU")
 
+    @property
+    def player_name(self):
+        """Get player name from the profile singleton"""
+        return self.profile.player_name
+    
+    @player_name.setter
+    def player_name(self, name):
+        """Set player name in the profile singleton"""
+        self.profile.player_name = name
+
     def initialize_player(self):
         """Initialize just the player without deck (first phase)"""
-        # Player name is now set by the PlayerNameState
-
-        # Create player first with no deck
-        self.player = Player(
-            self.player_name,
-            C.WIDTH,
-            C.HEIGHT,
-            None,  # No deck yet
-            C.PLAYER_RADIUS,
-            C.PLAYER_MAX_HEALTH,
-            C.PLAYER_SUMMON_LIMIT,
-            C.PLAYER_COLOR,
-            C.PLAYER_WALK_SPEED,
-            C.PLAYER_SPRINT_SPEED,
-            C.PLAYER_MAX_STAMINA,
-            C.PLAYER_STAMINA_REGEN,
-            C.PLAYER_SPRINT_DRAIN,
-            C.PLAYER_DASH_COST,
-            C.PLAYER_DASH_DISTANCE,
-            C.PLAYER_STAMINA_COOLDOWN)
-
-        # Set game reference
-        self.player.game = self
-
-        # Create deck without skills yet
-        self.deck = Deck(self.player)
-        
-        # Set empty deck on player
-        self.player.deck = self.deck
-        
-        # Set summon limit
-        self.deck.summon_limit = C.PLAYER_SUMMON_LIMIT
-        
-        # Game tracking
+        deck = Deck()
+        self.player = Player(self.player_name, deck)
         self.game_start_time = time.time()
-        self.effects = []
-    
+
     def finish_initialization(self):
         """Complete game initialization after deck is built (second phase)"""
-        # Switch to game music when starting gameplay
-        
         # Spawn first wave of enemies
         self.wave_number = 1
         self.spawn_wave()
@@ -124,37 +100,6 @@ class Game:
                 self.audio.fade_in("PLAYING", 1000)
         
         self.current_state.enter()
-
-    def log_csv(self, wave):
-        now_str = time.strftime("%Y-%m-%d %H:%M:%S")
-        g_time = time.time() - self.game_start_time
-
-        # Convert deck to string representation
-        deck_str = "|".join([skill.name for skill in self.player.deck.skills])
-
-        with open(C.LOG_FILENAME, "a", newline="") as f:
-            w = csv.writer(f)
-            # Write header if file is empty
-            if f.tell() == 0:
-                w.writerow([
-                    "timestamp", "player_name", "wave_survived",
-                    "game_duration", "final_hp", "deck_composition",
-                    "skill1", "skill2", "skill3", "skill4"
-                ])
-
-            # Write data row
-            w.writerow([
-                now_str,                    # timestamp
-                self.player_name,          # player_name
-                wave,                      # wave_survived
-                f"{g_time:.2f}",          # game_duration
-                self.player.health,        # final_hp
-                deck_str,                  # deck_composition
-                self.player.deck.skills[0].name,  # skill1
-                self.player.deck.skills[1].name,  # skill2
-                self.player.deck.skills[2].name,  # skill3
-                self.player.deck.skills[3].name,  # skill4
-            ])
 
     def spawn_wave(self):
         # Clear enemy group and list
@@ -256,12 +201,12 @@ class Game:
             self.resolve_overlap(self.player, enemy)
         
     def draw_wave_info(self):
-        ui_font = pygame.font.SysFont("Arial", 24)
+        ui_font = pygame.font.Font(C.FONT_PATH, 24)
         wave_text = ui_font.render(f"WAVE: {self.wave_number}", True, C.BLACK)
         self.screen.blit(wave_text, (10, 10))
 
     def draw_player_bars(self):
-        ui_font = pygame.font.SysFont("Arial", 24)
+        ui_font = pygame.font.Font(C.FONT_PATH, 24)
         # HP Bar
         player_bar_x = 10
         player_bar_y = 50
@@ -290,7 +235,7 @@ class Game:
         self.screen.blit(st_text, (220, 78))
 
     def draw_skill_ui(self):
-        skill_font = pygame.font.SysFont("Arial", 16)
+        skill_font = pygame.font.Font(C.FONT_PATH, 16)
         now = time.time()
         skill_start_y = C.HEIGHT - 100
         for i, skill in enumerate(self.player.deck.skills):
@@ -304,6 +249,18 @@ class Game:
             name_rect = name_text.get_rect(
                 centerx=box_x + box_width // 2, top=box_y + 5)
             self.screen.blit(name_text, name_rect)
+            
+            # Show skill element and type
+            element_text = skill_font.render(skill.element, True, skill.color)
+            element_rect = element_text.get_rect(
+                centerx=box_x + box_width // 2, top=box_y + 25)
+            self.screen.blit(element_text, element_rect)
+            
+            type_text = skill_font.render(skill.type, True, C.WHITE)
+            type_rect = type_text.get_rect(
+                centerx=box_x + box_width // 2, top=box_y + 40)
+            self.screen.blit(type_text, type_rect)
+            
             self.draw_skill_cooldown(
                 skill, box_x, box_y, box_width, box_height, now, skill_font)
             key_text = skill_font.render(f"[{i + 1}]", True, C.WHITE)

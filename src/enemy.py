@@ -11,24 +11,13 @@ class Enemy(Entity):
             x,
             y,
             wave_number,
-            radius,
             base_speed,
-            base_hp,
-            wave_multiplier,
-            color,
-            damage,
-            attack_cooldown,
-            attack_radius=C.ATTACK_RADIUS):
-        # Calculate scaled health based on wave
-        scaled_hp = base_hp * (wave_number * wave_multiplier)
-        
-        # Call parent class constructor
-        super().__init__(x, y, radius, scaled_hp, base_speed, color, attack_radius)
+            base_hp):
+        scaled_hp = base_hp * (wave_number * C.WAVE_MULTIPLIER)
+        super().__init__(x, y, C.SPRITE_SIZE // 2, scaled_hp, base_speed, C.ENEMY_COLOR)
 
         # Enemy specific attributes
-        self.damage = damage
-        self.attack_cooldown = attack_cooldown
-        self.attack_timer = 0.0
+        self.damage = C.ENEMY_DAMAGE
         
         # Initialize animation
         self.animation = CharacterAnimation(
@@ -37,7 +26,6 @@ class Enemy(Entity):
             sprite_width=C.SPRITE_SIZE,
             sprite_height=C.SPRITE_SIZE
         )
-        self.state = 'idle'
         self.animation.set_state('idle', force_reset=True)
 
     def update(self, player, dt):

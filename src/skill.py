@@ -91,8 +91,7 @@ class ProjectileEntity(Entity):
         # Check screen bounds collision
         if (self.pos.x < 0 or self.pos.x > C.WIDTH or 
             self.pos.y < 0 or self.pos.y > C.HEIGHT):
-            self.explode(enemies)
-            return False
+            return self.explode(enemies)
 
         # Check collision with enemies
         for enemy in enemies:
@@ -104,24 +103,20 @@ class ProjectileEntity(Entity):
             if dist <= (self.radius + enemy.radius):
                 # Apply direct damage to the hit enemy
                 enemy.take_damage(self.damage)
-                self.explode(enemies)
-                return False
+                return self.explode(enemies)
 
         return True
 
     def explode(self, enemies):
         """Create explosion effect and damage nearby enemies"""
-        if hasattr(self, 'owner') and hasattr(self.owner, 'game') and self.owner.game and hasattr(self.owner.game, 'effects'):
-            # Create explosion visual effect
-            explosion = VisualEffect(
-                self.pos.x, 
-                self.pos.y, 
-                "explosion", 
-                self.color, 
-                self.explosion_radius,
-                0.3
-            )
-            self.owner.game.effects.append(explosion)
+        explosion = VisualEffect(
+            self.pos.x, 
+            self.pos.y, 
+            "explosion", 
+            self.color, 
+            self.explosion_radius,
+            0.3
+        )
 
         # Damage nearby enemies
         for enemy in enemies:
@@ -132,9 +127,10 @@ class ProjectileEntity(Entity):
             dist = self.get_distance_to(enemy.x, enemy.y)
             if dist <= self.explosion_radius:
                 enemy.take_damage(self.explosion_damage)
-                
-        # Set alive to false - this will trigger the kill() method
+            
+        # Set alive to false will trigger the kill() method
         self.alive = False
+        return explosion
 
     def draw(self, surface):
         """Draw the projectile with glow effect"""
@@ -422,6 +418,7 @@ class Chain(BaseSkill):
             return False
             
         hit_enemies = []  # Track which enemies we've already hit
+        effects = []  # Collect all effects created
         
         # Find the initial target (enemy in the direction of click)
         first_target = None
@@ -443,7 +440,7 @@ class Chain(BaseSkill):
                     first_target = enemy
         
         if not first_target:
-            return False
+            return effects
             
         # Hit the first target
         current_target = first_target
@@ -467,25 +464,17 @@ class Chain(BaseSkill):
                 current_target.y += pull_y
         
         # Create visual effect for the chain
-        effects_list = None
-        if hasattr(skill, 'owner') and skill.owner:
-            if hasattr(skill.owner, 'game') and skill.owner.game:
-                if hasattr(skill.owner.game, 'effects'):
-                    effects_list = skill.owner.game.effects
-        
-        if effects_list is not None:
-            # Create line effect from player to first target
-            chain_effect = VisualEffect(
-                player_x, 
-                player_y, 
-                "line",  # Assuming there's a line effect type
-                skill.color,
-                10,  # Thickness
-                0.2,  # Duration
-                end_x=current_target.x,
-                end_y=current_target.y
-            )
-            effects_list.append(chain_effect)
+        chain_effect = VisualEffect(
+            player_x, 
+            player_y, 
+            "line",  # Assuming there's a line effect type
+            skill.color,
+            10,  # Thickness
+            0.2,  # Duration
+            end_x=current_target.x,
+            end_y=current_target.y
+        )
+        effects.append(chain_effect)
         
         # Now chain to additional targets
         last_x, last_y = current_target.x, current_target.y
@@ -515,21 +504,19 @@ class Chain(BaseSkill):
             next_target.take_damage(skill.damage)
             
             # Create visual effect for the chain
-            if effects_list is not None:
-                # Create line effect from last target to next target
-                chain_effect = VisualEffect(
-                    last_x, 
-                    last_y, 
-                    "line",
-                    skill.color,
-                    10,
-                    0.2,
-                    end_x=next_target.x,
-                    end_y=next_target.y
-                )
-                effects_list.append(chain_effect)
+            chain_effect = VisualEffect(
+                last_x, 
+                last_y, 
+                "line",
+                skill.color,
+                10,
+                0.2,
+                end_x=next_target.x,
+                end_y=next_target.y
+            )
+            effects.append(chain_effect)
             
             # Update last position for next chain
             last_x, last_y = next_target.x, next_target.y
             
-        return len(hit_enemies) > 0
+        return effects

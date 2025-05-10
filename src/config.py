@@ -88,7 +88,7 @@ class Config:
     SPRITE_SIZE = 32
     RENDER_SIZE = 64
     ATTACK_COOLDOWN = 1.25
-    ATTACK_RADIUS = 32
+    ATTACK_RADIUS = 96
 
     # Define animation configurations based on sprite sheet columns
     # Remember: Columns are 0-indexed!
@@ -147,4 +147,4 @@ class Config:
     SKILLS_FILENAME = "data/skills.csv"
     MENU_BGM_PATH = "assets/music/menu.mp3"
     GAME_BGM_PATH = "assets/music/retro-forest.mp3"
-    FONT_PATH = "assets/fonts/Quintessential-Regular.ttf"
+    FONT_PATH = "assets/fonts/PixelifySans-Regular.ttf"

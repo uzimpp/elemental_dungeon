@@ -3,7 +3,7 @@ from config import Config as C
 
 
 class Entity(pygame.sprite.Sprite):
-    def __init__(self, x, y, radius, max_health, speed, color, attack_radius=0):
+    def __init__(self, x, y, radius, max_health, speed, color):
         super().__init__()
         # Position and movement using Vector2
         self.pos = pygame.math.Vector2(x, y)
@@ -25,7 +25,7 @@ class Entity(pygame.sprite.Sprite):
 
         # Direction as Vector2 for easier math
         self.direction = pygame.math.Vector2(1, 0)
-        self.attack_radius = attack_radius
+        self.attack_radius = C.ATTACK_RADIUS
         
         # Internal state - we'll keep this for animation handling
         self._alive = True
@@ -296,3 +296,4 @@ class Entity(pygame.sprite.Sprite):
         if self.health <= 0 and self.alive:
             if not hasattr(self, 'animation') or self.animation is None:
                 self.alive = False
+
