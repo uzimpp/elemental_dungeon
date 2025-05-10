@@ -10,6 +10,7 @@ from visual_effects import VisualEffect
 from utils import resolve_overlap, draw_hp_bar, angle_diff
 from game_state import MenuState, PlayerNameState, DeckSelectionState, PlayingState, PausedState, GameOverState
 from config import *
+from resources import Resources
 
 
 class Game:
@@ -20,6 +21,11 @@ class Game:
         self.effects = []
         self.wave_number = 1
         self.enemies = []
+        self.player = None
+        self.deck = None
+        self.current_state = None
+        self.states = {}
+        self.resources = Resources.get_instance()
         
         # Initialize state machine
         self.current_state = None
@@ -34,6 +40,45 @@ class Game:
         
         # Start with menu state
         self.change_state("MENU")
+
+    def initialize(self):
+        """Initialize the game"""
+        # Create player
+        self.player = Player(WIDTH // 2, HEIGHT // 2)
+        
+        # Create deck
+        self.deck = Deck(self.player)
+        self.deck.load_from_csv("skills.csv")
+        
+        # Initialize states
+        self.states = {
+            'menu': MenuState(self),
+            'playing': PlayingState(self),
+            'paused': PausedState(self),
+            'game_over': GameOverState(self)
+        }
+        self.current_state = self.states['menu']
+
+    def update(self, dt):
+        """Update game state"""
+        if self.current_state:
+            self.current_state.update(dt)
+
+    def draw(self, surface):
+        """Draw game state"""
+        if self.current_state:
+            self.current_state.draw(surface)
+
+    def change_state(self, state_name):
+        """Change the current game state"""
+        if state_name in self.states:
+            self.current_state = self.states[state_name]
+            self.current_state.enter()
+
+    def handle_event(self, event):
+        """Handle game events"""
+        if self.current_state:
+            self.current_state.handle_event(event)
 
     def initialize_player(self):
         """Initialize just the player without deck (first phase)"""
@@ -70,19 +115,6 @@ class Game:
         self.wave_number = 1
         self.spawn_wave()
 
-    def change_state(self, new_state):
-        """Change the current game state"""
-        old_state = None
-        if self.current_state:
-            old_state = self.current_state.__class__.__name__
-            self.current_state.exit()
-
-        if new_state == "QUIT":
-            return
-
-        self.current_state = self.states[new_state]
-        self.current_state.enter()
-
     def spawn_wave(self):
         self.enemies.clear()
         # spawn 5 enemies each wave
@@ -112,6 +144,8 @@ class Game:
             self.last_time = now
 
             events = pygame.event.get()
+            for event in events:
+                self.handle_event(event)
             next_state = self.current_state.handle_events(events)
             if next_state:
                 self.change_state(next_state)

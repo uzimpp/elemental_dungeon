@@ -1,23 +1,21 @@
 import csv
 import math
 import time
-from skill import SkillType, ProjectileEntity, SummonEntity, Projectile, Summon, Heal, AOE, Slash, Chain
-from config import (
-    SHADOW_SUMMON_SPRITE_PATH,
-    SHADOW_SUMMON_ANIMATION_CONFIG,
-    ATTACK_RADIUS
-)
-from visual_effects import VisualEffect
+import json
+from skill import SkillType, Projectile, Summon, Heal, AOE, Slash, Chain
+from visual_effects import VisualEffectManager
+from resources import Resources
 
 
 class Deck:
-    """Centralized manager for player skills, projectiles, and summons"""
-    def __init__(self, player):
+    """Manages a collection of skills and their active instances"""
+    def __init__(self, player, summon_limit=3):
         self.player = player
-        self.skills = []
+        self.summon_limit = summon_limit
         self.active_projectiles = []
         self.active_summons = []
-        self.summon_limit = 5
+        self.skills = []
+        self.effect_manager = VisualEffectManager()
 
     @property
     def get_projectiles(self):
@@ -27,348 +25,148 @@ class Deck:
     def get_summons(self):
         return self.active_summons
 
-    def load_from_csv(self, filename):
-        """Load skills from CSV file into this deck"""
-        try:
-            with open(filename, newline='', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    skill_type_str = row["skill_type"].upper()
-                    try:
-                        skill_type = SkillType[skill_type_str]
-                    except KeyError:
-                        print(f"Unknown skill type: {skill_type_str}")
-                        continue
+    def load_from_csv(self, csv_path):
+        """Load skills from a CSV file"""
+        # First check if skills are already cached
+        cached_skills = Resources.get_instance().load_file(csv_path)
+        if cached_skills:
+            self.skills = cached_skills
+            return
 
-                    # Create the appropriate skill based on type
-                    if skill_type == SkillType.PROJECTILE:
-                        skill = Projectile(
-                            name=row["name"],
-                            element=row["element"].upper(),
-                            damage=int(row["damage"]),
-                            speed=float(row["speed"]),
-                            radius=float(row["radius"]),
-                            duration=float(row["duration"]),
-                            cooldown=float(row["cooldown"]),
-                            description=row["description"]
-                        )
-                    elif skill_type == SkillType.SUMMON:
-                        element = row["element"].upper()
-                        if element == "SHADOW":
-                            sprite_path = SHADOW_SUMMON_SPRITE_PATH
-                            animation_config = SHADOW_SUMMON_ANIMATION_CONFIG
-                        else:
-                            raise ValueError(
-                                f"Unsupported element for summon: {element}")
-
-                        skill = Summon(
-                            name=row["name"],
-                            element=element,
-                            damage=int(row["damage"]),
-                            speed=float(row["speed"]),
-                            radius=float(row["radius"]),
-                            # Infinite duration - summons stay until killed
-                            duration=float('inf'),
-                            cooldown=float(row["cooldown"]),
-                            description=row["description"],
-                            sprite_path=sprite_path,
-                            animation_config=animation_config,
-                            attack_radius=ATTACK_RADIUS
-                        )
-                    elif skill_type == SkillType.HEAL:
-                        # Parse the heal_summons parameter if it exists
-                        heal_summons = True  # Default to True for backward compatibility
-                        if "heal_summons" in row and row["heal_summons"].upper() == "FALSE":
-                            heal_summons = False
-
-                        skill = Heal(
-                            name=row["name"],
-                            element=row["element"].upper(),
-                            heal_amount=int(row["heal_amount"]),
-                            radius=float(row["radius"]),
-                            duration=float(row["duration"]),
-                            cooldown=float(row["cooldown"]),
-                            description=row["description"],
-                            heal_summons=heal_summons
-                        )
-                    elif skill_type == SkillType.AOE:
-                        skill = AOE(
-                            name=row["name"],
-                            element=row["element"].upper(),
-                            damage=int(row["damage"]),
-                            radius=float(row["radius"]),
-                            duration=float(row["duration"]),
-                            cooldown=float(row["cooldown"]),
-                            description=row["description"]
-                        )
-                    elif skill_type == SkillType.SLASH:
-                        skill = Slash(
-                            name=row["name"],
-                            element=row["element"].upper(),
-                            damage=int(row["damage"]),
-                            radius=float(row["radius"]),
-                            duration=float(row["duration"]),
-                            cooldown=float(row["cooldown"]),
-                            description=row["description"]
-                        )
-                    elif skill_type == SkillType.CHAIN:
-                        skill = Chain(
-                            name=row["name"],
-                            element=row["element"].upper(),
-                            damage=int(row["damage"]),
-                            radius=float(row["radius"]),
-                            duration=float(row["duration"]),
-                            pull=(row["pull"].strip().lower() == "true"),
-                            cooldown=float(row["cooldown"]),
-                            description=row["description"]
-                        )
-                    else:
-                        raise ValueError(
-                            f"Unknown skill type: {skill_type_str}")
+        # If not cached, load from CSV
+        with open(csv_path, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                skill = self._create_skill(row)
+                if skill:
+                    skill.set_effect_manager(self.effect_manager)
                     self.skills.append(skill)
-        except FileNotFoundError:
-            raise ValueError(f"Error: CSV '{filename}' not found.")
-        except KeyError as e:
-            raise ValueError(f"CSV parsing error: missing column {e}")
 
-        return self.skills
+        # Cache the loaded skills
+        Resources.get_instance().cache_file(csv_path, self.skills)
 
-    def use_skill(self, index, target_x, target_y, enemies, now):
-        """Activates a skill, creates entities/effects, and adds visual effects"""
-        if not 0 <= index < len(self.skills):
-            print(
-                f"[Deck] Error: Skill index {index} out of bounds (0-{len(self.skills)-1})")
+    def _create_skill(self, row):
+        """Create a skill instance from a CSV row"""
+        try:
+            # Common parameters
+            name = row['name']
+            element = row['element']
+            cooldown = float(row['cooldown'])
+            description = row['description']
+            skill_type = SkillType[row['type'].upper()]
+
+            # Type-specific parameters
+            if skill_type == SkillType.PROJECTILE:
+                return Projectile(
+                    name, element,
+                    damage=float(row['damage']),
+                    speed=float(row['speed']),
+                    radius=float(row['radius']),
+                    duration=float(row['duration']),
+                    cooldown=cooldown,
+                    description=description
+                )
+            elif skill_type == SkillType.SUMMON:
+                return Summon(
+                    name, element,
+                    damage=float(row['damage']),
+                    speed=float(row['speed']),
+                    radius=float(row['radius']),
+                    duration=float(row['duration']),
+                    cooldown=cooldown,
+                    description=description,
+                    sprite_path=row['sprite_path'],
+                    animation_config=json.loads(row['animation_config']),
+                    attack_radius=float(row['attack_radius'])
+                )
+            elif skill_type == SkillType.HEAL:
+                return Heal(
+                    name, element,
+                    heal_amount=float(row['heal_amount']),
+                    radius=float(row['radius']),
+                    cooldown=cooldown,
+                    description=description,
+                    heal_summons=row.get('heal_summons', 'false').lower() == 'true'
+                )
+            elif skill_type == SkillType.AOE:
+                return AOE(
+                    name, element,
+                    damage=float(row['damage']),
+                    radius=float(row['radius']),
+                    duration=float(row['duration']),
+                    cooldown=cooldown,
+                    description=description
+                )
+            elif skill_type == SkillType.SLASH:
+                return Slash(
+                    name, element,
+                    damage=float(row['damage']),
+                    radius=float(row['radius']),
+                    duration=float(row['duration']),
+                    cooldown=cooldown,
+                    description=description
+                )
+            elif skill_type == SkillType.CHAIN:
+                return Chain(
+                    name, element,
+                    damage=float(row['damage']),
+                    radius=float(row['radius']),
+                    duration=float(row['duration']),
+                    cooldown=cooldown,
+                    description=description,
+                    chain_count=int(row.get('chain_count', 3))
+                )
+        except (KeyError, ValueError) as e:
+            print(f"Error creating skill from row: {e}")
+            return None
+
+    def use_skill(self, skill_index, target_x, target_y, enemies):
+        """Use a skill at the specified index"""
+        if not 0 <= skill_index < len(self.skills):
             return False
 
-        skill = self.skills[index]  # Get the skill *definition*
-        if not skill.is_off_cooldown(now):
-            print(f"[Deck] Skill '{skill.name}' is on cooldown.")
+        skill = self.skills[skill_index]
+        if not skill.is_off_cooldown(time.time()):
             return False
 
-        # --- Skill Activation ---
-        skill.trigger_cooldown()  # Use the method in BaseSkill
-        print(
-            f"[Deck] Using skill '{skill.name}' (Type: {skill.skill_type}) towards ({target_x}, {target_y})")
-            
-        # Set the player reference on the skill for visual effects
-        skill.player = self.player
-
-        # --- Set Player Animation State ---
-        action_state = 'cast'  # Default animation
-        if skill.skill_type == SkillType.SLASH:
-            action_state = 'sweep'
-
-        # Ensure animation config exists before accessing
-        anim_config = self.player.animation.config.get(
-            action_state) if self.player.animation else None
-        if anim_config:
-            self.player.state = action_state
-            self.player.animation.set_state(action_state, force_reset=True)
-            animations = anim_config.get('animations', [])
-            duration_per_frame = anim_config.get('duration', 0.1)
-            self.player.attack_timer = len(animations) * duration_per_frame
-            print(
-                f"[Deck] Set player state to '{action_state}' for {self.player.attack_timer:.2f}s")
-        else:
-            print(
-                f"Warning: Animation config not found for state '{action_state}'. Setting default timer.")
-            self.player.state = action_state  # Still set state even if no animation
-            self.player.attack_timer = 0.5  # Default action duration
-
-        # --- Get Game Effects List ---
-        # Safely get the effects list from the game instance via the player (player)
-        game_effects_list = None
-        if hasattr(self.player, 'game') and self.player.game and hasattr(self.player.game, 'effects'):
-            game_effects_list = self.player.game.effects
-        else:
-            print("[Deck] Warning: Cannot access game effects list from player.")
-
-        # --- Create Skill Entities and Visual Effects ---
+        # Use the skill's activate method based on type
         if skill.skill_type == SkillType.PROJECTILE:
-            # Calculate spawn position near player in direction of mouse
-            dx = target_x - self.player.x
-            dy = target_y - self.player.y
-            dist = math.hypot(dx, dy)
-            if dist == 0:
-                dist = 1
-            # Normalize direction and multiply by spawn distance
-            spawn_distance = 30  # Distance from player to spawn projectile
-            spawn_x = self.player.x + (dx / dist) * spawn_distance
-            spawn_y = self.player.y + (dy / dist) * spawn_distance
-
-            # Create the actual projectile entity at the calculated position
-            projectile_entity = skill.create(
-                skill, spawn_x, spawn_y, target_x, target_y)
-            projectile_entity.player = self.player  # Set the player reference
-
-            self.active_projectiles.append(projectile_entity)
-            print(
-                f"[Deck] Created ProjectileEntity instance at ({spawn_x}, {spawn_y}).")
-
-            # Add visual effect for casting at the spawn location
-            if game_effects_list is not None:
-                effect = VisualEffect(
-                    spawn_x, spawn_y, "explosion", skill.color, 10, 0.2)
-                game_effects_list.append(effect)
-                print("[Deck] Added projectile cast visual effect.")
-
+            projectile = skill.activate(self.player.x, self.player.y, target_x, target_y, enemies)
+            self.active_projectiles.append(projectile)
         elif skill.skill_type == SkillType.SUMMON:
             if len(self.active_summons) >= self.summon_limit:
-                print(
-                    f"[Deck] Summon limit ({self.summon_limit}) reached. Removing oldest.")
-                self.active_summons.pop(0)  # Remove oldest summon
-
-            # Calculate spawn position near player in direction of mouse
-            dx = target_x - self.player.x
-            dy = target_y - self.player.y
-            dist = math.hypot(dx, dy)
-            if dist == 0:
-                dist = 1
-            # Normalize direction and multiply by spawn distance
-            spawn_distance = 40  # Distance from player to spawn summon
-            spawn_x = self.player.x + (dx / dist) * spawn_distance
-            spawn_y = self.player.y + (dy / dist) * spawn_distance
-
-            # Create the actual summon entity at the calculated position
-            summon_entity = skill.create(
-                skill, spawn_x, spawn_y, ATTACK_RADIUS)
-            self.active_summons.append(summon_entity)
-            print(
-                f"[Deck] Created SummonEntity instance at ({spawn_x}, {spawn_y}) with sprite: {skill.sprite_path}")
-
-            # Add visual effect for summoning at the spawn location
-            if game_effects_list is not None:
-                effect = VisualEffect(
-                    spawn_x, spawn_y, "explosion", skill.color, 20, 0.3)
-                game_effects_list.append(effect)
-                print("[Deck] Added summon visual effect.")
-
+                self.active_summons.pop(0)
+            summon = skill.activate(self.player.x, self.player.y, target_x, target_y, enemies)
+            self.active_summons.append(summon)
         elif skill.skill_type == SkillType.HEAL:
-            # Get summons for healing (if applicable)
-            summons = self.active_summons if hasattr(
-                skill, 'heal_summons') and skill.heal_summons else None
-
-            # Activate the heal skill with both player and summons
-            Heal.activate(skill, self.player, summons)
-
-            print(
-                f"[Deck] Applied Heal skill to player and {len(self.active_summons) if summons else 0} summons.")
-
-            # Add visual effect for healing
-            if game_effects_list is not None:
-                effect = VisualEffect(
-                    self.player.x, self.player.y, "heal", skill.color, 30, 0.5)
-                game_effects_list.append(effect)
-
-                # Add effects for healed summons too
-                if summons:
-                    for summon in summons:
-                        if summon.alive and summon.health < summon.max_health:
-                            effect = VisualEffect(
-                                summon.x, summon.y, "heal", skill.color, 20, 0.3)
-                            game_effects_list.append(effect)
-
-                print("[Deck] Added heal visual effects.")
-
-        elif skill.skill_type == SkillType.AOE:
-            # AOE primarily creates a visual effect and might apply damage immediately or over time
-            print(f"[Deck] Activated AOE skill '{skill.name}'.")
-            if game_effects_list is not None:
-                # Ensure duration is not zero
-                # Minimum duration of 0.1 seconds
-                duration = max(0.1, skill.duration)
-                effect = VisualEffect(
-                    target_x, target_y, "explosion", skill.color, skill.radius, duration)
-                game_effects_list.append(effect)
-                print("[Deck] Added AOE visual effect.")
-
-            # Apply damage to enemies in radius
-            AOE.activate(skill, target_x, target_y, enemies)
-        elif skill.skill_type == SkillType.SLASH:
-            print(f"[Deck] Activated Slash skill '{skill.name}'.")
-            # Slash creates a visual effect and applies damage in an arc
-            if game_effects_list is not None:
-                # Calculate angle from player to target
-                angle = math.atan2(target_y - self.player.y, target_x - self.player.x)
-                
-                # Debug angle information
-                angle_degrees = math.degrees(angle)
-                print(f"[Deck] Slash target angle: {angle_degrees:.1f} degrees ({angle:.2f} radians)")
-                
-                # Define sweep parameters
-                arc_width = math.pi / 3  # 60 degree sweep
-                # This is a CLOCKWISE sweep - starting to the left of target angle 
-                # and ending to the right of target angle
-                start_angle = angle - (arc_width / 2)  # Start 30 degrees to the "left" of target
-                sweep_angle = arc_width  # Sweep 60 degrees clockwise
-                
-                # For debugging, calculate end angle
-                end_angle = start_angle + sweep_angle
-                print(f"[Deck] Slash arc: {math.degrees(start_angle):.1f}° to {math.degrees(end_angle):.1f}° (clockwise sweep)")
-                
-                # Create visual effect with the correct start angle and sweep direction
-                effect = VisualEffect(
-                    self.player.x, 
-                    self.player.y, 
-                    "slash", 
-                    skill.color, 
-                    skill.radius, 
-                    0.3, 
-                    start_angle=start_angle,
-                    sweep_angle=sweep_angle
-                )
-                game_effects_list.append(effect)
-
-            # Apply damage to enemies in arc - hit detection must match the visual
-            # The start and sweep angles need to be passed to ensure consistency
-            Slash.activate(skill, self.player.x, self.player.y,
-                           target_x, target_y, enemies, start_angle, sweep_angle)
-        elif skill.skill_type == SkillType.CHAIN:
-            print(f"[Deck] Activated Chain skill '{skill.name}'")
-            
-            # Call the Chain's activate method to perform the chain logic
-            Chain.activate(skill, self.player.x, self.player.y, target_x, target_y, enemies)
-            
-            # The Chain.activate method will create its own visual effects
-            # when it has the player reference to access game.effects
+            summons = self.active_summons if hasattr(skill, 'heal_summons') and skill.heal_summons else None
+            skill.activate(self.player, summons)
         else:
-            print(
-                f"[Deck] Warning: Skill type {skill.skill_type} activation not fully implemented.")
-        # Skill was successfully used (even if effect not fully implemented)
+            skill.activate(self.player.x, self.player.y, target_x, target_y, enemies)
+
+        skill.trigger_cooldown()
         return True
 
     def update(self, dt, enemies):
         """Update all active entities managed by the deck"""
-        # Less verbose logging
-        if len(self.active_projectiles) > 0 or len(self.active_summons) > 0:
-            print(f"[Deck] Updating {len(self.active_projectiles)} projectiles and {len(self.active_summons)} summons")
         self._update_projectiles(dt, enemies)
         self._update_summons(dt, enemies)
+        self.effect_manager.update(dt)
 
     def _update_projectiles(self, dt, enemies):
         """Update all active projectiles"""
-        # Process projectiles in reverse order for safe removal
-        for i in range(len(self.active_projectiles) - 1, -1, -1):
-            projectile = self.active_projectiles[i]
-            # Only update if no collision occurred
-            if projectile.update(dt, enemies):
-                continue
-            else:
-                # Projectile expired or hit screen edge
+        for i, projectile in enumerate(self.active_projectiles):
+            if not projectile.update(dt, enemies):
                 self.active_projectiles.pop(i)
 
     def _update_summons(self, dt, enemies):
         """Update all active summons"""
-        # Process summons in reverse order for safe removal
-        for i in range(len(self.active_summons) - 1, -1, -1):
-            summon = self.active_summons[i]
-            result = summon.update(dt, enemies)
-            if not result:
-                print(f"[Deck] Removing summon {i+1}")
+        for i, summon in enumerate(self.active_summons):
+            if not summon.update(dt, enemies):
                 self.active_summons.pop(i)
 
     def draw(self, surface):
-        """Draw all active entities managed by the deck"""
+        """Draw all active entities and effects"""
         # Draw projectiles
         for projectile in self.active_projectiles:
             projectile.draw(surface)
@@ -376,3 +174,6 @@ class Deck:
         # Draw summons
         for summon in self.active_summons:
             summon.draw(surface)
+
+        # Draw effects
+        self.effect_manager.draw(surface)

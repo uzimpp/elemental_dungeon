@@ -61,3 +61,11 @@ class Resources:
     def get_image(self, name):
         """Retrieve a loaded image by name."""
         return self._resources.get(name, None)
+    
+    def load_csv(self, name, file_path):
+        """Load a CSV file and store it by name."""
+        if name in self._resources:
+            return self._resources[name]
+        if not self.exists(file_path):
+            print(f"[Resources] CSV file not found: {file_path}")
+            return None
