@@ -3,8 +3,7 @@ import time
 from enum import Enum, auto
 import math
 import pygame
-from utils import draw_hp_bar, angle_diff
-from comprog2.project.incantato.src.sprites import CharacterAnimation
+from utils import Utils
 from entity import Entity  # Import the Entity base class
 from config import (
     WIDTH, HEIGHT,
@@ -489,7 +488,7 @@ class Slash(BaseSkill):
             dist = math.hypot(dx, dy)
             if dist <= self.radius:
                 enemy_angle = math.atan2(dy, dx)
-                if angle_diff(enemy_angle, angle) <= arc_width / 2:
+                if Utils.angle_diff(enemy_angle, angle) <= arc_width / 2:
                     enemy.take_damage(self.damage)
                     hit_count += 1
 

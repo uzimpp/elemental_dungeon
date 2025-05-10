@@ -2,7 +2,7 @@ import pygame
 import math
 from config import RENDER_SIZE, SPRITE_SIZE
 from sprites import Sprites
-
+from utils import Utils
 class Animation:
     """Handles state-based character animation from an 8-directional sprite sheet."""
 
@@ -105,13 +105,8 @@ class Animation:
 
         target_angle_deg = math.degrees(target_angle_rad)
         target_angle_deg = (target_angle_deg + 360) % 360
-
-        def angle_diff(a1, a2):
-            diff = abs(a1 - a2) % 360
-            return min(diff, 360 - diff)
-
         closest_angle = min(
-            self.ANGLES, key=lambda angle: angle_diff(angle, target_angle_deg))
+            self.ANGLES, key=lambda angle: Utils.angle_diff(angle, target_angle_deg))
         return closest_angle
 
     def set_state(self, new_state, force_reset=False):

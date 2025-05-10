@@ -1,5 +1,6 @@
 import pygame
 import time
+import math
 from audio import Audio
 
 class GameState:
@@ -374,7 +375,25 @@ class DeckSelectionState(GameState):
 class PlayingState(GameState):
     def __init__(self, game):
         super().__init__(game)
-        
+
+    @staticmethod
+    def resolve_overlap(a, b):
+        dx = b.x - a.x
+        dy = b.y - a.y
+        dist = math.hypot(dx, dy)
+        min_dist = a.radius + b.radius
+        if dist == 0:
+            dist = 0.00000001
+        if dist < min_dist:
+            overlap = min_dist - dist
+            push_x = dx / dist * (overlap / 2.0)
+            push_y = dy / dist * (overlap / 2.0)
+            a.x -= push_x
+            a.y -= push_y
+            b.x += push_x
+            b.y += push_y
+
+
     def handle_audio_enter(self):
         """Play game music when entering playing state"""
         self.audio.play_music("PLAYING")
@@ -408,7 +427,7 @@ class PlayingState(GameState):
                                           self.game.enemies) if entity.alive]
         for i in range(len(entities)):
             for j in range(i + 1, len(entities)):
-                self.game.resolve_overlap(entities[i], entities[j])
+                self.resolve_overlap(entities[i], entities[j])
 
         # 5. Clean up dead entities
         self.game.enemies = [e for e in self.game.enemies if e.alive]

@@ -3,13 +3,13 @@ import time
 import math
 import pygame
 import random
-from utils import angle_diff
 from deck import Deck
 from visual_effects import VisualEffect, DashAfterimage
 from config import (PLAYER_SPRITE_PATH,
                     PLAYER_ANIMATION_CONFIG, SPRITE_SIZE, ATTACK_RADIUS)
 from entity import Entity
 from animation import Animation
+from energy import Energy
 
 
 class Player(Entity):
@@ -44,23 +44,19 @@ class Player(Entity):
         self.game = None  # Will be set by Game class
         self.deck = deck
 
-        # Speed attributes
-        self.walk_speed = walk_speed
-        self.sprint_speed = sprint_speed
-        self.speed = self.walk_speed  # current speed
-
-        # Stamina System
-        self.max_stamina = max_stamina
-        self.stamina = self.max_stamina
-        self.stamina_regen = stamina_regen
-        self.sprint_drain = sprint_drain
-        self.dash_cost = dash_cost
-        self.dash_distance = dash_distance
-        self.stamina_depleted_time = None
-        self.stamina_cooldown = stamina_cooldown
+        # Initialize energy system
+        self.energy = Energy(
+            walk_speed=walk_speed,
+            sprint_speed=sprint_speed,
+            max_stamina=max_stamina,
+            stamina_regen=stamina_regen,
+            sprint_drain=sprint_drain,
+            dash_cost=dash_cost,
+            stamina_cooldown=stamina_cooldown
+        )
         
-        # State tracking
-        self.is_sprinting = False
+        # Dash specific
+        self.dash_distance = dash_distance
     
     @property
     def summons(self):
@@ -90,12 +86,7 @@ class Player(Entity):
 
         # 3. Input and Movement
         keys = pygame.key.get_pressed()
-        self.is_sprinting = (keys[pygame.K_LSHIFT]
-                             or keys[pygame.K_RSHIFT]) and self.stamina > 0
-
-        base_speed = self.sprint_speed if self.is_sprinting else self.walk_speed
-        # Apply the speed multiplier during animation
-        current_speed = base_speed * speed_multiplier
+        self.energy.set_sprinting((keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]))
 
         # Calculate movement vector
         move_x = 0
@@ -117,6 +108,10 @@ class Player(Entity):
         # Apply movement if moving
         is_moving = (move_x != 0 or move_y != 0)
         if is_moving:
+            # Update energy system
+            self.energy.update(dt, is_moving)
+            current_speed = self.energy.get_current_speed() * speed_multiplier
+            
             self.x += move_x * current_speed * dt
             self.y += move_y * current_speed * dt
 
@@ -124,6 +119,9 @@ class Player(Entity):
             self.dx = move_x
             self.dy = move_y
         else:
+            # Update energy system without movement
+            self.energy.update(dt, False)
+            
             # Point towards mouse when idle
             mouse_x, mouse_y = pygame.mouse.get_pos()
             idle_dx = mouse_x - self.x
@@ -139,30 +137,11 @@ class Player(Entity):
         self.y = max(self.animation.sprite_height / 2,
                      min(self.height - self.animation.sprite_height / 2, self.y))
 
-        # 4. Stamina logic
-        if self.is_sprinting and is_moving:
-            self.stamina -= self.sprint_drain * dt
-            if self.stamina <= 0:
-                self.stamina = 0
-                self.stamina_depleted_time = time.time()
-                self.is_sprinting = False
-        else:
-            # Regenerate stamina
-            can_regen = True
-            if self.stamina == 0 and self.stamina_depleted_time is not None:
-                if time.time() - self.stamina_depleted_time < self.stamina_cooldown:
-                    can_regen = False
-            if can_regen and self.stamina < self.max_stamina:
-                self.stamina += self.stamina_regen * dt
-                if self.stamina > self.max_stamina:
-                    self.stamina = self.max_stamina
-                    self.stamina_depleted_time = None
-
         # 5. Determine and Set Animation State
         if current_state not in ["cast", "sweep", "hurt", "dying"]:
             new_state = "idle"  # Only update animation state if not in a special state
             if is_moving:
-                new_state = "sprint" if self.is_sprinting else "walk"
+                new_state = "sprint" if self.energy.is_sprinting else "walk"
             self.state_machine.change_state(new_state)
         
         # 6. Update State Machine with current movement direction
@@ -200,7 +179,7 @@ class Player(Entity):
         if current_state in ["dying", "cast", "sweep"]:
             return
 
-        if self.stamina >= self.dash_cost:
+        if self.energy.can_dash():
             # --- Create Afterimage ---
             # Capture position and sprite *before* moving
             start_x, start_y = self.x, self.y
@@ -211,7 +190,8 @@ class Player(Entity):
                 effects.append(afterimage)  # Add to the main effects list
 
             # --- Perform Dash ---
-            self.stamina -= self.dash_cost
+            self.energy.use_dash()
+            
             # (Keep existing dash movement logic: determine direction nx, ny)
             keys = pygame.key.get_pressed()
             dash_dx = 0
@@ -233,7 +213,6 @@ class Player(Entity):
                 # Avoid zero vector if facing perfectly up/down in atan2
                 if abs(nx) < 0.001 and abs(ny) < 0.001:
                     print("Cannot determine dash direction.")
-                    # self.stamina += self.dash_cost # Refund stamina if dash fails?
                     return
             else:
                 dist = math.hypot(dash_dx, dash_dy)
@@ -299,7 +278,7 @@ class Player(Entity):
                          (bar_x, bar_y, bar_width, bar_height))
 
         # Foreground (bright blue)
-        stamina_width = (self.stamina / self.max_stamina) * bar_width
+        stamina_width = self.energy.get_stamina_percentage() * bar_width
         if stamina_width > 0:
             pygame.draw.rect(screen, (0, 100, 255),
                              (bar_x, bar_y, stamina_width, bar_height))

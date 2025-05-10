@@ -6,8 +6,6 @@ import random
 from deck import Deck
 from player import Player
 from enemy import Enemy
-from visual_effects import VisualEffect
-from utils import resolve_overlap, draw_hp_bar, angle_diff
 from game_state import MenuState, PlayerNameState, DeckSelectionState, PlayingState, PausedState, GameOverState
 from config import *
 from resources import Resources
@@ -160,10 +158,6 @@ class Game:
             pygame.display.flip()
         pygame.quit()
         sys.exit()
-    # These methods are used by the state classes
-    def resolve_overlap(self, entity1, entity2):
-        """Wrapper to call the utility function"""
-        resolve_overlap(entity1, entity2)
 
 
 def main():
