@@ -9,22 +9,22 @@ from player import Player
 from enemy import Enemy
 from visual_effects import VisualEffect
 from utils import resolve_overlap, draw_hp_bar, angle_diff
-from game_state import MenuState, PlayerNameState, DeckSelectionState, PlayingState, PausedState, GameOverState
+from game_state import *
 from audio_manager import AudioManager
-from config import *
+from config import Config as C
 
 
 class Game:
     def __init__(self):
         pygame.init()
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption(GAME_NAME)
+        self.screen = pygame.display.set_mode((C.WIDTH, C.HEIGHT))
+        pygame.display.set_caption(C.GAME_NAME)
         self.clock = pygame.time.Clock()
         self.running = True
         self.effects = []
         self.wave_number = 1
         self.enemies = []
-        self.skills_filename = SKILLS_FILENAME
+        self.skills_filename = C.SKILLS_FILENAME
         self.player_name = "Unknown"  # Default name
         
         # Initialize audio manager
@@ -44,7 +44,7 @@ class Game:
         
         # Start with menu state and play menu music
         self.change_state("MENU")
-        self.audio_manager.play_music("menu")
+        self.audio_manager.play_music("MENU")
     
     def initialize_player(self):
         """Initialize just the player without deck (first phase)"""
@@ -53,21 +53,21 @@ class Game:
         # Create player first with no deck
         self.player = Player(
             self.player_name,
-            WIDTH,
-            HEIGHT,
+            C.WIDTH,
+            C.HEIGHT,
             None,  # No deck yet
-            PLAYER_RADIUS,
-            PLAYER_MAX_HEALTH,
-            PLAYER_SUMMON_LIMIT,
-            PLAYER_COLOR,
-            PLAYER_WALK_SPEED,
-            PLAYER_SPRINT_SPEED,
-            PLAYER_MAX_STAMINA,
-            PLAYER_STAMINA_REGEN,
-            PLAYER_SPRINT_DRAIN,
-            PLAYER_DASH_COST,
-            PLAYER_DASH_DISTANCE,
-            PLAYER_STAMINA_COOLDOWN)
+            C.PLAYER_RADIUS,
+            C.PLAYER_MAX_HEALTH,
+            C.PLAYER_SUMMON_LIMIT,
+            C.PLAYER_COLOR,
+            C.PLAYER_WALK_SPEED,
+            C.PLAYER_SPRINT_SPEED,
+            C.PLAYER_MAX_STAMINA,
+            C.PLAYER_STAMINA_REGEN,
+            C.PLAYER_SPRINT_DRAIN,
+            C.PLAYER_DASH_COST,
+            C.PLAYER_DASH_DISTANCE,
+            C.PLAYER_STAMINA_COOLDOWN)
 
         # Set game reference
         self.player.game = self
@@ -79,7 +79,7 @@ class Game:
         self.player.deck = self.deck
         
         # Set summon limit
-        self.deck.summon_limit = PLAYER_SUMMON_LIMIT
+        self.deck.summon_limit = C.PLAYER_SUMMON_LIMIT
         
         # Game tracking
         self.game_start_time = time.time()
@@ -116,7 +116,7 @@ class Game:
             # From any state to menu
             if new_state == "MENU":
                 self.audio_manager.fade_out(500)
-                self.audio_manager.play_music("menu")
+                self.audio_manager.play_music("MENU")
             # From menu/pause to playing
             elif new_state == "PLAYING" and old_state in ["MenuState", "PausedState"]:
                 self.audio_manager.fade_out(500)
@@ -130,7 +130,7 @@ class Game:
         # Convert deck to string representation
         deck_str = "|".join([skill.name for skill in self.player.deck.skills])
 
-        with open(LOG_FILENAME, "a", newline="") as f:
+        with open(C.LOG_FILENAME, "a", newline="") as f:
             w = csv.writer(f)
             # Write header if file is empty
             if f.tell() == 0:
@@ -159,20 +159,20 @@ class Game:
         # spawn 5 enemies each wave
         n_enemies = 5 + self.wave_number
         for _ in range(n_enemies):
-            x = random.randint(20, WIDTH - 20)
-            y = random.randint(20, HEIGHT - 20)
+            x = random.randint(20, C.WIDTH - 20)
+            y = random.randint(20, C.HEIGHT - 20)
             e = Enemy(
                 x,
                 y,
                 self.wave_number,
-                ENEMY_RADIUS,
-                ENEMY_BASE_SPEED,
-                ENEMY_BASE_HP,
-                WAVE_MULTIPLIER,
-                RED,
-                ENEMY_DAMAGE,
-                ATTACK_COOLDOWN,
-                ATTACK_RADIUS)
+                C.ENEMY_RADIUS,
+                C.ENEMY_BASE_SPEED,
+                C.ENEMY_BASE_HP,
+                C.WAVE_MULTIPLIER,
+                C.RED,
+                C.ENEMY_DAMAGE,
+                C.ATTACK_COOLDOWN,
+                C.ATTACK_RADIUS)
             self.enemies.append(e)
 
     # This method is now replaced by the DeckSelectionState
@@ -205,7 +205,7 @@ class Game:
     def run(self):
         while self.running:
             # Convert milliseconds to seconds for dt
-            dt = self.clock.tick(FPS) / 1000.0
+            dt = self.clock.tick(C.FPS) / 1000.0
             
             # Get all events
             events = pygame.event.get()
@@ -236,7 +236,7 @@ class Game:
         
     def draw_wave_info(self):
         ui_font = pygame.font.SysFont("Arial", 24)
-        wave_text = ui_font.render(f"WAVE: {self.wave_number}", True, BLACK)
+        wave_text = ui_font.render(f"WAVE: {self.wave_number}", True, C.BLACK)
         self.screen.blit(wave_text, (10, 10))
 
     def draw_player_bars(self):
@@ -246,46 +246,46 @@ class Game:
         player_bar_y = 50
         bar_width = 200
         bar_height = 20
-        pygame.draw.rect(self.screen, UI_COLORS['hp_bar_bg'],
+        pygame.draw.rect(self.screen, C.UI_COLORS['hp_bar_bg'],
                          (player_bar_x, player_bar_y, bar_width, bar_height))
         hp_frac = self.player.health / self.player.max_health
         fill_width = int(bar_width * max(hp_frac, 0))
-        pygame.draw.rect(self.screen, UI_COLORS['hp_bar_fill'],
+        pygame.draw.rect(self.screen, C.UI_COLORS['hp_bar_fill'],
                          (player_bar_x, player_bar_y, fill_width, bar_height))
         hp_text_str = f"{int(self.player.health)}/{self.player.max_health}"
-        hp_text = ui_font.render(hp_text_str, True, UI_COLORS['hp_text'])
+        hp_text = ui_font.render(hp_text_str, True, C.UI_COLORS['hp_text'])
         self.screen.blit(
             hp_text, (player_bar_x + bar_width + 10, player_bar_y - 2))
 
         # Stamina Bar
         pygame.draw.rect(
-            self.screen, UI_COLORS['stamina_bar_bg'], (10, 80, 200, 20))
+            self.screen, C.UI_COLORS['stamina_bar_bg'], (10, 80, 200, 20))
         st_frac = self.player.stamina / self.player.max_stamina
         st_fill = int(200 * max(st_frac, 0))
         pygame.draw.rect(
-            self.screen, UI_COLORS['stamina_bar_fill'], (10, 80, st_fill, 20))
+            self.screen, C.UI_COLORS['stamina_bar_fill'], (10, 80, st_fill, 20))
         st_text_str = f"{int(self.player.stamina)}/{self.player.max_stamina}"
-        st_text = ui_font.render(st_text_str, True, UI_COLORS['stamina_text'])
+        st_text = ui_font.render(st_text_str, True, C.UI_COLORS['stamina_text'])
         self.screen.blit(st_text, (220, 78))
 
     def draw_skill_ui(self):
         skill_font = pygame.font.SysFont("Arial", 16)
         now = time.time()
-        skill_start_y = HEIGHT - 100
+        skill_start_y = C.HEIGHT - 100
         for i, skill in enumerate(self.player.deck.skills):
             box_x = 10 + i * 110
             box_y = skill_start_y
             box_width = 100
             box_height = 80
-            pygame.draw.rect(self.screen, UI_COLORS['skill_box_bg'],
+            pygame.draw.rect(self.screen, C.UI_COLORS['skill_box_bg'],
                              (box_x, box_y, box_width, box_height))
-            name_text = skill_font.render(skill.name, True, WHITE)
+            name_text = skill_font.render(skill.name, True, C.WHITE)
             name_rect = name_text.get_rect(
                 centerx=box_x + box_width // 2, top=box_y + 5)
             self.screen.blit(name_text, name_rect)
             self.draw_skill_cooldown(
                 skill, box_x, box_y, box_width, box_height, now, skill_font)
-            key_text = skill_font.render(f"[{i + 1}]", True, WHITE)
+            key_text = skill_font.render(f"[{i + 1}]", True, C.WHITE)
             key_rect = key_text.get_rect(
                 bottom=box_y + box_height - 5, centerx=box_x + box_width // 2)
             self.screen.blit(key_text, key_rect)
@@ -296,9 +296,9 @@ class Game:
         if not skill.is_off_cooldown(now):
             cd_remaining = skill.cooldown - (now - skill.last_use_time)
             cd_height = int((cd_remaining / skill.cooldown) * box_height)
-            pygame.draw.rect(self.screen, UI_COLORS['cooldown_overlay'],
+            pygame.draw.rect(self.screen, C.UI_COLORS['cooldown_overlay'],
                              (box_x, box_y + box_height - cd_height, box_width, cd_height))
-            cd_text = skill_font.render(f"{cd_remaining:.1f}s", True, WHITE)
+            cd_text = skill_font.render(f"{cd_remaining:.1f}s", True, C.WHITE)
             cd_rect = cd_text.get_rect(
                 center=(box_x + box_width // 2, box_y + box_height // 2))
             self.screen.blit(cd_text, cd_rect)

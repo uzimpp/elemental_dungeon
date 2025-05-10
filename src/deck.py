@@ -1,12 +1,8 @@
 import csv
 import math
 import time
-from skill import SkillType, ProjectileEntity, SummonEntity, Projectile, Summon, Heal, AOE, Slash, Chain
-from config import (
-    SHADOW_SUMMON_SPRITE_PATH,
-    SHADOW_SUMMON_ANIMATION_CONFIG,
-    ATTACK_RADIUS
-)
+from skill import SkillType, Projectile, Summon, Heal, AOE, Slash, Chain
+from config import Config as C
 from visual_effects import VisualEffect
 
 
@@ -56,8 +52,8 @@ class Deck:
                     elif skill_type == SkillType.SUMMON:
                         element = row["element"].upper()
                         if element == "SHADOW":
-                            sprite_path = SHADOW_SUMMON_SPRITE_PATH
-                            animation_config = SHADOW_SUMMON_ANIMATION_CONFIG
+                            sprite_path = C.SHADOW_SUMMON_SPRITE_PATH
+                            animation_config = C.SHADOW_SUMMON_ANIMATION_CONFIG
                         else:
                             raise ValueError(
                                 f"Unsupported element for summon: {element}")
@@ -74,7 +70,7 @@ class Deck:
                             description=row["description"],
                             sprite_path=sprite_path,
                             animation_config=animation_config,
-                            attack_radius=ATTACK_RADIUS
+                            attack_radius=C.ATTACK_RADIUS
                         )
                     elif skill_type == SkillType.HEAL:
                         # Parse the heal_summons parameter if it exists
@@ -232,7 +228,7 @@ class Deck:
 
             # Create the actual summon entity at the calculated position
             summon_entity = skill.create(
-                skill, spawn_x, spawn_y, ATTACK_RADIUS)
+                skill, spawn_x, spawn_y, C.ATTACK_RADIUS)
             self.active_summons.append(summon_entity)
             print(
                 f"[Deck] Created SummonEntity instance at ({spawn_x}, {spawn_y}) with sprite: {skill.sprite_path}")

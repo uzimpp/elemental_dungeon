@@ -6,11 +6,7 @@ import pygame
 from utils import draw_hp_bar, angle_diff
 from animation import CharacterAnimation
 from entity import Entity  # Import the Entity base class
-from config import (
-    WIDTH, HEIGHT,
-    WHITE, GREEN,
-    ELEMENT_COLORS, SHADOW_SUMMON_SPRITE_PATH, SHADOW_SUMMON_ANIMATION_CONFIG, SPRITE_SIZE
-)
+from config import Config as C
 from visual_effects import VisualEffect
 
 class SkillType(Enum):
@@ -34,9 +30,9 @@ class BaseSkill:
         self.owner = None  # Reference to the owner entity (e.g., player)
 
     def _get_color_from_element(self, element):
-        if element in ELEMENT_COLORS:
-            return ELEMENT_COLORS[element]['primary']
-        return WHITE  # Default fallback
+        if element in C.ELEMENT_COLORS:
+            return C.ELEMENT_COLORS[element]['primary']
+        return C.WHITE  # Default fallback
     
     def is_off_cooldown(self, current_time):
         if current_time is None:
@@ -79,8 +75,8 @@ class ProjectileEntity(Entity):
         self.y += self.dy * self.speed * dt
 
         # Check screen bounds collision
-        if (self.x < 0 or self.x > WIDTH or 
-            self.y < 0 or self.y > HEIGHT):
+        if (self.x < 0 or self.x > C.WIDTH or 
+            self.y < 0 or self.y > C.HEIGHT):
             self.explode(enemies)
             return False
 
@@ -204,15 +200,15 @@ class SummonEntity(Entity):
 
         # Animation
         try:
-            sprite_path = getattr(skill, 'sprite_path', SHADOW_SUMMON_SPRITE_PATH)
-            animation_config = getattr(skill, 'animation_config', SHADOW_SUMMON_ANIMATION_CONFIG)
+            sprite_path = getattr(skill, 'sprite_path', C.SHADOW_SUMMON_SPRITE_PATH)
+            animation_config = getattr(skill, 'animation_config', C.SHADOW_SUMMON_ANIMATION_CONFIG)
             
             print(f"[SummonEntity] Loading sprite from: {sprite_path}")
             self.animation = CharacterAnimation(
                 sprite_sheet_path=sprite_path,
                 config=animation_config,
-                sprite_width=SPRITE_SIZE,
-                sprite_height=SPRITE_SIZE
+                sprite_width=C.SPRITE_SIZE,
+                sprite_height=C.SPRITE_SIZE
             )
             # Force the animation to idle state
             self.animation.set_state('idle', force_reset=True)
@@ -342,8 +338,8 @@ class SummonEntity(Entity):
             self.animation.update(dt)
         
         # Keep within screen bounds
-        self.x = max(self.radius, min(WIDTH - self.radius, self.x))
-        self.y = max(self.radius, min(HEIGHT - self.radius, self.y))
+        self.x = max(self.radius, min(C.WIDTH - self.radius, self.x))
+        self.y = max(self.radius, min(C.HEIGHT - self.radius, self.y))
         
         return True
 
@@ -408,7 +404,7 @@ class SummonEntity(Entity):
         if self.state != 'dying':
             bar_x = self.x - 25
             bar_y = self.y - self.radius - 10
-            draw_hp_bar(surface, bar_x, bar_y, self.health, self.max_health, GREEN)
+            draw_hp_bar(surface, bar_x, bar_y, self.health, self.max_health, C.GREEN)
 
 
 class Summon(BaseSkill):

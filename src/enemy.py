@@ -4,8 +4,7 @@ import time
 from utils import draw_hp_bar
 from entity import Entity
 from animation import CharacterAnimation
-from config import (ENEMY_SPRITE_PATH, ENEMY_ANIMATION_CONFIG,
-                    SPRITE_SIZE, ATTACK_RADIUS)
+from config import Config as C
 
 
 class Enemy(Entity):
@@ -21,7 +20,7 @@ class Enemy(Entity):
             color,
             damage,
             attack_cooldown,
-            attack_radius=ATTACK_RADIUS):
+            attack_radius=C.ATTACK_RADIUS):
         # Call parent class constructor
         super().__init__(x, y, radius, base_hp * (wave_number *
                                                   wave_multiplier), base_speed, color, attack_radius)
@@ -33,10 +32,10 @@ class Enemy(Entity):
         self.attack_radius = attack_radius
         # Animation setup
         self.animation = CharacterAnimation(
-            sprite_sheet_path=ENEMY_SPRITE_PATH,
-            config=ENEMY_ANIMATION_CONFIG,
-            sprite_width=SPRITE_SIZE,
-            sprite_height=SPRITE_SIZE
+            sprite_sheet_path=C.ENEMY_SPRITE_PATH,
+            config=C.ENEMY_ANIMATION_CONFIG,
+            sprite_width=C.SPRITE_SIZE,
+            sprite_height=C.SPRITE_SIZE
         )
         self.state = 'idle'
         self.attack_animation_timer = 0.0

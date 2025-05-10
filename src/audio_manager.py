@@ -20,7 +20,7 @@ class AudioManager:
         # Preload background music tracks
         self.music_tracks = {
             "MENU": MENU_BGM_PATH,
-            "PLAYING": GAME_BGM_PATH
+            "PLAYING": GAME_BGM_PATH,
         }
         
         # Status flags

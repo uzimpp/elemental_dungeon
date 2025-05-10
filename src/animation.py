@@ -1,6 +1,6 @@
 import pygame
 import math
-from config import RENDER_SIZE, SPRITE_SIZE
+from config import Config as C
 
 
 class SpriteSheet:
@@ -88,7 +88,7 @@ class CharacterAnimation:
                                                       self.sprite_width,
                                                       self.sprite_height)
                 # Scale sprite to render size
-                scale_factor = RENDER_SIZE / SPRITE_SIZE
+                scale_factor = C.RENDER_SIZE / C.SPRITE_SIZE
                 if scale_factor != 1:
                     sprite = pygame.transform.scale(sprite,
                                                     (int(self.sprite_width * scale_factor),

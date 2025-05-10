@@ -2,12 +2,8 @@
 import time
 import math
 import pygame
-import random
-from utils import angle_diff
-from deck import Deck
-from visual_effects import VisualEffect, DashAfterimage
-from config import (PLAYER_SPRITE_PATH,
-                    PLAYER_ANIMATION_CONFIG, SPRITE_SIZE, ATTACK_RADIUS)
+from visual_effects import DashAfterimage
+from config import Config as C
 from entity import Entity
 from animation import CharacterAnimation
 
@@ -50,12 +46,12 @@ class Player(Entity):
         self.stamina_cooldown = stamina_cooldown
 
         # Animation setup
-        sprite_path = PLAYER_SPRITE_PATH
+        sprite_path = C.PLAYER_SPRITE_PATH
         self.animation = CharacterAnimation(
             sprite_sheet_path=sprite_path,
-            config=PLAYER_ANIMATION_CONFIG,
-            sprite_width=SPRITE_SIZE,
-            sprite_height=SPRITE_SIZE
+            config=C.PLAYER_ANIMATION_CONFIG,
+            sprite_width=C.SPRITE_SIZE,
+            sprite_height=C.SPRITE_SIZE
         )
         self.state = 'idle'  # Add player state tracking
         self.is_sprinting = False

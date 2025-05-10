@@ -1,6 +1,6 @@
 import pygame
 import math
-from config import WIDTH, HEIGHT
+from config import Config as C
 
 
 class Entity:
@@ -32,8 +32,8 @@ class Entity:
         new_y = self.y + dy * self.speed * dt
 
         # Keep entity within screen bounds
-        self.x = max(self.radius, min(WIDTH - self.radius, new_x))
-        self.y = max(self.radius, min(HEIGHT - self.radius, new_y))
+        self.x = max(self.radius, min(C.WIDTH - self.radius, new_x))
+        self.y = max(self.radius, min(C.HEIGHT - self.radius, new_y))
 
     def take_damage(self, amount):
         """Apply damage to the entity"""
