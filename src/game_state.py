@@ -2,7 +2,7 @@ import pygame
 import time
 import math
 from audio import Audio
-
+from data_collection import DataCollection
 class GameState:
     """Base class for all game states"""
     def __init__(self, game):
@@ -594,7 +594,7 @@ class GameOverState(GameState):
         self.audio.play_music("GAME_OVER")
         
     def enter(self):
-        self.game.log_csv(self.game.wave_number)  # Log game results
+        DataCollection.log_csv(self.game.game_start_time, self.game.wave_number, self.game.player.name, self.game.player.health, self.game.player.deck)  # Log game results
         
     def update(self, dt):
         pass

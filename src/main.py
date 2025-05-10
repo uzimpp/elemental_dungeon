@@ -13,9 +13,20 @@ from resources import Resources
 
 class Game:
     def __init__(self):
+
         pygame.init()
+
+        # Initialize Resources first
+        self.resources = Resources.get_instance()
+        print(f"Game base path: {self.resources.base_path}")
+        print(f"Game assets path: {self.resources.asset_path}")
+        print(f"Game data path: {self.resources.data_path}")
+        
+        # Initialize display
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption(GAME_NAME)
+        
+        # Initialize game variables
         self.effects = []
         self.wave_number = 1
         self.enemies = []
@@ -23,7 +34,8 @@ class Game:
         self.deck = None
         self.current_state = None
         self.states = {}
-        self.resources = Resources.get_instance()
+        self.running = True
+        self.last_time = pygame.time.get_ticks()
         
         # Initialize state machine
         self.current_state = None
@@ -36,8 +48,30 @@ class Game:
             "GAME_OVER": GameOverState(self)
         }
         
+        # Preload common resources
+        self._preload_resources()
+        
         # Start with menu state
         self.change_state("MENU")
+        
+    def _preload_resources(self):
+        """Preload commonly used resources"""
+        # Preload sprite sheets
+        self.resources.load_image("player", PLAYER_SPRITE_PATH)
+        self.resources.load_image("enemy", ENEMY_SPRITE_PATH)
+        self.resources.load_image("shadow_summon", SHADOW_SUMMON_SPRITE_PATH)
+        
+        # Preload skill data
+        self.resources.load_csv("skills", SKILLS_PATH)
+        
+        # Preload sound effects if needed
+        if pygame.mixer.get_init():
+            # Load menu music
+            if MENU_BGM_PATH:
+                self.resources.load_sound("menu_bgm", MENU_BGM_PATH)
+            # Load game music
+            if GAME_BGM_PATH:
+                self.resources.load_sound("game_bgm", GAME_BGM_PATH)
 
     def initialize(self):
         """Initialize the game"""
@@ -46,7 +80,7 @@ class Game:
         
         # Create deck
         self.deck = Deck(self.player)
-        self.deck.load_from_csv("skills.csv")
+        self.deck.load_from_csv(SKILLS_PATH)
         
         # Initialize states
         self.states = {
@@ -70,8 +104,12 @@ class Game:
     def change_state(self, state_name):
         """Change the current game state"""
         if state_name in self.states:
+            if self.current_state:
+                # Exit current state
+                self.current_state.exit()
             self.current_state = self.states[state_name]
             self.current_state.enter()
+            print(f"Changed game state to: {state_name}")
 
     def handle_event(self, event):
         """Handle game events"""
@@ -87,7 +125,6 @@ class Game:
             None,  # No deck yet
             PLAYER_RADIUS,
             PLAYER_MAX_HEALTH,
-            PLAYER_SUMMON_LIMIT,
             PLAYER_WALK_SPEED,
             PLAYER_SPRINT_SPEED,
             PLAYER_MAX_STAMINA,
@@ -99,10 +136,13 @@ class Game:
 
         # Set deck on player
         self.player.deck = Deck(self.player)
-        # Set summon limit
-        self.player.deck.summon_limit = PLAYER_SUMMON_LIMIT
         # Set game reference
         self.player.game = self
+        # Load deck from CSV
+        self.player.deck.load_from_csv(SKILLS_PATH)
+        # Set summon limit
+        if hasattr(self.player.deck, 'summon_limit'):
+            self.player.deck.summon_limit = PLAYER_SUMMON_LIMIT
         # Game tracking
         self.game_start_time = time.time()
         self.effects = []
@@ -128,7 +168,6 @@ class Game:
                 ENEMY_BASE_SPEED,
                 ENEMY_BASE_HP,
                 WAVE_MULTIPLIER,
-                RED,
                 ENEMY_DAMAGE,
                 ATTACK_COOLDOWN,
                 ATTACK_RADIUS)
@@ -140,9 +179,11 @@ class Game:
             now = pygame.time.get_ticks()
             dt = (now - self.last_time) / 1000.0
             self.last_time = now
-
             events = pygame.event.get()
             for event in events:
+                if event.type == pygame.QUIT:
+                    self.running = False
+                    break
                 self.handle_event(event)
             next_state = self.current_state.handle_events(events)
             if next_state:
@@ -161,8 +202,7 @@ class Game:
 
 
 def main():
-    pygame.init()
-    game = Game()
+    game = Game()  # pygame.init() is called in Game.__init__
     game.run()
 
 

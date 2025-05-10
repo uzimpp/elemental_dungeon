@@ -2,10 +2,14 @@ import pygame
 import math
 from config import WIDTH, HEIGHT
 from entity_state import EntityStateMachine
+from resources import Resources
 
 
 class Entity:
     def __init__(self, x, y, radius, max_health, speed, attack_radius=0):
+        # Get resources
+        self.resources = Resources.get_instance()
+        
         # Position and movement
         self.x = x
         self.y = y
@@ -64,12 +68,16 @@ class Entity:
             # If the entity has an animation, it will be drawn by the child class
             # Otherwise, draw a basic circle
             if not hasattr(self, 'animation'):
+                # Default color if not specified
+                self.color = getattr(self, 'color', (255, 0, 0))
                 # Draw the entity circle
                 pygame.draw.circle(screen, self.color,
                                   (int(self.x), int(self.y)), self.radius)
 
             # Draw attack radius if debug is enabled and attack radius is set
             if self.attack_radius > 0:
+                # Default color if not specified
+                self.color = getattr(self, 'color', (255, 0, 0))
                 # Create a transparent surface for the attack radius indicator
                 radius_surf = pygame.Surface(
                     (self.attack_radius * 2, self.attack_radius * 2), pygame.SRCALPHA)

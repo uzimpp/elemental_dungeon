@@ -1,12 +1,12 @@
 import pygame
 from resources import Resources
 
-class SpriteSheet:
+class Sprites:
     """Utility class to handle loading and extracting sprites from a sheet."""
 
     def __init__(self, name, image_path):
-        self.resources = Resources()  # Composition: use the singleton resource manager
-        self.sprite_sheet = self.resources.load_image(name, image_path, pygame)
+        self.resources = Resources.get_instance()  # Get the singleton instance
+        self.sprite_sheet = self.resources.load_image(name, image_path)
         if self.sprite_sheet is None:
             raise SystemExit(f"Error loading sprite sheet: {image_path}")
 

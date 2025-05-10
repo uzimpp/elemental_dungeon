@@ -1,15 +1,11 @@
 # player.py
-import time
 import math
 import pygame
-import random
-from deck import Deck
-from visual_effects import VisualEffect, DashAfterimage
-from config import (PLAYER_SPRITE_PATH,
-                    PLAYER_ANIMATION_CONFIG, SPRITE_SIZE, ATTACK_RADIUS)
+from config import (PLAYER_SPRITE_PATH, SPRITE_SIZE, ATTACK_RADIUS)
 from entity import Entity
 from animation import Animation
 from energy import Energy
+from resources import Resources
 
 
 class Player(Entity):
@@ -25,12 +21,14 @@ class Player(Entity):
                  dash_cost,
                  dash_distance,
                  stamina_cooldown):
+        # Load resources
+        self.resources = Resources.get_instance()
+        
         # Animation setup - must be before Entity constructor for state machine
         sprite_path = PLAYER_SPRITE_PATH
         self.animation = Animation(
             name="player",
             sprite_sheet_path=sprite_path,
-            config=PLAYER_ANIMATION_CONFIG,
             sprite_width=SPRITE_SIZE,
             sprite_height=SPRITE_SIZE
         )
@@ -61,12 +59,12 @@ class Player(Entity):
     @property
     def summons(self):
         """Compatibility property for access to active summons"""
-        return self.deck.get_summons
+        return self.deck.get_summons if self.deck else []
 
     @property
     def projectiles(self):
         """Compatibility property for access to active projectiles"""
-        return self.deck.get_projectiles
+        return self.deck.get_projectiles if self.deck else []
 
     def handle_input(self, dt):
         # Get current state
@@ -175,6 +173,8 @@ class Player(Entity):
 
     def dash(self, effects):
         """Dash logic - Triggers an afterimage effect."""
+        from energy import DashAfterimage  # Import here to avoid circular imports
+        
         current_state = self.state_machine.get_state_name()
         if current_state in ["dying", "cast", "sweep"]:
             return
@@ -231,6 +231,12 @@ class Player(Entity):
             print("Not enough stamina to dash!")
 
     def cast_skill(self, skill_idx, mouse_pos, enemies, now, effects):
+        if not self.deck or not hasattr(self.deck, 'skills') or not self.deck.skills:
+            print("No deck or skills available")
+            return False
+            
+        from skill import SkillType  # Import here to avoid circular imports
+        
         success = self.deck.use_skill(skill_idx, mouse_pos[0], mouse_pos[1], enemies, now)
         if success:
             # Set the casting state

@@ -8,7 +8,7 @@ from entity import Entity  # Import the Entity base class
 from config import (
     WIDTH, HEIGHT,
     WHITE, GREEN,
-    ELEMENT_COLORS, SHADOW_SUMMON_SPRITE_PATH, SHADOW_SUMMON_ANIMATION_CONFIG, SPRITE_SIZE
+    ELEMENT_COLORS, SHADOW_SUMMON_SPRITE_PATH, SPRITE_SIZE
 )
 from visual_effects import VisualEffect
 from animation import Animation
@@ -214,12 +214,9 @@ class SummonEntity(Entity):
         # Set up animation before calling parent constructor
         try:
             sprite_path = getattr(skill, 'sprite_path', SHADOW_SUMMON_SPRITE_PATH)
-            animation_config = getattr(skill, 'animation_config', SHADOW_SUMMON_ANIMATION_CONFIG)
-            
             self.animation = Animation(
                 name="summon",
                 sprite_sheet_path=sprite_path,
-                config=animation_config,
                 sprite_width=SPRITE_SIZE,
                 sprite_height=SPRITE_SIZE
             )
