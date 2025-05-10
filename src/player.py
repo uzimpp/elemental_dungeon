@@ -6,19 +6,17 @@ import random
 from utils import angle_diff
 from deck import Deck
 from visual_effects import VisualEffect, DashAfterimage
-from config import (WIDTH, HEIGHT, PLAYER_SPRITE_PATH,
+from config import (PLAYER_SPRITE_PATH,
                     PLAYER_ANIMATION_CONFIG, SPRITE_SIZE, ATTACK_RADIUS)
 from entity import Entity
-from animation import CharacterAnimation
+from animation import Animation
 
 
 class Player(Entity):
-    def __init__(self, name, x, y,
+    def __init__(self, name, width, height,
                  deck,
                  radius,
                  max_health,
-                 summon_limit,
-                 color,
                  walk_speed,
                  sprint_speed,
                  max_stamina,
@@ -27,8 +25,9 @@ class Player(Entity):
                  dash_cost,
                  dash_distance,
                  stamina_cooldown):
-        super().__init__(x, y, radius, max_health, walk_speed, color)
-
+        super().__init__(width//2, height//2, radius, max_health, walk_speed)
+        self.width = width
+        self.height = height
         self.name = name
         self.game = None  # Will be set by Game class
         self.deck = deck
@@ -50,7 +49,8 @@ class Player(Entity):
 
         # Animation setup
         sprite_path = PLAYER_SPRITE_PATH
-        self.animation = CharacterAnimation(
+        self.animation = Animation(
+            name="player",
             sprite_sheet_path=sprite_path,
             config=PLAYER_ANIMATION_CONFIG,
             sprite_width=SPRITE_SIZE,
@@ -138,9 +138,9 @@ class Player(Entity):
 
         # Stay within screen boundaries
         self.x = max(self.animation.sprite_width / 2,
-                     min(WIDTH - self.animation.sprite_width / 2, self.x))
+                     min(self.width - self.animation.sprite_width / 2, self.x))
         self.y = max(self.animation.sprite_height / 2,
-                     min(HEIGHT - self.animation.sprite_height / 2, self.y))
+                     min(self.height - self.animation.sprite_height / 2, self.y))
 
         # 4. Stamina logic
         if self.is_sprinting and is_moving:
@@ -246,9 +246,9 @@ class Player(Entity):
 
             # Clamp to screen
             self.x = max(self.animation.sprite_width / 2,
-                         min(WIDTH - self.animation.sprite_width / 2, self.x))
+                         min(self.width - self.animation.sprite_width / 2, self.x))
             self.y = max(self.animation.sprite_height / 2,
-                         min(HEIGHT - self.animation.sprite_height / 2, self.y))
+                         min(self.height - self.animation.sprite_height / 2, self.y))
         else:
             print("Not enough stamina to dash!")
 
@@ -269,8 +269,8 @@ class Player(Entity):
                     self.animation.set_state('dying', force_reset=True)
                     # Don't set self.alive = False yet, let animation finish
                     animations_length = len(
-                        self.animation.config['dying']['animations'])
-                    death_duration = self.animation.config['dying']['duration'] * \
+                        self.animation.ANIMATION_CONFIG['dying']['animations'])
+                    death_duration = self.animation.ANIMATION_CONFIG['dying']['duration'] * \
                         animations_length
                     self.attack_timer = death_duration
             else:
@@ -280,8 +280,8 @@ class Player(Entity):
                     self.animation.set_state('hurt', force_reset=True)
                     # Set a short timer for hurt animation
                     animations_length = len(
-                        self.animation.config['hurt']['animations'])
-                    hurt_duration = self.animation.config['hurt']['duration'] * \
+                        self.animation.ANIMATION_CONFIG['hurt']['animations'])
+                    hurt_duration = self.animation.ANIMATION_CONFIG['hurt']['duration'] * \
                         animations_length
                     self.attack_timer = hurt_duration
 

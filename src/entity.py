@@ -4,7 +4,7 @@ from config import WIDTH, HEIGHT
 
 
 class Entity:
-    def __init__(self, x, y, radius, max_health, speed, color, attack_radius=0):
+    def __init__(self, x, y, radius, max_health, speed, attack_radius=0):
         # Position and movement
         self.x = x
         self.y = y
@@ -15,8 +15,6 @@ class Entity:
         self.max_health = max_health
         self.health = max_health
 
-        # Visual
-        self.color = color
 
         # State
         self.alive = True
