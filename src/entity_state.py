@@ -1,5 +1,3 @@
-import math
-
 class EntityState:
     """Base class for all entity states"""
     def __init__(self, entity):

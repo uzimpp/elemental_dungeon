@@ -1,9 +1,9 @@
 import pygame
 import math
-from config import RENDER_SIZE, SPRITE_SIZE
-from sprites import Sprites
-from utils import Utils
 from resources import Resources
+from utils import Utils
+from config import Config
+from sprites import Sprites
 
 class Animation:
     """Handles state-based character animation from an 8-directional sprite sheet."""
@@ -36,15 +36,17 @@ class Animation:
             sprite_height (int): Height of a single sprite frame.
             config (dict, optional): Animation configuration dictionary.
         """
+        self.name = name
         self.resources = Resources.get_instance()
         
         # Load or get animation config
         self.config = config or self.get_default_config()
         
         # Store the animation configuration
-        self.resources.load_animation_config(name, self.config)
+        self.resources.store_data(f"animation_{name}", self.config)
         
         # Create the sprite sheet
+
         self.sprite_sheet = Sprites(name, sprite_sheet_path)
         self.sprite_width = sprite_width
         self.sprite_height = sprite_height
@@ -82,7 +84,7 @@ class Animation:
             # Cols 21-24. Assume fixed row (e.g., UP Row 4) for dying? Or use last direction? Let's try fixed row.
             'dying':  {'animations': [21, 22, 23], 'duration': 0.2, 'loop': False, 'directional': True},
         }
-    
+
     def get_config(self):
         """Return the current animation configuration."""
         return self.config
@@ -90,7 +92,7 @@ class Animation:
     def set_config(self, new_config):
         """Set a new animation configuration."""
         self.config = new_config
-        self.resources.load_animation_config(self.name, new_config)
+        self.resources.store_data(f"animation_{self.name}", new_config)
         return self.config
         
     def get_state_config(self, state_name):
@@ -118,7 +120,7 @@ class Animation:
                                                       self.sprite_width,
                                                       self.sprite_height)
                 # Scale sprite to render size
-                scale_factor = RENDER_SIZE / SPRITE_SIZE
+                scale_factor = Config.RENDER_SIZE / Config.SPRITE_SIZE
                 if scale_factor != 1:
                     sprite = pygame.transform.scale(sprite,
                                                     (int(self.sprite_width * scale_factor),
@@ -228,39 +230,37 @@ class Animation:
 
     def load_config_from_file(self, config_path):
         """Load animation configuration from a file."""
-        config = self.resources.load_animation_config_from_file(self.name, config_path)
+        config = self.resources.get_data(f"animation_{self.name}")
         if config:
             self.config = config
-            # Reload frames if needed (depends on your implementation)
-            # self.all_frames = self._load_all_frames_from_sheet()
             return True
         return False
-        
+
     def save_config_to_file(self, config_path=None):
         """Save the current animation configuration to a file."""
-        return self.resources.save_animation_config(self.name, config_path)
-        
+        return self.resources.store_data(f"animation_{self.name}", self.config)
+
     def add_state(self, state_name, animations, duration=0.2, loop=True, directional=True):
         """Add a new animation state to the configuration."""
         if state_name in self.config:
             print(f"Warning: Overwriting existing animation state '{state_name}'")
-            
+
         self.config[state_name] = {
             'animations': animations,
             'duration': duration,
             'loop': loop,
             'directional': directional
         }
-        
+
         # Update the stored config in resources
-        self.resources.load_animation_config(self.name, self.config)
+        self.resources.store_data(f"animation_{self.name}", self.config)
         return self.config[state_name]
-    
+
     def remove_state(self, state_name):
         """Remove an animation state from the configuration."""
         if state_name in self.config:
             del self.config[state_name]
             # Update the stored config in resources
-            self.resources.load_animation_config(self.name, self.config)
+            self.resources.store_data(f"animation_{self.name}", self.config)
             return True
         return False

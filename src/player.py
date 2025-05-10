@@ -1,7 +1,7 @@
 # player.py
 import math
 import pygame
-from config import (PLAYER_SPRITE_PATH, SPRITE_SIZE, ATTACK_RADIUS)
+from config import Config
 from entity import Entity
 from animation import Animation
 from energy import Energy
@@ -25,12 +25,12 @@ class Player(Entity):
         self.resources = Resources.get_instance()
         
         # Animation setup - must be before Entity constructor for state machine
-        sprite_path = PLAYER_SPRITE_PATH
+        sprite_path = Config.P_SPRITE_PATH
         self.animation = Animation(
             name="player",
             sprite_sheet_path=sprite_path,
-            sprite_width=SPRITE_SIZE,
-            sprite_height=SPRITE_SIZE
+            sprite_width=Config.SPRITE_SIZE,
+            sprite_height=Config.SPRITE_SIZE
         )
         
         # Call parent constructor (will set up state machine)

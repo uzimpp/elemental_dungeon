@@ -1,31 +1,43 @@
-# visual_effects.py
-import time
+"""
+Visual effects module handling game particle and animation effects.
+Provides classes for creating and managing visual effects in the game.
+"""
 import math
-import pygame
 import random
+import time
+
+import pygame
 
 
 class VisualEffectManager:
-    """Manages visual effects for a game instance"""
+    """
+    Manages visual effects for a game instance.
+    Handles updating and drawing multiple effect instances.
+    """
     def __init__(self):
         self.effects = []
 
     def add_effect(self, effect):
-        """Add a new visual effect"""
+        """Add a new visual effect to the manager."""
         self.effects.append(effect)
 
     def update(self, dt):
-        """Update all active effects"""
+        """Update all active effects with the given delta time."""
         self.effects = [effect for effect in self.effects if effect.active]
         for effect in self.effects:
             effect.update(dt)
 
     def draw(self, surface):
-        """Draw all active effects"""
+        """Draw all active effects to the given surface."""
         for effect in self.effects:
             effect.draw(surface)
 
+
 class VisualEffect:
+    """
+    A single visual effect instance with various types and behaviors.
+    Types include explosions, heal effects, slashes, and line effects.
+    """
     def __init__(
             self,
             x,
@@ -38,6 +50,21 @@ class VisualEffect:
             sweep_angle=math.pi / 3,
             end_x=None,
             end_y=None):
+        """
+        Initialize a visual effect.
+
+        Args:
+            x: X position of the effect
+            y: Y position of the effect
+            effect_type: Type of effect (explosion, heal, slash, line)
+            color: RGB color tuple for the effect
+            radius: Size of the effect
+            duration: How long the effect lasts in seconds
+            start_angle: Starting angle for directional effects
+            sweep_angle: Sweep angle for arc effects
+            end_x: End X position for line effects
+            end_y: End Y position for line effects
+        """
         self.x = x
         self.y = y
         self.effect_type = effect_type
@@ -53,25 +80,26 @@ class VisualEffect:
         self.current_size = 0
         self.alpha = 255
         self.angle = 0
+        self.particles = []  # Initialize particles list for all effect types
+        self.start_angle = start_angle
+        self.sweep_angle = sweep_angle
+
+        # For slash effects
+        self.slash_width = 4
+
+        # For line effects
+        self.line_width = self.radius if effect_type == "line" else 0
 
         # Initialize effect-specific properties
         self._init_effect_properties()
 
     def _init_effect_properties(self):
-        """Initialize properties specific to each effect type"""
-        if self.effect_type == "slash":
-            self.slash_width = 4
-            self.particles = []
-            self.start_angle = self.start_angle
-            self.sweep_angle = self.sweep_angle
-        elif self.effect_type == "line":
-            self.line_width = self.radius
-            self.particles = []
-            if self.end_x is not None and self.end_y is not None:
-                self._init_line_particles()
+        """Initialize properties specific to each effect type."""
+        if self.effect_type == "line" and self.end_x is not None and self.end_y is not None:
+            self._init_line_particles()
 
     def _init_line_particles(self):
-        """Initialize particles for line effects"""
+        """Initialize particles for line effects."""
         num_particles = 15
         for i in range(num_particles):
             t = i / (num_particles - 1)
@@ -88,7 +116,7 @@ class VisualEffect:
             })
 
     def update(self, dt):
-        """Update effect state"""
+        """Update effect state based on elapsed time."""
         elapsed = time.time() - self.start_time
         progress = elapsed / self.duration
 
@@ -100,7 +128,7 @@ class VisualEffect:
         self._update_effect_specific(progress, dt)
 
     def _update_effect_specific(self, progress, dt):
-        """Update effect-specific properties"""
+        """Update effect-specific properties based on progress."""
         if self.effect_type == "explosion":
             self.current_size = self.radius * min(1.0, progress * 2.0)
         elif self.effect_type == "heal":
@@ -111,20 +139,20 @@ class VisualEffect:
             self._update_line(progress)
 
     def _update_slash(self, progress):
-        """Update slash-specific properties"""
+        """Update slash-specific properties."""
         self.angle = self.sweep_angle * progress
         if progress < 0.5:
             self._add_slash_particles()
         self._update_particles()
 
     def _update_line(self, progress):
-        """Update line-specific properties"""
+        """Update line-specific properties."""
         self._update_particles()
         if progress < 0.7 and self.end_x is not None and self.end_y is not None:
             self._add_line_particles()
 
     def _add_slash_particles(self):
-        """Add particles for slash effect"""
+        """Add particles for slash effect."""
         for _ in range(2):
             particle_angle = self.start_angle + self.angle * random.random()
             r = random.uniform(0.7, 1.0) * self.radius
@@ -138,7 +166,7 @@ class VisualEffect:
             })
 
     def _add_line_particles(self):
-        """Add particles for line effect"""
+        """Add particles for line effect."""
         for _ in range(3):
             t = random.random()
             px = self.x + (self.end_x - self.x) * t
@@ -154,7 +182,7 @@ class VisualEffect:
             })
 
     def _update_particles(self):
-        """Update all particles"""
+        """Update all particles alpha and position."""
         for p in self.particles:
             p['alpha'] = max(0, p['alpha'] - 10)
             if self.effect_type == "line":
@@ -163,7 +191,7 @@ class VisualEffect:
         self.particles = [p for p in self.particles if p['alpha'] > 0]
 
     def draw(self, surface):
-        """Draw the effect"""
+        """Draw the effect on the given surface."""
         if not self.active:
             return
 
@@ -177,7 +205,7 @@ class VisualEffect:
             self._draw_line(surface)
 
     def _draw_explosion(self, surface):
-        """Draw explosion effect"""
+        """Draw explosion effect."""
         effect_surf = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
         center = (self.radius, self.radius)
         alpha_color = (*self.color, int(self.alpha))
@@ -185,7 +213,7 @@ class VisualEffect:
         surface.blit(effect_surf, (self.x - self.radius, self.y - self.radius))
 
     def _draw_heal(self, surface):
-        """Draw heal effect"""
+        """Draw heal effect."""
         effect_surf = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
         center = (self.radius, self.radius)
         alpha_color = (*self.color, int(self.alpha))
@@ -193,11 +221,11 @@ class VisualEffect:
         surface.blit(effect_surf, (self.x - self.radius, self.y - self.radius))
 
     def _draw_slash(self, surface):
-        """Draw slash effect"""
+        """Draw slash effect."""
         effect_surf = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
         center = (self.radius, self.radius)
         alpha_color = (*self.color, int(self.alpha))
-        
+
         # Draw main arc
         rect = (0, 0, self.radius * 2, self.radius * 2)
         pygame.draw.arc(effect_surf, alpha_color, rect,
@@ -208,35 +236,35 @@ class VisualEffect:
         for p in self.particles:
             particle_color = (*self.color, int(p['alpha']))
             particle_pos = (center[0] + p['x'], center[1] + p['y'])
-            pygame.draw.circle(effect_surf, particle_color, 
-                             (int(particle_pos[0]), int(particle_pos[1])), 
-                             p['size'])
+            pygame.draw.circle(effect_surf, particle_color,
+                              (int(particle_pos[0]), int(particle_pos[1])),
+                              p['size'])
 
         # Draw inner arc
         inner_rect = (self.radius / 2, self.radius / 2, self.radius, self.radius)
         pygame.draw.arc(effect_surf, alpha_color, inner_rect,
                        self.start_angle, self.start_angle + self.angle,
                        max(1, self.slash_width - 2))
-        
+
         surface.blit(effect_surf, (self.x - self.radius, self.y - self.radius))
 
     def _draw_line(self, surface):
-        """Draw line effect"""
+        """Draw line effect."""
         if self.end_x is None or self.end_y is None:
             return
 
         # Draw main line
         alpha_color = (*self.color, int(self.alpha * 0.7))
-        pygame.draw.line(surface, alpha_color, 
+        pygame.draw.line(surface, alpha_color,
                         (int(self.x), int(self.y)),
-                        (int(self.end_x), int(self.end_y)), 
+                        (int(self.end_x), int(self.end_y)),
                         max(1, int(self.line_width * 0.3)))
 
         # Draw particles
         for p in self.particles:
             particle_color = (*self.color, int(p['alpha']))
-            pygame.draw.circle(surface, particle_color, 
-                             (int(p['x']), int(p['y'])), 
+            pygame.draw.circle(surface, particle_color,
+                             (int(p['x']), int(p['y'])),
                              p['size'])
 
         # Draw glow

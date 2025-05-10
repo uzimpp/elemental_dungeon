@@ -1,8 +1,13 @@
-import pygame
-import time
+"""
+Module containing all game state classes for handling different phases of gameplay.
+"""
 import math
+import time
+import pygame
+from deck import Deck
 from audio import Audio
 from data_collection import DataCollection
+
 class GameState:
     """Base class for all game states"""
     def __init__(self, game):
@@ -19,11 +24,11 @@ class GameState:
     
     def update(self, dt):
         """Update game logic"""
-        pass
+        # Implemented by subclasses
     
     def render(self, screen):
         """Render the state"""
-        pass
+        # Implemented by subclasses
     
     def handle_events(self, events):
         """Process input events"""
@@ -34,18 +39,19 @@ class GameState:
 
     def handle_audio_enter(self):
         """Handle audio when entering this state"""
-        pass
-
+        # Implemented by subclasses
+    
     def handle_audio_exit(self):
         """Handle audio when exiting this state"""
-        pass
-
+        # Implemented by subclasses
+    
     def toggle_music(self):
         """Toggle music on/off"""
         return self.audio.toggle_music()
 
 
 class MenuState(GameState):
+    """Main menu state of the game"""
     def __init__(self, game):
         super().__init__(game)
         self.menu_font = pygame.font.SysFont("Arial", 32)
@@ -58,14 +64,16 @@ class MenuState(GameState):
         self.audio.play_music("MENU")
     
     def enter(self):
+        """Initialize menu state"""
         # Setup or reset menu state
         self.selected = 0
         
     def update(self, dt):
+        """Update menu animations"""
         # Menu animations, if any
-        pass
     
     def render(self, screen):
+        """Render menu screen"""
         # Clear screen with background
         screen.fill((50, 50, 100))
         
@@ -81,6 +89,7 @@ class MenuState(GameState):
             screen.blit(text, (screen.get_width()//2 - text.get_width()//2, pos_y))
     
     def handle_events(self, events):
+        """Handle menu option selection"""
         for event in events:
             if event.type == pygame.QUIT:
                 return "QUIT"
@@ -93,11 +102,11 @@ class MenuState(GameState):
                 elif event.key == pygame.K_RETURN:
                     if self.selected == 0:  # Play
                         return "NAME_ENTRY"
-                    elif self.selected == 1:  # Toggle Music
+                    if self.selected == 1:  # Toggle Music
                         music_enabled = self.toggle_music()
                         music_state = "On" if music_enabled else "Off"
                         self.options[1] = f"Music: {music_state}"
-                    elif self.selected == 2:  # Quit
+                    if self.selected == 2:  # Quit
                         return "QUIT"
         return None
 
@@ -159,6 +168,7 @@ class PlayerNameState(GameState):
             screen.blit(default_text, (screen.get_width()//2 - default_text.get_width()//2, input_y + input_height + 60))
     
     def handle_events(self, events):
+        """Handle input events in name entry state"""
         for event in events:
             if event.type == pygame.QUIT:
                 return "QUIT"
@@ -170,11 +180,11 @@ class PlayerNameState(GameState):
                     self.game.initialize_player()
                     return "DECK_SELECTION"
                 
-                elif event.key == pygame.K_ESCAPE:
+                if event.key == pygame.K_ESCAPE:
                     # Go back to main menu
                     return "MENU"
                 
-                elif event.key == pygame.K_BACKSPACE:
+                if event.key == pygame.K_BACKSPACE:
                     # Remove last character
                     self.name = self.name[:-1]
                 
@@ -216,10 +226,15 @@ class DeckSelectionState(GameState):
         }
     
     def enter(self):
-        # Load skills from CSV
-        if not hasattr(self, 'all_skills'):
-            self.all_skills = self.game.deck.load_from_csv(self.game.skills_filename)
-        
+        # Ensure the deck exists
+        if not self.game.deck:
+            self.game.deck = Deck(self.game.player)
+        skills_filename = getattr(self.game, 'skills_filename', None)
+        if skills_filename:
+            self.game.deck.load_from_csv(skills_filename)
+        else:
+            self.game.deck.load_from_csv(None)
+        self.all_skills = self.game.deck.skills
         self.scroll_offset = 0
         self.selected_skill = 0
         self.chosen_skills = []
@@ -471,6 +486,7 @@ class PlayingState(GameState):
             effect.draw(screen)
     
     def handle_events(self, events):
+        """Handle input events in playing state"""
         for event in events:
             if event.type == pygame.QUIT:
                 return "QUIT"
@@ -478,7 +494,7 @@ class PlayingState(GameState):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     return "PAUSED"
-                elif event.key == pygame.K_m:
+                if event.key == pygame.K_m:
                     # Toggle music
                     music_enabled = self.toggle_music()
                     state = "on" if music_enabled else "off"
@@ -557,6 +573,7 @@ class PausedState(GameState):
             screen.blit(text, (screen.get_width()//2 - text.get_width()//2, pos_y))
             
     def handle_events(self, events):
+        """Handle input events in paused state"""
         for event in events:
             if event.type == pygame.QUIT:
                 return "QUIT"
@@ -567,23 +584,24 @@ class PausedState(GameState):
                     
                 if event.key == pygame.K_UP:
                     self.selected = (self.selected - 1) % len(self.options)
-                elif event.key == pygame.K_DOWN:
+                if event.key == pygame.K_DOWN:
                     self.selected = (self.selected + 1) % len(self.options)
-                elif event.key == pygame.K_RETURN:
+                if event.key == pygame.K_RETURN:
                     if self.selected == 0:  # Resume
                         return "PLAYING"
-                    elif self.selected == 1:  # Toggle Music
+                    if self.selected == 1:  # Toggle Music
                         music_enabled = self.toggle_music()
                         music_state = "On" if music_enabled else "Off"
                         self.options[1] = f"Music: {music_state}"
-                    elif self.selected == 2:  # Return to Menu
+                    if self.selected == 2:  # Return to Menu
                         return "MENU"
-                    elif self.selected == 3:  # Quit
+                    if self.selected == 3:  # Quit
                         return "QUIT"
         return None
 
 
 class GameOverState(GameState):
+    """State displayed when the player dies or game ends"""
     def __init__(self, game):
         super().__init__(game)
         self.font = pygame.font.SysFont("Arial", 32)
@@ -594,12 +612,39 @@ class GameOverState(GameState):
         self.audio.play_music("GAME_OVER")
         
     def enter(self):
-        DataCollection.log_csv(self.game.game_start_time, self.game.wave_number, self.game.player.name, self.game.player.health, self.game.player.deck)  # Log game results
+        """Log game data and save results"""
+        # Get player data safely
+        player_name = "Unknown"
+        player_health = 0
+        if hasattr(self.game, 'player'):
+            player_name = getattr(self.game.player, 'name', "Unknown")
+            player_health = getattr(self.game.player, 'health', 0)
+        
+        # Get deck skills safely
+        player_deck = []
+        if hasattr(self.game, 'player') and hasattr(self.game.player, 'deck') and hasattr(self.game.player.deck, 'skills'):
+            player_deck = self.game.player.deck.skills
+        
+        # Get game start time safely
+        game_start_time = getattr(self.game, 'game_start_time', time.time() - 1)
+        
+        # Get wave number safely
+        wave_number = getattr(self.game, 'wave_number', 0)
+        
+        DataCollection.log_csv(
+            game_start_time, 
+            wave_number, 
+            player_name, 
+            player_health, 
+            player_deck
+        )  # Log game results
         
     def update(self, dt):
+        """Update game over screen"""
         pass
         
     def render(self, screen):
+        """Render game over screen"""
         # Black background
         screen.fill((0, 0, 0))
         
@@ -607,8 +652,11 @@ class GameOverState(GameState):
         title = self.title_font.render("GAME OVER", True, (255, 0, 0))
         screen.blit(title, (screen.get_width()//2 - title.get_width()//2, 150))
         
+        # Get wave number safely
+        wave_number = getattr(self.game, 'wave_number', 0)
+        
         # Stats
-        wave_text = self.font.render(f"Waves Survived: {self.game.wave_number}", True, (255, 255, 255))
+        wave_text = self.font.render(f"Waves Survived: {wave_number}", True, (255, 255, 255))
         screen.blit(wave_text, (screen.get_width()//2 - wave_text.get_width()//2, 250))
         
         # Continue prompt
@@ -616,6 +664,7 @@ class GameOverState(GameState):
         screen.blit(prompt, (screen.get_width()//2 - prompt.get_width()//2, 400))
         
     def handle_events(self, events):
+        """Handle input events"""
         for event in events:
             if event.type == pygame.QUIT:
                 return "QUIT"

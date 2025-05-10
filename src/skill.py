@@ -4,14 +4,12 @@ from enum import Enum, auto
 import math
 import pygame
 from utils import Utils
-from entity import Entity  # Import the Entity base class
-from config import (
-    WIDTH, HEIGHT,
-    WHITE, GREEN,
-    ELEMENT_COLORS, SHADOW_SUMMON_SPRITE_PATH, SPRITE_SIZE
-)
+from entity import Entity
+from config import Config
 from visual_effects import VisualEffect
 from animation import Animation
+from resources import Resources
+from config import Config
 
 class SkillType(Enum):
     PROJECTILE = auto()
@@ -35,9 +33,9 @@ class BaseSkill:
         self.effect_manager = None  # Will be set by the game
 
     def _get_color_from_element(self, element):
-        if element in ELEMENT_COLORS:
-            return ELEMENT_COLORS[element]['primary']
-        return WHITE  # Default fallback
+        if element in Config.ELEM_COLORS:
+            return Config.ELEM_COLORS[element]['primary']
+        return Config.WHITE  # Default fallback
     
     def is_off_cooldown(self, current_time):
         if current_time is None:
@@ -103,8 +101,8 @@ class ProjectileEntity(Entity):
         self.y += self.dy * self.speed * dt
 
         # Check screen bounds collision
-        if (self.x < 0 or self.x > WIDTH or 
-            self.y < 0 or self.y > HEIGHT):
+        if (self.x < 0 or self.x > Config.WIDTH or 
+            self.y < 0 or self.y > Config.HEIGHT):
             self.explode(enemies)
             return False
 
@@ -213,12 +211,12 @@ class SummonEntity(Entity):
     def __init__(self, x, y, skill, attack_radius):
         # Set up animation before calling parent constructor
         try:
-            sprite_path = getattr(skill, 'sprite_path', SHADOW_SUMMON_SPRITE_PATH)
+            sprite_path = getattr(skill, 'sprite_path', Config.SHADOW_SUMMON_SPRITE_PATH)
             self.animation = Animation(
                 name="summon",
                 sprite_sheet_path=sprite_path,
-                sprite_width=SPRITE_SIZE,
-                sprite_height=SPRITE_SIZE
+                sprite_width=Config.SPRITE_SIZE,
+                sprite_height=Config.SPRITE_SIZE
             )
         except Exception as e:
             print(f"[SummonEntity] Error loading animation: {e}")
@@ -310,8 +308,8 @@ class SummonEntity(Entity):
         self.state_machine.update(dt, dx=self.dx, dy=self.dy)
         
         # Keep within screen bounds
-        self.x = max(self.radius, min(WIDTH - self.radius, self.x))
-        self.y = max(self.radius, min(HEIGHT - self.radius, self.y))
+        self.x = max(self.radius, min(Config.WIDTH - self.radius, self.x))
+        self.y = max(self.radius, min(Config.HEIGHT - self.radius, self.y))
         
         return True
 

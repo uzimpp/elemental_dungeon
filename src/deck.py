@@ -2,9 +2,10 @@ import time
 import csv
 import math
 import json
+import os
 from skill import SkillType, Projectile, Summon, Heal, AOE, Slash, Chain
 from visual_effects import VisualEffectManager
-from config import SKILLS_PATH
+from config import Config
 from resources import Resources
 
 
@@ -30,9 +31,22 @@ class Deck:
     def load_from_csv(self, csv_name=None):
         """Load skills from CSV using Resources"""
         # Use Resources to load the skills CSV
-        csv_path = SKILLS_PATH if csv_name is None else csv_name
-        skills_data = self.resources.load_csv("skills", csv_path)
-        
+        csv_path = Config.SKILLS_PATH if csv_name is None else csv_name
+        # Make sure the file exists
+        if not os.path.exists(csv_path):
+            print(f"[Deck] Error: Skills file not found: {csv_path}")
+            return False
+        # Load skill data from CSV
+        skills_data = []
+        try:
+            with open(csv_path, mode='r', newline='', encoding='utf-8') as file:
+                csv_reader = csv.DictReader(file)
+                for row in csv_reader:
+                    skills_data.append(row)
+        except Exception as e:
+            print(f"[Deck] Error loading CSV: {e}")
+            return False
+            
         if not skills_data:
             print("[Deck] Error: Could not load skills data")
             return False
@@ -43,13 +57,11 @@ class Deck:
                 skill_type = row.get('Type', '').upper()
                 if not skill_type:
                     continue
-                    
                 # All skills need these parameters
                 name = row.get('Name', 'Unknown Skill')
                 element = row.get('Element', 'FIRE').upper()
                 cooldown = float(row.get('Cooldown', 5.0))
                 description = row.get('Description', '')
-                
                 if skill_type == 'PROJECTILE':
                     # Create projectile skill
                     skill = Projectile(
@@ -63,7 +75,6 @@ class Deck:
                         description=description
                     )
                     self.skills.append(skill)
-                    
                 elif skill_type == 'SUMMON':
                     # Create summon skill
                     skill = Summon(
@@ -75,12 +86,11 @@ class Deck:
                         duration=float(row.get('Duration', 30.0)),
                         cooldown=cooldown,
                         description=description,
-                        sprite_path=row.get('SpritePath', 'assets/sprites/shadow_summon_sheet.png'),
+                        sprite_path=row.get('SpritePath', Config.SHADOW_SUMMON_SPRITE_PATH),
                         animation_config=None,  # Animation class will use default config
                         attack_radius=float(row.get('AttackRadius', 50.0))
                     )
                     self.skills.append(skill)
-                    
                 elif skill_type == 'HEAL':
                     # Create heal skill
                     skill = Heal(
@@ -93,7 +103,6 @@ class Deck:
                         heal_summons=row.get('HealSummons', 'False').lower() == 'true'
                     )
                     self.skills.append(skill)
-                    
                 elif skill_type == 'AOE':
                     # Create AOE skill
                     skill = AOE(
@@ -106,7 +115,6 @@ class Deck:
                         description=description
                     )
                     self.skills.append(skill)
-                    
                 elif skill_type == 'SLASH':
                     # Create slash skill
                     skill = Slash(
@@ -119,7 +127,6 @@ class Deck:
                         description=description
                     )
                     self.skills.append(skill)
-                    
                 elif skill_type == 'CHAIN':
                     # Create chain skill
                     skill = Chain(
@@ -133,31 +140,27 @@ class Deck:
                         chain_count=int(row.get('ChainCount', 3))
                     )
                     self.skills.append(skill)
-                    
                 # Set owner for the skill
                 skill.owner = self.owner
-                
                 print(f"[Deck] Loaded skill: {name} ({skill_type})")
-                
             except Exception as e:
                 print(f"[Deck] Error loading skill: {e}")
                 continue
-                
         print(f"[Deck] Successfully loaded {len(self.skills)} skills")
         return True
-        
+
     def use_skill(self, skill_idx, target_x, target_y, enemies, now=None):
         """Use a skill by index"""
         if not self.skills or skill_idx < 0 or skill_idx >= len(self.skills):
             return False
-            
+
         skill = self.skills[skill_idx]
-        
+
         # Check cooldown
         if not skill.is_off_cooldown(now):
             print(f"[Deck] Skill {skill.name} is on cooldown")
             return False
-            
+
         # Activate skill based on its type
         try:
             if skill.skill_type == SkillType.PROJECTILE:
@@ -172,21 +175,21 @@ class Deck:
                 if len(self.active_summons) >= self.summon_limit:
                     print(f"[Deck] Reached summon limit ({self.summon_limit})")
                     return False
-                    
+
                 # Create and track summon
                 summon = skill.activate(
                     self.owner.x, self.owner.y, target_x, target_y, enemies)
                 summon.owner = self.owner
                 self.active_summons.append(summon)
-                
+
             elif skill.skill_type == SkillType.HEAL:
                 # Heal the player and possibly summons
                 skill.activate(self.owner, self.active_summons)
-                
+
             elif skill.skill_type == SkillType.AOE:
                 # Apply AOE damage
                 skill.activate(target_x, target_y, enemies)
-                
+
             elif skill.skill_type == SkillType.SLASH:
                 # Apply slash attack
                 skill.activate(self.owner.x, self.owner.y, target_x, target_y, enemies)

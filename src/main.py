@@ -1,19 +1,22 @@
-# main.py
-import pygame
+"""
+Main game entry point for Incantato - a 2D action role-playing game.
+Handles game initialization, state management, and main game loop.
+"""
+import random
 import sys
 import time
-import random
+import pygame
+from config import Config
 from deck import Deck
-from player import Player
 from enemy import Enemy
-from game_state import MenuState, PlayerNameState, DeckSelectionState, PlayingState, PausedState, GameOverState
-from config import *
+from game_state import (MenuState, PlayerNameState, DeckSelectionState, 
+                       PlayingState, PausedState, GameOverState)
+from player import Player
 from resources import Resources
 
 
 class Game:
     def __init__(self):
-
         pygame.init()
 
         # Initialize Resources first
@@ -23,8 +26,8 @@ class Game:
         print(f"Game data path: {self.resources.data_path}")
         
         # Initialize display
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption(GAME_NAME)
+        self.screen = pygame.display.set_mode((Config.WIDTH, Config.HEIGHT))
+        pygame.display.set_caption(Config.GAME_NAME)
         
         # Initialize game variables
         self.effects = []
@@ -47,40 +50,18 @@ class Game:
             "PAUSED": PausedState(self),
             "GAME_OVER": GameOverState(self)
         }
-        
-        # Preload common resources
-        self._preload_resources()
-        
         # Start with menu state
         self.change_state("MENU")
         
-    def _preload_resources(self):
-        """Preload commonly used resources"""
-        # Preload sprite sheets
-        self.resources.load_image("player", PLAYER_SPRITE_PATH)
-        self.resources.load_image("enemy", ENEMY_SPRITE_PATH)
-        self.resources.load_image("shadow_summon", SHADOW_SUMMON_SPRITE_PATH)
-        
-        # Preload skill data
-        self.resources.load_csv("skills", SKILLS_PATH)
-        
-        # Preload sound effects if needed
-        if pygame.mixer.get_init():
-            # Load menu music
-            if MENU_BGM_PATH:
-                self.resources.load_sound("menu_bgm", MENU_BGM_PATH)
-            # Load game music
-            if GAME_BGM_PATH:
-                self.resources.load_sound("game_bgm", GAME_BGM_PATH)
 
     def initialize(self):
         """Initialize the game"""
         # Create player
-        self.player = Player(WIDTH // 2, HEIGHT // 2)
+        self.player = Player(Config.WIDTH // 2, Config.HEIGHT // 2)
         
         # Create deck
         self.deck = Deck(self.player)
-        self.deck.load_from_csv(SKILLS_PATH)
+        self.deck.load_from_csv(Config.SKILLS_PATH)
         
         # Initialize states
         self.states = {
@@ -120,29 +101,29 @@ class Game:
         """Initialize just the player without deck (first phase)"""
         self.player = Player(
             self.player_name,
-            WIDTH,
-            HEIGHT,
+            Config.WIDTH,
+            Config.HEIGHT,
             None,  # No deck yet
-            PLAYER_RADIUS,
-            PLAYER_MAX_HEALTH,
-            PLAYER_WALK_SPEED,
-            PLAYER_SPRINT_SPEED,
-            PLAYER_MAX_STAMINA,
-            PLAYER_STAMINA_REGEN,
-            PLAYER_SPRINT_DRAIN,
-            PLAYER_DASH_COST,
-            PLAYER_DASH_DISTANCE,
-            PLAYER_STAMINA_COOLDOWN)
+            Config.P_RADIUS,
+            Config.P_MAX_HEALTH,
+            Config.P_WALK_SPEED,
+            Config.P_SPRINT_SPEED,
+            Config.P_MAX_STAMINA,
+            Config.P_STAMINA_REGEN,
+            Config.P_SPRINT_DRAIN,
+            Config.P_DASH_COST,
+            Config.P_DASH_DISTANCE,
+            Config.P_STAMINA_COOLDOWN)
 
         # Set deck on player
         self.player.deck = Deck(self.player)
         # Set game reference
         self.player.game = self
         # Load deck from CSV
-        self.player.deck.load_from_csv(SKILLS_PATH)
+        self.player.deck.load_from_csv(Config.SKILLS_PATH)
         # Set summon limit
         if hasattr(self.player.deck, 'summon_limit'):
-            self.player.deck.summon_limit = PLAYER_SUMMON_LIMIT
+            self.player.deck.summon_limit = Config.P_SUMMON_LIMIT
         # Game tracking
         self.game_start_time = time.time()
         self.effects = []
@@ -158,19 +139,19 @@ class Game:
         # spawn 5 enemies each wave
         n_enemies = 5 + self.wave_number
         for _ in range(n_enemies):
-            x = random.randint(20, WIDTH - 20)
-            y = random.randint(20, HEIGHT - 20)
+            x = random.randint(20, Config.WIDTH - 20)
+            y = random.randint(20, Config.HEIGHT - 20)
             e = Enemy(
                 x,
                 y,
                 self.wave_number,
-                ENEMY_RADIUS,
-                ENEMY_BASE_SPEED,
-                ENEMY_BASE_HP,
-                WAVE_MULTIPLIER,
-                ENEMY_DAMAGE,
-                ATTACK_COOLDOWN,
-                ATTACK_RADIUS)
+                Config.P_RADIUS,
+                Config.E_BASE_SPEED,
+                Config.E_BASE_HP,
+                Config.WAVE_MULTIPLIER,
+                Config.E_DAMAGE,
+                Config.ATTACK_COOLDOWN,
+                Config.ATTACK_RADIUS)
             self.enemies.append(e)
 
     def run(self):
@@ -184,7 +165,6 @@ class Game:
                 if event.type == pygame.QUIT:
                     self.running = False
                     break
-                self.handle_event(event)
             next_state = self.current_state.handle_events(events)
             if next_state:
                 self.change_state(next_state)

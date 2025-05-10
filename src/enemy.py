@@ -1,9 +1,8 @@
 import pygame
 import math
-from utils import draw_hp_bar
 from entity import Entity
 from animation import Animation
-from config import (ENEMY_SPRITE_PATH, SPRITE_SIZE, ATTACK_RADIUS)
+from config import Config
 from resources import Resources
 
 
@@ -19,16 +18,16 @@ class Enemy(Entity):
             wave_multiplier,
             damage,
             attack_cooldown,
-            attack_radius=ATTACK_RADIUS):
+            attack_radius=Config.ATTACK_RADIUS):
         # Get resources
         self.resources = Resources.get_instance()
         
         # Set up animation before calling parent constructor
         self.animation = Animation(
             name="enemy",
-            sprite_sheet_path=ENEMY_SPRITE_PATH,
-            sprite_width=SPRITE_SIZE,
-            sprite_height=SPRITE_SIZE
+            sprite_sheet_path=Config.E_SPRITE_PATH,
+            sprite_width=Config.SPRITE_SIZE,
+            sprite_height=Config.SPRITE_SIZE
         )
         
         # Call parent class constructor (will set up state machine)
