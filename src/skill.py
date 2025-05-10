@@ -12,6 +12,7 @@ from config import (
     ELEMENT_COLORS, SHADOW_SUMMON_SPRITE_PATH, SHADOW_SUMMON_ANIMATION_CONFIG, SPRITE_SIZE
 )
 from visual_effects import VisualEffect
+from animation import Animation
 
 class SkillType(Enum):
     PROJECTILE = auto()
@@ -68,6 +69,7 @@ class BaseSkill:
 
 class ProjectileEntity(Entity):
     def __init__(self, start_x, start_y, target_x, target_y, skill):
+        self.color = skill.color
         super().__init__(
             x=start_x,
             y=start_y,
@@ -88,6 +90,9 @@ class ProjectileEntity(Entity):
         if dist == 0: dist = 1
         self.dx = dx / dist  # Normalized direction
         self.dy = dy / dist  # Normalized direction
+        
+        # Set to NoAnimationState explicitly
+        self.state_machine.change_state("none")
 
     def update(self, dt, enemies):
         """Update projectile position and check collisions"""
@@ -117,6 +122,8 @@ class ProjectileEntity(Entity):
                 self.explode(enemies)
                 return False
 
+        # Update state machine
+        super().update(dt)
         return True
 
     def explode(self, enemies):
@@ -205,167 +212,106 @@ class Projectile(BaseSkill):
 class SummonEntity(Entity):
     """Entity class for summons that behaves like other game entities"""
     def __init__(self, x, y, skill, attack_radius):
-        super().__init__(
-            x=x,
-            y=y,
-            radius=12,
-            max_health=50,
-            speed=max(120, skill.speed * 60), # Ensure minimum speed of 120 pixels per second
-            color=skill.color,
-            attack_radius=attack_radius
-        )
-        print(f"[SummonEntity] Created with speed={self.speed} (from skill.speed={skill.speed})")
-        self.damage = skill.damage
-        print(f"[SummonEntity] Damage set to {self.damage}")
-        self.element = skill.element
-        self.attack_cooldown = 1.0 # Similar to Enemy's attack cooldown
-        self.attack_timer = 0.0    # For tracking attack cooldown, like Enemy
-        self.attack_animation_timer = 0.0 # For tracking animation duration
-        self.last_attack_time = 0
-        self.dx = 1  # Initial direction
-        self.dy = 0  # Initial direction
-        
-        # State management (similar to Enemy)
-        self.state = 'idle'
-
-        # Animation
+        # Set up animation before calling parent constructor
         try:
             sprite_path = getattr(skill, 'sprite_path', SHADOW_SUMMON_SPRITE_PATH)
             animation_config = getattr(skill, 'animation_config', SHADOW_SUMMON_ANIMATION_CONFIG)
             
-            print(f"[SummonEntity] Loading sprite from: {sprite_path}")
-            self.animation = CharacterAnimation(
+            self.animation = Animation(
+                name="summon",
                 sprite_sheet_path=sprite_path,
                 config=animation_config,
                 sprite_width=SPRITE_SIZE,
                 sprite_height=SPRITE_SIZE
             )
-            # Force the animation to idle state
-            self.animation.set_state('idle', force_reset=True)
-            print(f"[SummonEntity] Animation loaded successfully and set to {self.state}")
         except Exception as e:
             print(f"[SummonEntity] Error loading animation: {e}")
             raise Exception(f"Failed to load summon animation: {e}")
+        
+        # Call parent constructor with animation set up
+        super().__init__(
+            x=x,
+            y=y,
+            radius=12,
+            max_health=50,
+            speed=max(120, skill.speed * 60), # Ensure minimum speed
+            attack_radius=attack_radius
+        )
+        
+        # Set summon-specific properties
+        self.damage = skill.damage
+        self.element = skill.element
+        self.attack_cooldown = 1.0
+        self.attack_timer = 0.0
+        self.color = skill.color
+        
+        # Ensure we start in idle state
+        self.state_machine.change_state("idle")
 
     def update(self, dt, enemies):
         """Update summon behavior: find target, move, attack"""
-        print(f"[SummonEntity] update() called with dt={dt:.3f}, alive={self.alive}, health={self.health}, state={self.state}")
-        print(f"[SummonEntity] Checking interactions with {len(enemies)} enemies")
-        print(f"[SummonEntity] Current position: ({self.x:.1f}, {self.y:.1f}), attack timer: {self.attack_timer:.1f}")
-        
-        # If entity is dead, only update dying animation and do nothing else
+        # Check if alive first
         if not self.alive or self.health <= 0:
-            if self.state != 'dying':
-                self.state = 'dying'
-                self.animation.set_state('dying', force_reset=True)
-                animations_length = len(self.animation.config['dying']['animations'])
-                death_duration = self.animation.config['dying']['duration'] * animations_length
-                self.attack_animation_timer = death_duration
-                
-            # Just update animation and check if it's time to set alive=False
-            self.animation.update(dt)
-            if self.attack_animation_timer > 0:
-                self.attack_animation_timer -= dt
-                if self.attack_animation_timer <= 0:
-                    self.alive = False
-            return False  # Don't do anything else if dying/dead
+            # Just update the state machine
+            self.state_machine.update(dt)
+            return False
+
+        # Get current state
+        current_state = self.state_machine.get_state_name()
         
-        # Handle hurt and attack animations
-        if self.state in ['hurt', 'sweep']:
-            self.attack_animation_timer -= dt
-            self.animation.update(dt)
-            
-            # If animation is done, return to appropriate state
-            if self.attack_animation_timer <= 0:
-                if self.health <= 0:
-                    self.state = 'dying'
-                    self.animation.set_state('dying', force_reset=True)
-                    animations_length = len(self.animation.config['dying']['animations'])
-                    death_duration = self.animation.config['dying']['duration'] * animations_length
-                    self.attack_animation_timer = death_duration
-                else:
-                    # Reset to idle or walking based on whether there's a target
-                    self.state = 'idle'
-                    self.animation.set_state('idle', force_reset=True)
-            
-            return True  # Don't move or attack during hurt/attack animations
-        
-        # Find closest enemy (target)
-        target = None
+        # If in a restricted movement state, just update the state machine
+        if current_state in ["sweep", "hurt", "dying"]:
+            self.state_machine.update(dt)
+            return True
+
+        # Update attack timer
+        if self.attack_timer > 0:
+            self.attack_timer -= dt
+
+        # Find closest enemy
+        closest_enemy = None
         min_dist = float('inf')
         for enemy in enemies:
             if enemy.alive:
                 dist = math.hypot(enemy.x - self.x, enemy.y - self.y)
                 if dist < min_dist:
                     min_dist = dist
-                    target = enemy
+                    closest_enemy = enemy
 
-        # Update attack timer
-        if self.attack_timer > 0:
-            self.attack_timer -= dt
-            print(f"[SummonEntity] Attack cooldown: {self.attack_timer:.1f}s remaining")
-
-        # Try to attack if we can
-        if target and min_dist < self.attack_radius and self.attack_timer <= 0:
-            # Set attack animation
-            self.state = 'sweep'  # Use sweep as attack animation
-            self.animation.set_state('sweep', force_reset=True)
+        # Try to attack if in range
+        if closest_enemy and min_dist < self.attack_radius and self.attack_timer <= 0:
+            # Attack animation
+            self.state_machine.change_state("sweep")
             
-            # Calculate attack animation duration
-            animations_length = len(self.animation.config['sweep']['animations'])
-            attack_duration = self.animation.config['sweep']['duration'] * animations_length
-            self.attack_animation_timer = attack_duration
+            # Perform attack
+            closest_enemy.take_damage(self.damage)
+            self.attack_timer = self.attack_cooldown
             
-            # Perform the attack
-            target.take_damage(self.damage)
+            # Add visual effect
+            if hasattr(self, 'owner') and hasattr(self.owner, 'game') and self.owner.game and hasattr(self.owner.game, 'effect_manager'):
+                hit_effect = VisualEffect(closest_enemy.x, closest_enemy.y, "explosion", self.color, 15, 0.2)
+                self.owner.game.effect_manager.add_effect(hit_effect)
+            
+            return True
 
-            # Add visual effect for attack
-            if hasattr(target, 'game') and target.game and hasattr(target.game, 'effects'):
-                hit_effect = VisualEffect(target.x, target.y, "explosion", self.color, 15, 0.2)
-                target.game.effects.append(hit_effect)
-                print(f"[SummonEntity] Added hit visual effect")
-                
-            self.attack_timer = self.attack_cooldown  # Reset attack timer
-            self.last_attack_time = time.time()       # Update last attack time
-            return True  # Don't move after deciding to attack
-        
         # Move toward target if not attacking
-        if target and min_dist > 0:
+        if closest_enemy and min_dist > 0:
             # Calculate direction
-            dx = target.x - self.x
-            dy = target.y - self.y
-            if min_dist > 0:
-                self.dx = dx / min_dist
-                self.dy = dy / min_dist
+            self.dx, self.dy = self.get_direction_to(closest_enemy.x, closest_enemy.y)
             
-            # Set walking animation if not already
-            if self.state != 'walk':
-                self.state = 'walk'
-                self.animation.set_state('walk')
-            
-            # Force minimum movement speed (60 pixels per second)
-            effective_speed = max(60, self.speed)
+            # Set walking animation
+            if current_state != "walk":
+                self.state_machine.change_state("walk")
             
             # Move toward target
-            move_dist = effective_speed * dt
-            old_x, old_y = self.x, self.y
-            
-            # Apply movement
-            self.x += self.dx * move_dist
-            self.y += self.dy * move_dist
-            
-            # Verify movement actually happened
-            actual_dist_moved = math.hypot(self.x - old_x, self.y - old_y)
-            print(f"[SummonEntity] Moving toward target: ({old_x:.1f}, {old_y:.1f}) -> ({self.x:.1f}, {self.y:.1f}), moved {actual_dist_moved:.1f} pixels")
-            
-            # Update animation with movement direction
-            self.animation.update(dt, self.dx, self.dy)
+            self.move(self.dx, self.dy, dt)
         else:
             # If no target, set to idle
-            if self.state != 'idle':
-                self.state = 'idle'
-                self.animation.set_state('idle')
-            self.animation.update(dt)
+            if current_state != "idle":
+                self.state_machine.change_state("idle")
+
+        # Update state machine
+        self.state_machine.update(dt, dx=self.dx, dy=self.dy)
         
         # Keep within screen bounds
         self.x = max(self.radius, min(WIDTH - self.radius, self.x))
@@ -394,47 +340,31 @@ class SummonEntity(Entity):
             if self.health <= 0:
                 # Mark as dying but don't set alive=False yet (let animation finish)
                 self.health = 0
-                self.state = 'dying'
-                self.animation.set_state('dying', force_reset=True)
-                animations_length = len(self.animation.config['dying']['animations'])
-                death_duration = self.animation.config['dying']['duration'] * animations_length
-                self.attack_animation_timer = death_duration
+                self.state_machine.change_state("dying")
             else:
                 # Only show hurt animation if not already in a more important state
-                if self.state not in ['dying', 'sweep']:
-                    self.state = 'hurt'
-                    self.animation.set_state('hurt', force_reset=True)
-                    animations_length = len(self.animation.config['hurt']['animations'])
-                    hurt_duration = self.animation.config['hurt']['duration'] * animations_length
-                    self.attack_animation_timer = hurt_duration
+                if self.state_machine.get_state_name() not in ['dying', 'sweep']:
+                    self.state_machine.change_state("hurt")
 
     def draw(self, surface):
-        """Draw summon with sprite, includes HP bar (similar to Enemy.draw)"""
-        # Get the current sprite from the animation system
+        """Draw summon with sprite, includes HP bar"""
         if not self.alive:
             return
+            
+        # Get current sprite
         current_sprite = self.animation.get_current_sprite()
-
+        
         if current_sprite:
-            # Calculate top-left position for blitting (center the sprite)
+            # Calculate draw position
             draw_x = self.x - self.animation.sprite_width / 2
             draw_y = self.y - self.animation.sprite_height / 2
-
-            scale = 2  # Adjust scale factor as needed
-            scaled_sprite = pygame.transform.scale(current_sprite, 
-                                              (self.animation.sprite_width * scale, 
-                                               self.animation.sprite_height * scale))
-            # Draw the sprite
+            
+            # Draw sprite
             surface.blit(current_sprite, (int(draw_x), int(draw_y)))
-        else:
-            raise Exception(f"[SummonEntity] No current sprite for state: {self.state}")
-
-        # HP bar (only if not dying)
-        if self.state != 'dying':
-            bar_x = self.x - 25
-            bar_y = self.y - self.radius - 10
-            draw_hp_bar(surface, bar_x, bar_y, self.health, self.max_health, GREEN)
-
+            
+            # Draw HP bar if not dying
+            if self.state_machine.get_state_name() != "dying":
+                self.draw_health_bar(surface)
 
 class Summon(BaseSkill):
     """Summon skill that creates SummonEntity instances"""

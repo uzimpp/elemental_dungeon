@@ -1,6 +1,7 @@
 import pygame
 import math
 from config import WIDTH, HEIGHT
+from entity_state import EntityStateMachine
 
 
 class Entity:
@@ -15,7 +16,6 @@ class Entity:
         self.max_health = max_health
         self.health = max_health
 
-
         # State
         self.alive = True
 
@@ -23,6 +23,13 @@ class Entity:
         self.dx = 1
         self.dy = 0
         self.attack_radius = attack_radius
+        
+        # Create state machine
+        self.state_machine = EntityStateMachine(self)
+        
+        # For entities without animation
+        if not hasattr(self, 'animation'):
+            self.state_machine.change_state("none")
 
     def move(self, dx, dy, dt):
         """Move the entity by the given delta x and y, scaled by dt (delta time)"""
@@ -39,11 +46,12 @@ class Entity:
             self.health -= amount
             if self.health <= 0:
                 self.health = 0
-                # For entities without animations, mark as dead immediately
-                # For entities with animations, the child class will handle death timing
-                if not hasattr(self, 'animation'):
-                    self.alive = False
-                # Don't set self.alive = False here, let subclasses handle it
+                self.state_machine.change_state("dying")
+            else:
+                # Only transition to hurt if not in a more important state
+                current_state = self.state_machine.get_state_name()
+                if current_state not in ["dying", "sweep"]:
+                    self.state_machine.change_state("hurt")
 
     def heal(self, amount):
         """Heal the entity"""
@@ -53,9 +61,12 @@ class Entity:
     def draw(self, screen):
         """Draw the entity on the screen"""
         if self.alive:
-            # Draw the entity circle
-            pygame.draw.circle(screen, self.color,
-                               (int(self.x), int(self.y)), self.radius)
+            # If the entity has an animation, it will be drawn by the child class
+            # Otherwise, draw a basic circle
+            if not hasattr(self, 'animation'):
+                # Draw the entity circle
+                pygame.draw.circle(screen, self.color,
+                                  (int(self.x), int(self.y)), self.radius)
 
             # Draw attack radius if debug is enabled and attack radius is set
             if self.attack_radius > 0:
@@ -94,4 +105,5 @@ class Entity:
 
     def update(self, dt):
         """Update method to be overridden by child classes"""
-        pass
+        # Update the state machine
+        self.state_machine.update(dt, dx=self.dx, dy=self.dy)

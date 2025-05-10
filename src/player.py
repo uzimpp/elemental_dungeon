@@ -25,7 +25,19 @@ class Player(Entity):
                  dash_cost,
                  dash_distance,
                  stamina_cooldown):
+        # Animation setup - must be before Entity constructor for state machine
+        sprite_path = PLAYER_SPRITE_PATH
+        self.animation = Animation(
+            name="player",
+            sprite_sheet_path=sprite_path,
+            config=PLAYER_ANIMATION_CONFIG,
+            sprite_width=SPRITE_SIZE,
+            sprite_height=SPRITE_SIZE
+        )
+        
+        # Call parent constructor (will set up state machine)
         super().__init__(width//2, height//2, radius, max_health, walk_speed)
+        
         self.width = width
         self.height = height
         self.name = name
@@ -46,20 +58,10 @@ class Player(Entity):
         self.dash_distance = dash_distance
         self.stamina_depleted_time = None
         self.stamina_cooldown = stamina_cooldown
-
-        # Animation setup
-        sprite_path = PLAYER_SPRITE_PATH
-        self.animation = Animation(
-            name="player",
-            sprite_sheet_path=sprite_path,
-            config=PLAYER_ANIMATION_CONFIG,
-            sprite_width=SPRITE_SIZE,
-            sprite_height=SPRITE_SIZE
-        )
-        self.state = 'idle'  # Add player state tracking
+        
+        # State tracking
         self.is_sprinting = False
-        self.attack_timer = 0.0  # Timer to manage returning from cast state
-
+    
     @property
     def summons(self):
         """Compatibility property for access to active summons"""
@@ -71,25 +73,20 @@ class Player(Entity):
         return self.deck.get_projectiles
 
     def handle_input(self, dt):
+        # Get current state
+        current_state = self.state_machine.get_state_name()
+        
         # 1. Prevent input/movement if dying
-        if self.state in ['dying']:
-            self.animation.update(dt)  # Keep updating dying animation
-            # Check if dying animation is complete
-            self.attack_timer -= dt
-            if self.attack_timer <= 0:
-                self.alive = False
+        if current_state == "dying":
+            self.state_machine.update(dt)  # Keep updating dying animation
             return
 
         # 2. Handle casting and hurt states with reduced speed
         speed_multiplier = 1.0  # Default speed multiplier
-        if self.state in ['cast', 'sweep', 'hurt']:
+        if current_state in ["cast", "sweep", "hurt"]:
             # Update action timer and animation
-            self.attack_timer -= dt
-            self.animation.update(dt)
-            speed_multiplier = 0.5  # Half speed during hurt animation
-            if self.attack_timer <= 0:
-                self.state = 'idle'
-                self.animation.set_state('idle', force_reset=True)
+            self.state_machine.update(dt)
+            speed_multiplier = 0.5  # Half speed during these animations
 
         # 3. Input and Movement
         keys = pygame.key.get_pressed()
@@ -162,23 +159,24 @@ class Player(Entity):
                     self.stamina_depleted_time = None
 
         # 5. Determine and Set Animation State
-        if self.state not in ['cast', 'sweep', 'hurt', 'dying']:
-            target_state = 'idle'  # Only update animation state if not in a special state
+        if current_state not in ["cast", "sweep", "hurt", "dying"]:
+            new_state = "idle"  # Only update animation state if not in a special state
             if is_moving:
-                target_state = 'sprint' if self.is_sprinting else 'walk'
-            self.animation.set_state(target_state)
-
-        # 6. Update Animation System
-        self.animation.update(dt, self.dx, self.dy)
+                new_state = "sprint" if self.is_sprinting else "walk"
+            self.state_machine.change_state(new_state)
+        
+        # 6. Update State Machine with current movement direction
+        self.state_machine.update(dt, dx=self.dx, dy=self.dy)
 
     def handle_event(self, event, mouse_pos, enemies, now, effects):
         # Ignore events if dying
-        if self.state == 'dying':
+        current_state = self.state_machine.get_state_name()
+        if current_state == "dying":
             return None
 
         if event.type == pygame.KEYDOWN:
             # Ignore skill/dash if already performing an action
-            if self.state not in ['cast', 'sweep']:
+            if current_state not in ["cast", "sweep"]:
                 if event.key in [pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4]:
                     skill_idx = event.key - pygame.K_1
                     self.cast_skill(skill_idx, mouse_pos,
@@ -191,14 +189,15 @@ class Player(Entity):
                 return 'exit'
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            if self.state not in ['cast', 'sweep']:
+            if current_state not in ["cast", "sweep"]:
                 if event.button == 1:
                     self.cast_skill(0, mouse_pos, enemies, now, effects)
         return None
 
     def dash(self, effects):
         """Dash logic - Triggers an afterimage effect."""
-        if self.state in ['dying', 'cast', 'sweep']:
+        current_state = self.state_machine.get_state_name()
+        if current_state in ["dying", "cast", "sweep"]:
             return
 
         if self.stamina >= self.dash_cost:
@@ -253,37 +252,23 @@ class Player(Entity):
             print("Not enough stamina to dash!")
 
     def cast_skill(self, skill_idx, mouse_pos, enemies, now, effects):
-        return self.deck.use_skill(skill_idx, mouse_pos[0], mouse_pos[1], enemies, now)
-
-    def take_damage(self, amt):
-        if self.state == 'dying' or not self.alive:
-            return  # Can't take damage if already dying/dead
-        if amt > 0:
-            self.health -= amt
-            if self.health <= 0:
-                # Player has died
-                self.health = 0
-                if self.state != 'dying':
-                    print(f"{self.name} has died!")
-                    self.state = 'dying'
-                    self.animation.set_state('dying', force_reset=True)
-                    # Don't set self.alive = False yet, let animation finish
-                    animations_length = len(
-                        self.animation.ANIMATION_CONFIG['dying']['animations'])
-                    death_duration = self.animation.ANIMATION_CONFIG['dying']['duration'] * \
-                        animations_length
-                    self.attack_timer = death_duration
+        success = self.deck.use_skill(skill_idx, mouse_pos[0], mouse_pos[1], enemies, now)
+        if success:
+            # Set the casting state
+            skill = self.deck.skills[skill_idx] 
+            state = "sweep" if skill.skill_type == SkillType.SLASH else "cast"
+            
+            # Get animations length for correct duration
+            if self.animation and self.animation.config and state in self.animation.config:
+                animations = self.animation.config[state]['animations']
+                duration_per_frame = self.animation.config[state]['duration']
+                duration = len(animations) * duration_per_frame
+                self.state_machine.change_state(state, duration=duration)
             else:
-                # Play hurt animation if not already in a more important state
-                if self.state not in ['cast', 'sweep', 'dying']:
-                    self.state = 'hurt'
-                    self.animation.set_state('hurt', force_reset=True)
-                    # Set a short timer for hurt animation
-                    animations_length = len(
-                        self.animation.ANIMATION_CONFIG['hurt']['animations'])
-                    hurt_duration = self.animation.ANIMATION_CONFIG['hurt']['duration'] * \
-                        animations_length
-                    self.attack_timer = hurt_duration
+                # Default duration
+                self.state_machine.change_state(state)
+            
+        return success
 
     def draw(self, surf):
         current_sprite = self.animation.get_current_sprite()
@@ -297,5 +282,24 @@ class Player(Entity):
             draw_x = self.x - (self.animation.sprite_width * scale) / 2
             draw_y = self.y - (self.animation.sprite_height * scale) / 2
             surf.blit(scaled_sprite, (int(draw_x), int(draw_y)))
-        # else: # Debugging print
-        #      print("[DEBUG] !!! current_sprite is None in Player.draw !!!")
+        
+        # Draw health and stamina bars
+        self.draw_health_bar(surf)
+        self.draw_stamina_bar(surf)
+    
+    def draw_stamina_bar(self, screen):
+        """Draw stamina bar above the entity"""
+        bar_width = self.radius * 2
+        bar_height = 3
+        bar_x = self.x - self.radius
+        bar_y = self.y - self.radius - 15
+
+        # Background (dark blue)
+        pygame.draw.rect(screen, (0, 0, 100),
+                         (bar_x, bar_y, bar_width, bar_height))
+
+        # Foreground (bright blue)
+        stamina_width = (self.stamina / self.max_stamina) * bar_width
+        if stamina_width > 0:
+            pygame.draw.rect(screen, (0, 100, 255),
+                             (bar_x, bar_y, stamina_width, bar_height))
