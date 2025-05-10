@@ -10,7 +10,7 @@ from enemy import Enemy
 from visual_effects import VisualEffect
 from utils import resolve_overlap, draw_hp_bar, angle_diff
 from game_state import *
-from audio_manager import Audio
+from audio import Audio
 from config import Config as C
 
 
