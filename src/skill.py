@@ -4,7 +4,7 @@ from enum import Enum, auto
 import math
 import pygame
 from utils import draw_hp_bar, angle_diff
-from animation import CharacterAnimation
+from comprog2.project.incantato.src.sprites import CharacterAnimation
 from entity import Entity  # Import the Entity base class
 from config import (
     WIDTH, HEIGHT,
@@ -135,12 +135,10 @@ class ProjectileEntity(Entity):
             glow_color = (*self.color, 100)  # Add alpha channel
             pygame.draw.circle(glow_surface, glow_color, (self.radius * 1.5, self.radius * 1.5), self.radius * 1.5)
             surface.blit(glow_surface, (int(self.x - self.radius * 1.5), int(self.y - self.radius * 1.5)))
-            
             # Draw main projectile
             pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
             # Draw outline
             pygame.draw.circle(surface, (255, 255, 255), (int(self.x), int(self.y)), self.radius, 1)
-            
             # Draw explosion radius if debug mode is enabled
             if hasattr(self, 'explosion_radius') and self.explosion_radius > 0:
                 # Create a transparent surface for the explosion radius
@@ -183,7 +181,7 @@ class SummonEntity(Entity):
             x=x,
             y=y,
             radius=12,
-            max_health=50, # Example health
+            max_health=50,
             speed=max(120, skill.speed * 60), # Ensure minimum speed of 120 pixels per second
             color=skill.color,
             attack_radius=attack_radius

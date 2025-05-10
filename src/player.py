@@ -9,7 +9,7 @@ from visual_effects import VisualEffect, DashAfterimage
 from config import (PLAYER_SPRITE_PATH,
                     PLAYER_ANIMATION_CONFIG, SPRITE_SIZE, ATTACK_RADIUS)
 from entity import Entity
-from animation import CharacterAnimation
+from animation import Animation
 
 
 class Player(Entity):
@@ -17,8 +17,6 @@ class Player(Entity):
                  deck,
                  radius,
                  max_health,
-                 summon_limit,
-                 color,
                  walk_speed,
                  sprint_speed,
                  max_stamina,
@@ -27,7 +25,7 @@ class Player(Entity):
                  dash_cost,
                  dash_distance,
                  stamina_cooldown):
-        super().__init__(width//2, height//2, radius, max_health, walk_speed, color)
+        super().__init__(width//2, height//2, radius, max_health, walk_speed)
         self.width = width
         self.height = height
         self.name = name
@@ -51,7 +49,8 @@ class Player(Entity):
 
         # Animation setup
         sprite_path = PLAYER_SPRITE_PATH
-        self.animation = CharacterAnimation(
+        self.animation = Animation(
+            name="player",
             sprite_sheet_path=sprite_path,
             config=PLAYER_ANIMATION_CONFIG,
             sprite_width=SPRITE_SIZE,
@@ -270,8 +269,8 @@ class Player(Entity):
                     self.animation.set_state('dying', force_reset=True)
                     # Don't set self.alive = False yet, let animation finish
                     animations_length = len(
-                        self.animation.config['dying']['animations'])
-                    death_duration = self.animation.config['dying']['duration'] * \
+                        self.animation.ANIMATION_CONFIG['dying']['animations'])
+                    death_duration = self.animation.ANIMATION_CONFIG['dying']['duration'] * \
                         animations_length
                     self.attack_timer = death_duration
             else:
@@ -281,8 +280,8 @@ class Player(Entity):
                     self.animation.set_state('hurt', force_reset=True)
                     # Set a short timer for hurt animation
                     animations_length = len(
-                        self.animation.config['hurt']['animations'])
-                    hurt_duration = self.animation.config['hurt']['duration'] * \
+                        self.animation.ANIMATION_CONFIG['hurt']['animations'])
+                    hurt_duration = self.animation.ANIMATION_CONFIG['hurt']['duration'] * \
                         animations_length
                     self.attack_timer = hurt_duration
 

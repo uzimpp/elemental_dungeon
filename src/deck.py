@@ -12,9 +12,8 @@ from visual_effects import VisualEffect
 
 class Deck:
     """Centralized manager for player skills, projectiles, and summons"""
-
-    def __init__(self, owner):
-        self.owner = owner
+    def __init__(self, player):
+        self.player = player
         self.skills = []
         self.active_projectiles = []
         self.active_summons = []
@@ -151,8 +150,8 @@ class Deck:
         print(
             f"[Deck] Using skill '{skill.name}' (Type: {skill.skill_type}) towards ({target_x}, {target_y})")
             
-        # Set the owner reference on the skill for visual effects
-        skill.owner = self.owner
+        # Set the player reference on the skill for visual effects
+        skill.player = self.player
 
         # --- Set Player Animation State ---
         action_state = 'cast'  # Default animation
@@ -160,47 +159,47 @@ class Deck:
             action_state = 'sweep'
 
         # Ensure animation config exists before accessing
-        anim_config = self.owner.animation.config.get(
-            action_state) if self.owner.animation else None
+        anim_config = self.player.animation.config.get(
+            action_state) if self.player.animation else None
         if anim_config:
-            self.owner.state = action_state
-            self.owner.animation.set_state(action_state, force_reset=True)
+            self.player.state = action_state
+            self.player.animation.set_state(action_state, force_reset=True)
             animations = anim_config.get('animations', [])
             duration_per_frame = anim_config.get('duration', 0.1)
-            self.owner.attack_timer = len(animations) * duration_per_frame
+            self.player.attack_timer = len(animations) * duration_per_frame
             print(
-                f"[Deck] Set player state to '{action_state}' for {self.owner.attack_timer:.2f}s")
+                f"[Deck] Set player state to '{action_state}' for {self.player.attack_timer:.2f}s")
         else:
             print(
                 f"Warning: Animation config not found for state '{action_state}'. Setting default timer.")
-            self.owner.state = action_state  # Still set state even if no animation
-            self.owner.attack_timer = 0.5  # Default action duration
+            self.player.state = action_state  # Still set state even if no animation
+            self.player.attack_timer = 0.5  # Default action duration
 
         # --- Get Game Effects List ---
-        # Safely get the effects list from the game instance via the owner (player)
+        # Safely get the effects list from the game instance via the player (player)
         game_effects_list = None
-        if hasattr(self.owner, 'game') and self.owner.game and hasattr(self.owner.game, 'effects'):
-            game_effects_list = self.owner.game.effects
+        if hasattr(self.player, 'game') and self.player.game and hasattr(self.player.game, 'effects'):
+            game_effects_list = self.player.game.effects
         else:
             print("[Deck] Warning: Cannot access game effects list from player.")
 
         # --- Create Skill Entities and Visual Effects ---
         if skill.skill_type == SkillType.PROJECTILE:
             # Calculate spawn position near player in direction of mouse
-            dx = target_x - self.owner.x
-            dy = target_y - self.owner.y
+            dx = target_x - self.player.x
+            dy = target_y - self.player.y
             dist = math.hypot(dx, dy)
             if dist == 0:
                 dist = 1
             # Normalize direction and multiply by spawn distance
             spawn_distance = 30  # Distance from player to spawn projectile
-            spawn_x = self.owner.x + (dx / dist) * spawn_distance
-            spawn_y = self.owner.y + (dy / dist) * spawn_distance
+            spawn_x = self.player.x + (dx / dist) * spawn_distance
+            spawn_y = self.player.y + (dy / dist) * spawn_distance
 
             # Create the actual projectile entity at the calculated position
             projectile_entity = skill.create(
                 skill, spawn_x, spawn_y, target_x, target_y)
-            projectile_entity.owner = self.owner  # Set the owner reference
+            projectile_entity.player = self.player  # Set the player reference
 
             self.active_projectiles.append(projectile_entity)
             print(
@@ -220,15 +219,15 @@ class Deck:
                 self.active_summons.pop(0)  # Remove oldest summon
 
             # Calculate spawn position near player in direction of mouse
-            dx = target_x - self.owner.x
-            dy = target_y - self.owner.y
+            dx = target_x - self.player.x
+            dy = target_y - self.player.y
             dist = math.hypot(dx, dy)
             if dist == 0:
                 dist = 1
             # Normalize direction and multiply by spawn distance
             spawn_distance = 40  # Distance from player to spawn summon
-            spawn_x = self.owner.x + (dx / dist) * spawn_distance
-            spawn_y = self.owner.y + (dy / dist) * spawn_distance
+            spawn_x = self.player.x + (dx / dist) * spawn_distance
+            spawn_y = self.player.y + (dy / dist) * spawn_distance
 
             # Create the actual summon entity at the calculated position
             summon_entity = skill.create(
@@ -250,7 +249,7 @@ class Deck:
                 skill, 'heal_summons') and skill.heal_summons else None
 
             # Activate the heal skill with both player and summons
-            Heal.activate(skill, self.owner, summons)
+            Heal.activate(skill, self.player, summons)
 
             print(
                 f"[Deck] Applied Heal skill to player and {len(self.active_summons) if summons else 0} summons.")
@@ -258,7 +257,7 @@ class Deck:
             # Add visual effect for healing
             if game_effects_list is not None:
                 effect = VisualEffect(
-                    self.owner.x, self.owner.y, "heal", skill.color, 30, 0.5)
+                    self.player.x, self.player.y, "heal", skill.color, 30, 0.5)
                 game_effects_list.append(effect)
 
                 # Add effects for healed summons too
@@ -290,7 +289,7 @@ class Deck:
             # Slash creates a visual effect and applies damage in an arc
             if game_effects_list is not None:
                 # Calculate angle from player to target
-                angle = math.atan2(target_y - self.owner.y, target_x - self.owner.x)
+                angle = math.atan2(target_y - self.player.y, target_x - self.player.x)
                 
                 # Debug angle information
                 angle_degrees = math.degrees(angle)
@@ -309,8 +308,8 @@ class Deck:
                 
                 # Create visual effect with the correct start angle and sweep direction
                 effect = VisualEffect(
-                    self.owner.x, 
-                    self.owner.y, 
+                    self.player.x, 
+                    self.player.y, 
                     "slash", 
                     skill.color, 
                     skill.radius, 
@@ -322,16 +321,16 @@ class Deck:
 
             # Apply damage to enemies in arc - hit detection must match the visual
             # The start and sweep angles need to be passed to ensure consistency
-            Slash.activate(skill, self.owner.x, self.owner.y,
+            Slash.activate(skill, self.player.x, self.player.y,
                            target_x, target_y, enemies, start_angle, sweep_angle)
         elif skill.skill_type == SkillType.CHAIN:
             print(f"[Deck] Activated Chain skill '{skill.name}'")
             
             # Call the Chain's activate method to perform the chain logic
-            Chain.activate(skill, self.owner.x, self.owner.y, target_x, target_y, enemies)
+            Chain.activate(skill, self.player.x, self.player.y, target_x, target_y, enemies)
             
             # The Chain.activate method will create its own visual effects
-            # when it has the owner reference to access game.effects
+            # when it has the player reference to access game.effects
         else:
             print(
                 f"[Deck] Warning: Skill type {skill.skill_type} activation not fully implemented.")

@@ -1,18 +1,20 @@
 import pygame
 import time
+from audio import Audio
 
 class GameState:
     """Base class for all game states"""
     def __init__(self, game):
-        self.game = game  # Reference to main game object
+        self.game = game
+        self.audio = Audio()  # Each state has its own audio manager
     
     def enter(self):
         """Called when this state becomes active"""
-        pass
+        self.handle_audio_enter()
     
     def exit(self):
         """Called when this state is no longer active"""
-        pass
+        self.handle_audio_exit()
     
     def update(self, dt):
         """Update game logic"""
@@ -29,14 +31,30 @@ class GameState:
                 return "QUIT"
         return None  # No state change
 
+    def handle_audio_enter(self):
+        """Handle audio when entering this state"""
+        pass
+
+    def handle_audio_exit(self):
+        """Handle audio when exiting this state"""
+        pass
+
+    def toggle_music(self):
+        """Toggle music on/off"""
+        return self.audio.toggle_music()
+
 
 class MenuState(GameState):
     def __init__(self, game):
         super().__init__(game)
         self.menu_font = pygame.font.SysFont("Arial", 32)
         self.title_font = pygame.font.SysFont("Arial", 48)
-        self.options = ["Play", "Quit"]
+        self.options = ["Play", "Music: On", "Quit"]
         self.selected = 0
+    
+    def handle_audio_enter(self):
+        """Play menu music when entering menu state"""
+        self.audio.play_music("MENU")
     
     def enter(self):
         # Setup or reset menu state
@@ -73,9 +91,12 @@ class MenuState(GameState):
                     self.selected = (self.selected + 1) % len(self.options)
                 elif event.key == pygame.K_RETURN:
                     if self.selected == 0:  # Play
-                        # Go to name entry screen instead of initializing directly
                         return "NAME_ENTRY"
-                    elif self.selected == 1:  # Quit
+                    elif self.selected == 1:  # Toggle Music
+                        music_enabled = self.toggle_music()
+                        music_state = "On" if music_enabled else "Off"
+                        self.options[1] = f"Music: {music_state}"
+                    elif self.selected == 2:  # Quit
                         return "QUIT"
         return None
 
@@ -90,23 +111,23 @@ class PlayerNameState(GameState):
         self.cursor_visible = True
         self.cursor_timer = 0
         self.cursor_blink_rate = 0.5  # Blink every half second
-    
+
     def enter(self):
         self.name = ""
         self.cursor_visible = True
         self.cursor_timer = 0
-    
+
     def update(self, dt):
         # Blink cursor
         self.cursor_timer += dt
         if self.cursor_timer >= self.cursor_blink_rate:
             self.cursor_visible = not self.cursor_visible
             self.cursor_timer = 0
-    
+
     def render(self, screen):
         # Background
         screen.fill((40, 40, 80))
-        
+
         # Title
         title = self.title_font.render("Enter Your Name", True, (255, 255, 255))
         screen.blit(title, (screen.get_width()//2 - title.get_width()//2, 150))
@@ -343,17 +364,24 @@ class DeckSelectionState(GameState):
                         self.game.deck.skills = self.chosen_skills
                         self.game.finish_initialization()
                         return "PLAYING"
-                
+
                 elif event.key == pygame.K_ESCAPE:
                     # Go back to main menu
                     return "MENU"
-        
         return None
 
 
 class PlayingState(GameState):
     def __init__(self, game):
         super().__init__(game)
+        
+    def handle_audio_enter(self):
+        """Play game music when entering playing state"""
+        self.audio.play_music("PLAYING")
+        
+    def handle_audio_exit(self):
+        """Handle audio when exiting playing state"""
+        self.audio.fade_out(500)  # Fade out game music
         
     def enter(self):
         # Nothing special needed when entering play state
@@ -431,23 +459,9 @@ class PlayingState(GameState):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     return "PAUSED"
-                
-                # Volume controls
-                elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
-                    # Decrease volume
-                    current_vol = self.game.audio_manager.music_volume
-                    self.game.audio_manager.set_music_volume(current_vol - 0.1)
-                    print(f"Music volume: {self.game.audio_manager.music_volume:.1f}")
-                
-                elif event.key == pygame.K_EQUALS or event.key == pygame.K_KP_PLUS:
-                    # Increase volume
-                    current_vol = self.game.audio_manager.music_volume
-                    self.game.audio_manager.set_music_volume(current_vol + 0.1)
-                    print(f"Music volume: {self.game.audio_manager.music_volume:.1f}")
-                
                 elif event.key == pygame.K_m:
                     # Toggle music
-                    music_enabled = self.game.audio_manager.toggle_music()
+                    music_enabled = self.toggle_music()
                     state = "on" if music_enabled else "off"
                     print(f"Music: {state}")
                     
@@ -468,10 +482,20 @@ class PausedState(GameState):
         self.options = ["Resume", "Music: On", "Return to Menu", "Quit"]
         self.selected = 0
 
+    def handle_audio_enter(self):
+        """Lower volume when entering pause state"""
+        current_vol = self.audio.music_volume
+        self.audio.set_music_volume(current_vol * 0.5)  # Lower volume while paused
+
+    def handle_audio_exit(self):
+        """Restore volume when exiting pause state"""
+        current_vol = self.audio.music_volume
+        self.audio.set_music_volume(current_vol * 2.0)  # Restore volume
+
     def enter(self):
         self.selected = 0
         # Update the Music option text based on current state
-        music_state = "On" if self.game.audio_manager.music_enabled else "Off"
+        music_state = "On" if self.audio.music_enabled else "Off"
         self.options[1] = f"Music: {music_state}"
         
     def update(self, dt):
@@ -530,8 +554,7 @@ class PausedState(GameState):
                     if self.selected == 0:  # Resume
                         return "PLAYING"
                     elif self.selected == 1:  # Toggle Music
-                        # Toggle music on/off
-                        music_enabled = self.game.audio_manager.toggle_music()
+                        music_enabled = self.toggle_music()
                         music_state = "On" if music_enabled else "Off"
                         self.options[1] = f"Music: {music_state}"
                     elif self.selected == 2:  # Return to Menu
@@ -546,6 +569,10 @@ class GameOverState(GameState):
         super().__init__(game)
         self.font = pygame.font.SysFont("Arial", 32)
         self.title_font = pygame.font.SysFont("Arial", 64)
+        
+    def handle_audio_enter(self):
+        """Play game over music"""
+        self.audio.play_music("GAME_OVER")
         
     def enter(self):
         self.game.log_csv(self.game.wave_number)  # Log game results

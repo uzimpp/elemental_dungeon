@@ -1,9 +1,8 @@
 import pygame
 import math
-import time
 from utils import draw_hp_bar
 from entity import Entity
-from animation import CharacterAnimation
+
 from config import (ENEMY_SPRITE_PATH, ENEMY_ANIMATION_CONFIG,
                     SPRITE_SIZE, ATTACK_RADIUS)
 
@@ -18,14 +17,12 @@ class Enemy(Entity):
             base_speed,
             base_hp,
             wave_multiplier,
-            color,
             damage,
             attack_cooldown,
             attack_radius=ATTACK_RADIUS):
         # Call parent class constructor
         super().__init__(x, y, radius, base_hp * (wave_number *
-                                                  wave_multiplier), base_speed, color, attack_radius)
-
+                                                  wave_multiplier), base_speed, attack_radius)
         # Enemy specific attributes
         self.damage = damage
         self.attack_cooldown = attack_cooldown
