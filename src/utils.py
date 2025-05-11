@@ -19,18 +19,39 @@ def resolve_overlap(a, b):
     """
     dx = b.x - a.x
     dy = b.y - a.y
-    dist = math.hypot(dx, dy)
+    dist_sq = dx*dx + dy*dy
+
+    # Combined radius
     min_dist = a.radius + b.radius
-    if dist == 0:
-        dist = 0.00000001
+
+    if dist_sq >= min_dist * min_dist and dist_sq != 0:
+        return
+
+    if dist_sq == 0:
+        move_offset = a.radius * 0.1 if a.radius > 0 else 0.1
+        a.x -= move_offset
+        dx = b.x - a.x
+        dy = b.y - a.y
+        dist_sq = dx*dx + dy*dy
+        if dist_sq == 0:
+            return  # Cannot resolve further
+
+    dist = math.sqrt(dist_sq)  # Calculate actual distance
+
     if dist < min_dist:
         overlap = min_dist - dist
-        push_x = dx / dist * (overlap / 2.0)
-        push_y = dy / dist * (overlap / 2.0)
-        a.x -= push_x
-        a.y -= push_y
-        b.x += push_x
-        b.y += push_y
+
+        if dist == 0:
+
+            return
+        nx = dx / dist
+        ny = dy / dist
+        # Amount to move each object along the separation axis
+        move_amount = overlap / 2.0
+        a.x -= nx * move_amount
+        a.y -= ny * move_amount
+        b.x += nx * move_amount
+        b.y += ny * move_amount
 
 
 class Utils:

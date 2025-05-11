@@ -347,13 +347,13 @@ class Entity(pygame.sprite.Sprite):
         if not self.alive and (not hasattr(self, 'animation') or self.state != 'dying'):
             return  # Don't draw dead entities unless they're in dying animation
 
-        # Draw hitbox - always visible for debugging
-        hitbox_color = (*self.color, 100)  # Semi-transparent
-        pygame.draw.circle(screen, hitbox_color, (int(
-            self.pos.x), int(self.pos.y)), self.radius)
-        # Draw hitbox outline
-        pygame.draw.circle(screen, self.color, (int(
-            self.pos.x), int(self.pos.y)), self.radius, 2)
+        # # Draw hitbox - always visible for debugging
+        # hitbox_color = (*self.color, 100)  # Semi-transparent
+        # pygame.draw.circle(screen, hitbox_color, (int(
+        #     self.pos.x), int(self.pos.y)), self.radius)
+        # # Draw hitbox outline
+        # pygame.draw.circle(screen, self.color, (int(
+        #     self.pos.x), int(self.pos.y)), self.radius, 2)
 
         # If we have an animation, use it
         if hasattr(self, 'animation') and self.animation is not None:

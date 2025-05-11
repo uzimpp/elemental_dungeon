@@ -705,8 +705,15 @@ class DeckSelectionState(GameState):
         self.ui_manager.add_element(down_button, "scroll")
 
         # Hamburger Menu Button to Text Button "Menu"
+        button_width = 80
+        button_height = 40
         self.hamburger_button = Button(
-            10, 10, 80, 40, "Menu", self.desc_font,  # Using self.desc_font
+            C.WIDTH - button_width - 10,  # 10 pixels from the right edge
+            10,  # 10 pixels from the top edge
+            button_width,
+            button_height,
+            "Menu",
+            self.desc_font,  # Using self.desc_font
             draw_background=True  # Standard button appearance
         )
         self.ui_manager.add_element(self.hamburger_button, "overlay_triggers")
@@ -748,24 +755,24 @@ class DeckSelectionState(GameState):
         self.ui_manager.draw_all()
 
         # Draw instruction text
-        instructions = [
-            "Controls:",
-            "- Click skill in list to select.",
-            "- Click selected skill at bottom to remove.",
-            "- Arrow keys or ▲▼ to scroll/highlight.",
-            "- Enter/Return to select highlighted skill.",
-            "- Backspace to remove last selected skill.",
-            f"- Confirm or Space when {C.SKILLS_LIMIT} skills chosen."
-        ]
-        # Below selected skills area (y=500, height=80)
-        instr_y_start = 500 + 80 + 20
-        for i, line in enumerate(instructions):
-            instr_text = self.instruction_font.render(line, True, C.LIGHT_GREY)
-            # Center instructions or align left under the list
-            instr_rect = instr_text.get_rect(
-                centerx=screen.get_width() // 2, y=instr_y_start + i * 22)
-            # screen.blit(instr_text, (self.list_x, instr_y_start + i * 22))
-            screen.blit(instr_text, instr_rect)
+        # instructions = [
+        #     "Controls:",
+        #     "- Click skill in list to select.",
+        #     "- Click selected skill at bottom to remove.",
+        #     "- Arrow keys or ▲▼ to scroll/highlight.",
+        #     "- Enter/Return to select highlighted skill.",
+        #     "- Backspace to remove last selected skill.",
+        #     f"- Confirm or Space when {C.SKILLS_LIMIT} skills chosen."
+        # ]
+        # # Below selected skills area (y=500, height=80)
+        # instr_y_start = 500 + 80 + 20
+        # for i, line in enumerate(instructions):
+        #     instr_text = self.instruction_font.render(line, True, C.LIGHT_GREY)
+        #     # Center instructions or align left under the list
+        #     instr_rect = instr_text.get_rect(
+        #         centerx=screen.get_width() // 2, y=instr_y_start + i * 22)
+        #     # screen.blit(instr_text, (self.list_x, instr_y_start + i * 22))
+        #     screen.blit(instr_text, instr_rect)
 
     def draw_skill_list(self, screen):
         # Use self.list_x, self.list_y, etc. defined in __init__
@@ -971,8 +978,15 @@ class PlayingState(GameState):
             self.ui_manager.add_element(skill_display, "skills")
 
         # Hamburger Menu Button to Text Button "Menu"
+        button_width = 80
+        button_height = 40
         self.hamburger_button = Button(
-            10, 10, 80, 40, "Menu", self.ui_font,  # Using self.ui_font
+            C.WIDTH - button_width - 10,  # 10 pixels from the right edge
+            10,  # 10 pixels from the top edge
+            button_width,
+            button_height,
+            "Menu",
+            self.ui_font,  # Using self.ui_font
             draw_background=True  # Standard button appearance
         )
         self.ui_manager.add_element(self.hamburger_button, "overlay_triggers")

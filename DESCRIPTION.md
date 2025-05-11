@@ -1,19 +1,11 @@
-# ***"Incantato"***
+# Incantato 🧙‍♂️
 
-## Overview
-[Add a brief overview of your game here]
+<img width="100%" alt="Screenshot 2568-04-09 at 10 06 45" src="https://github.com/user-attachments/assets/ef749a41-918e-4b93-bdfd-3b6749ad4566" />
 
-## Concept
-[Add the game concept and motivation here]
+## 🎮 What is Incantato?
 
-## UML Class Diagram
-[Add your UML class diagram here - you can use a tool like draw.io or PlantUML to create it]
+**Incantato** is a fast-paced survival game where you'll:
 
-## Design Patterns
-[Describe the design patterns used in your project]
-
-## YouTube Presentation
-[Add your YouTube video link here once it's ready]
-
-## Project Repository
-[Add your GitHub repository link here]
+* Build a deck of powerful elemental skills
+* Fight against waves of challenging enemies
+* Master strategic skill combinations

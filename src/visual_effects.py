@@ -6,8 +6,6 @@ slash attacks, and chain lightning effects using Pygame surfaces.
 """
 import math
 import random
-import time
-
 import pygame
 from config import Config as C
 
