@@ -162,6 +162,11 @@ class Deck:
         # --- Skill Activation ---
         skill.trigger_cooldown()  # Use the method in BaseSkill
 
+        # --- Record Skill Usage for Data Collection ---
+        if player and hasattr(player, 'game') and player.game and hasattr(player.game, 'current_wave_skill_usage'):
+            player.game.current_wave_skill_usage[skill.name] = player.game.current_wave_skill_usage.get(
+                skill.name, 0) + 1
+
         # --- Set Player Animation State ---
         action_state = 'cast'  # Default animation
         if skill.skill_type == SkillType.SLASH:

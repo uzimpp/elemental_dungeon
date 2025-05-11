@@ -6,7 +6,8 @@ from ui import Button, ProgressBar, SkillDisplay, UIManager
 from deck import Deck
 from ui import UI
 from font import Font
-from data_collection import DataCollection
+from data_collector import DataCollector
+from stats_viewer import run_stats_viewer_blocking, close_stats_viewer
 
 
 class GameStateManager:
@@ -428,76 +429,129 @@ class MenuState(GameState):
 
 
 class StatsDisplayState(GameState):
-    """Placeholder state for displaying stats (simulating Tkinter window)"""
+    """State for displaying stats using a separate Tkinter window (blocking)."""
 
     def __init__(self, game):
         super().__init__(game)
         self.title_font = Font().get_font('TITLE')
         self.info_font = Font().get_font('MENU')
         self.message_font = Font().get_font('UI')
+        self.is_tkinter_active = False  # Flag to track if Tkinter is supposed to be active
 
+        # This button is a fallback if Tkinter fails or for UI consistency.
+        # Its primary role is diminished as Tkinter window closure handles the return.
         close_button = Button(
-            C.WIDTH // 2 - 100, C.HEIGHT - 100, 200, 50,
-            "Close Stats", self.info_font
+            C.WIDTH // 2 - 100, C.HEIGHT - 150, 200, 50,  # Adjusted position slightly up
+            "Back to Menu", self.info_font
         )
         self.ui_manager.add_element(close_button, "buttons")
 
     def enter(self):
-        # Pause current game state if coming from PlayingState via an overlay chain
-        # For Menu -> Stats, GameStateManager.pause() isn't strictly needed
-        # as MenuState doesn't have ongoing game logic to pause.
-        # However, consistent pausing behavior might be good.
-        # self.game.state_manager.pause() # This would pause MenuState if called.
-        # For now, this state itself being active is the 'pause'.
-        pass
+        super().enter()
+        print(
+            "Entering StatsDisplayState. Pygame main loop will now be blocked by Tkinter.")
+        self.is_tkinter_active = True
+
+        # Optional: Change window caption to indicate Pygame is paused.
+        # current_caption = pygame.display.get_caption()
+        # pygame.display.set_caption(f"{C.GAME_NAME} - Displaying Stats (Pygame Paused)")
+
+        # This call will block until the Tkinter window is closed by the user.
+        # The Tkinter window's close handler is responsible for calling
+        # self.game.state_manager.set_state("MENU").
+        run_stats_viewer_blocking(self.game, "MENU")
+
+        # Control returns here after Tkinter mainloop finishes and run_stats_viewer_blocking completes.
+        # The state transition to "MENU" should have been initiated by Tkinter's close handler.
+        # This state's exit() method will be called as part of that state transition.
+        print("StatsDisplayState.enter: Returned from run_stats_viewer_blocking. State transition to MENU should be in progress.")
+        # self.is_tkinter_active = False # This will be set by exit() or if an error occurred before Tkinter launch
+
+        # Restore caption if changed
+        # pygame.display.set_caption(current_caption[0])
 
     def exit(self):
-        # self.game.state_manager.resume() # If we paused, we should resume.
-        pass
+        print("Exiting StatsDisplayState.")
+        # This method is called when GameStateManager transitions away from this state.
+        # This can happen if Tkinter's close handler successfully called set_state("MENU"),
+        # or if the game is quitting, or if ESC/Pygame button forced a change.
+
+        # If Tkinter was supposed to be active and might still be (e.g., if exit is forced prematurely),
+        # attempt a clean closure. The close_stats_viewer is designed to be safe now.
+        if self.is_tkinter_active:
+            print("  StatsDisplayState.exit: Ensuring Tkinter window is closed.")
+            # This will trigger its close protocol if window still exists.
+            close_stats_viewer()
+
+        self.is_tkinter_active = False
+        super().exit()
 
     def update(self, dt):
-        mouse_pos = pygame.mouse.get_pos()
-        self.ui_manager.update_all(mouse_pos, dt)
-        return None
+        # This method should ideally not be called while Tkinter is blocking.
+        # If called, it implies Tkinter is not active or has closed, and Pygame loop is running.
+        if not self.is_tkinter_active:
+            mouse_pos = pygame.mouse.get_pos()
+            self.ui_manager.update_all(mouse_pos, dt)
+        return None  # No state change directly from update
 
     def render(self, screen):
+        # This will render the Pygame screen once before Tkinter takes over.
+        # It might also render if Tkinter failed to launch, or briefly after it closes
+        # before the "MENU" state takes over rendering.
         screen.fill((30, 30, 30))  # Dark background
 
         title_text = self.title_font.render("Game Statistics", True, C.WHITE)
         title_rect = title_text.get_rect(center=(C.WIDTH // 2, 100))
         screen.blit(title_text, title_rect)
 
-        message_text = self.message_font.render(
-            "(Stats display would appear here - simulating Tkinter window)",
-            True, C.LIGHT_GREY
-        )
+        if self.is_tkinter_active:
+            message = "Stats window is active. Close it to return to the game."
+        else:
+            message = "Preparing stats window... or returning to menu."
+
+        message_text = self.message_font.render(message, True, C.LIGHT_GREY)
         message_rect = message_text.get_rect(
             center=(C.WIDTH // 2, C.HEIGHT // 2 - 50))
         screen.blit(message_text, message_rect)
 
-        # You would fetch and display actual stats here
-        # e.g., from self.game.data_collection or similar
-
-        self.ui_manager.draw_all()
+        # Draw the "Back to Menu" button, useful if Tkinter somehow fails to open
+        # or if focus returns to Pygame window unexpectedly.
+        if not self.is_tkinter_active:  # Only draw if Tkinter isn't meant to be the focus
+            self.ui_manager.draw("buttons")
+        # Still draw if present, but may not be interactive
+        elif self.ui_manager.elements.get("buttons"):
+            self.ui_manager.draw("buttons")
 
     def handle_events(self, events):
+        # If Tkinter is supposed to be active, Pygame shouldn't be processing its events here.
+        if self.is_tkinter_active:
+            # Check for a quit event just in case, to allow game to close
+            for event in events:
+                if event.type == pygame.QUIT:
+                    return "QUIT"  # Allow quitting the game even if Tkinter is theoretically up
+            return None
+
+        # Handle events if Tkinter is not active (e.g., before it launches, or after it closes
+        # and before the state transition fully kicks in, or if it failed to launch).
         for event in events:
             if event.type == pygame.QUIT:
                 return "QUIT"
+
+            # ESC key to return to Menu, useful if Tkinter fails to open or state is stuck.
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                return "MENU"  # Return to MenuState
+                print("StatsDisplayState: ESC key pressed, returning to MENU.")
+                return "MENU"
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_pos = pygame.mouse.get_pos()
                 buttons = self.ui_manager.elements.get("buttons", [])
                 for button in buttons:
                     if button.is_clicked(mouse_pos, True):
-                        if button.text == "Close Stats":
-                            return "MENU"  # Return to MenuState
+                        if button.text == "Back to Menu":
+                            print(
+                                "StatsDisplayState: 'Back to Menu' button clicked.")
+                            return "MENU"
         return None
-
-# Ensure to add this new state to the GameStateManager in main.py
-# game_state_manager.add_state("STATS_DISPLAY", StatsDisplayState(game))
 
 
 class NameEntryState(GameState):
@@ -924,18 +978,74 @@ class PlayingState(GameState):
 
     def update(self, dt):
         if not hasattr(self.game, 'player') or not self.game.player:
+            # If player is not initialized (e.g. still in name entry), skip gameplay logic
+            # Still update UI elements like buttons and text inputs
+            if not self.paused and not self.game.state_manager.is_paused():
+                pass  # No game logic to run yet
+            self.update_ui(dt)  # Ensure UI always updates
             return None
+
         if not self.paused and not self.game.state_manager.is_paused():
             self.game.enemy_group.update(self.game.player, dt)
             self.game.player.handle_input(dt)
             self.game.player.deck.update(dt, self.game.enemies)
             self.game.check_collisions()
-            if len(self.game.enemy_group) == 0:
+
+            # Wave cleared
+            # Ensure player is alive to clear wave
+            if len(self.game.enemy_group) == 0 and self.game.player.alive:
+                wave_duration_seconds = 0
+                if self.game.wave_start_time:
+                    wave_duration_seconds = time.time() - self.game.wave_start_time
+
+                DataCollector.log_wave_end_data(
+                    player_name=self.game.player.name,
+                    wave_number=self.game.wave_number,
+                    player_hp=self.game.player.health,
+                    player_stamina=self.game.player.stamina,
+                    skill_frequencies=self.game.current_wave_skill_usage,
+                    wave_duration_seconds=wave_duration_seconds,
+                    spawned_enemies_count=self.game.current_wave_spawned_enemies,
+                    enemies_left_count=0,  # Wave cleared
+                    player_deck_skills=self.game.player.deck.skills
+                )
                 self.game.wave_number += 1
-                self.game.spawn_wave()
-            if self.game.player.health <= 0:
-                DataCollection.log_csv(self.game, self.game.wave_number)
+                self.game.spawn_wave()  # This will reset wave_start_time and skill usage
+
+            # Player died
+            if not self.game.player.alive:  # Changed from health <= 0 to use alive flag
+                # Log data for the final wave
+                final_wave_duration_seconds = 0
+                if self.game.wave_start_time:
+                    final_wave_duration_seconds = time.time() - self.game.wave_start_time
+
+                DataCollector.log_wave_end_data(
+                    player_name=self.game.player.name,
+                    wave_number=self.game.wave_number,  # Wave they died on
+                    player_hp=0,  # Player is dead
+                    player_stamina=self.game.player.stamina,  # Log stamina at death
+                    skill_frequencies=self.game.current_wave_skill_usage,
+                    wave_duration_seconds=final_wave_duration_seconds,
+                    spawned_enemies_count=self.game.current_wave_spawned_enemies,
+                    enemies_left_count=len(self.game.enemy_group),
+                    player_deck_skills=self.game.player.deck.skills
+                )
+
+                # Log game session summary
+                game_duration_seconds = 0
+                if self.game.game_start_time:
+                    game_duration_seconds = time.time() - self.game.game_start_time
+
+                DataCollector.log_game_session_data(
+                    player_name=self.game.player.name,
+                    waves_reached=self.game.wave_number,  # Wave they died on
+                    player_deck_skills=self.game.player.deck.skills,
+                    game_duration_seconds=game_duration_seconds
+                )
+
+                # DataCollection.log_csv(self.game, self.game.wave_number) # OLD LINE - REMOVE/COMMENT
                 self.game.state_manager.set_overlay(GameOverOverlay(self.game))
+
         self.update_ui(dt)
         return None
 

@@ -47,10 +47,11 @@ class Camera:
 
 
 class Player(Entity):
-    def __init__(self, name, deck=None):
+    def __init__(self, name, game_instance, deck=None):
         super().__init__(C.WIDTH//2, C.HEIGHT//2, C.SPRITE_SIZE//2,
                          C.PLAYER_MAX_HEALTH, C.PLAYER_WALK_SPEED, C.PLAYER_COLOR)
         self.name = name
+        self.game = game_instance  # Store reference to the game instance
         self._deck = deck
         # Speed attributes
         self.walk_speed = C.PLAYER_WALK_SPEED
