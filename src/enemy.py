@@ -1,10 +1,8 @@
-import pygame
 import math
-from utils import draw_hp_bar
+from ui import UI
 from entity import Entity
-
-from config import (ENEMY_SPRITE_PATH, ENEMY_ANIMATION_CONFIG,
-                    SPRITE_SIZE, ATTACK_RADIUS)
+from animation import CharacterAnimation
+from config import Config as C
 
 
 class Enemy(Entity):
@@ -13,102 +11,62 @@ class Enemy(Entity):
             x,
             y,
             wave_number,
-            radius,
-            base_speed,
-            base_hp,
-            wave_multiplier,
-            damage,
-            attack_cooldown,
-            attack_radius=ATTACK_RADIUS):
-        # Call parent class constructor
-        super().__init__(x, y, radius, base_hp * (wave_number *
-                                                  wave_multiplier), base_speed, attack_radius)
-        # Enemy specific attributes
-        self.damage = damage
-        self.attack_cooldown = attack_cooldown
-        self.attack_timer = 0.0
-        self.attack_radius = attack_radius
-        # Animation setup
+            base_speed=C.ENEMY_BASE_SPEED,
+            base_hp=C.ENEMY_BASE_HP):
+        # Calculate enemy stats based on wave number
+        hp_scaling = 1 + ((wave_number - 1) * C.WAVE_MULTIPLIER)
+        speed_scaling = 1 + ((wave_number - 1) * C.WAVE_MULTIPLIER * 0.5)
+
+        # Set max health and speed with wave scaling
+        max_health = int(base_hp * hp_scaling)
+        speed = base_speed * speed_scaling
+
+        # Initialize the entity
+        super().__init__(x, y, C.ENEMY_RADIUS, max_health, speed, C.ENEMY_COLOR)
+
+        # Set up combat attributes
+        self.damage = C.ENEMY_DAMAGE
+        self.attack_cooldown = C.ATTACK_COOLDOWN
+        self.attack_timer = 0
+        self.attack_radius = 40  # Attack range
+
+        # Set up animation
         self.animation = CharacterAnimation(
-            sprite_sheet_path=ENEMY_SPRITE_PATH,
-            config=ENEMY_ANIMATION_CONFIG,
-            sprite_width=SPRITE_SIZE,
-            sprite_height=SPRITE_SIZE
+            sprite_sheet_path=C.ENEMY_SPRITE_PATH,
+            config=C.ENEMY_ANIMATION_CONFIG,
+            sprite_width=C.SPRITE_SIZE,
+            sprite_height=C.SPRITE_SIZE
         )
         self.state = 'idle'
-        self.attack_animation_timer = 0.0
+        self.animation.set_state('idle')
 
     def update(self, player, dt):
-        # If entity is dead, only update dying animation and do nothing else
-        if not self.alive or self.health <= 0:
-            if self.state != 'dying':
-                self.state = 'dying'
-                self.animation.set_state('dying', force_reset=True)
-                animations_length = len(
-                    self.animation.config['dying']['animations'])
-                death_duration = self.animation.config['dying']['duration'] * \
-                    animations_length
-                self.attack_animation_timer = death_duration
-
-            # Just update animation and check if it's time to set alive=False
-            self.animation.update(dt)
-            if self.attack_animation_timer > 0:
-                self.attack_animation_timer -= dt
-                if self.attack_animation_timer <= 0:
-                    self.alive = False
-            return  # Don't do anything else if dying/dead
-
-        # Handle hurt and attack animations
-        if self.state in ['hurt', 'sweep']:
-            self.attack_animation_timer -= dt
-            self.animation.update(dt)
-
-            # If animation is done, return to appropriate state
-            if self.attack_animation_timer <= 0:
-                if self.health <= 0:
-                    self.state = 'dying'
-                    self.animation.set_state('dying', force_reset=True)
-                    animations_length = len(
-                        self.animation.config['dying']['animations'])
-                    death_duration = self.animation.config['dying']['duration'] * \
-                        animations_length
-                    self.attack_animation_timer = death_duration
-                else:
-                    # Reset to idle or walking based on whether there's a target
-                    closest_type, closest_dist, closest_obj = self.get_closest_target(
-                        player)
-                    if closest_obj and closest_dist > 0:
-                        self.state = 'walk'
-                        self.animation.set_state('walk', force_reset=True)
-                    else:
-                        self.state = 'idle'
-                        self.animation.set_state('idle', force_reset=True)
-
-        # Don't move or attack during hurt/attack animations
-        if self.state in ['hurt', 'sweep']:
+        # If entity is dead or in special animation states, let base class handle it
+        if not self.alive or self.state in ['dying', 'hurt', 'sweep']:
+            super().update_animation(dt)
             return
-
-        # 1) Check for attack BEFORE moving
-        closest_type, closest_dist, closest_obj = self.get_closest_target(
-            player)
 
         # Update attack timer
         if self.attack_timer > 0:
             self.attack_timer -= dt
 
-        # Try to attack if we can - account for target's radius in the distance check
+        # Find closest target (player or summon)
+        closest_type, closest_dist, closest_obj = self.get_closest_target(
+            player)
+
+        # Decide behavior based on distance
         if closest_obj:
             # Get target's radius to properly calculate attack distance
-            # Index 3 contains the radius in closest_obj tuple
             target_radius = closest_obj[3]
+            target_entity = closest_obj[4]
 
-            # Effective attack range is the distance between centers minus both radii
-            # If this is less than attack_radius, enemy can attack
+            # Effective attack range accounts for both entity radii
             effective_distance = closest_dist - self.radius - target_radius
 
+            # Attack if in range and cooldown is ready
             if effective_distance <= self.attack_radius and self.attack_timer <= 0:
                 # Set attack animation
-                self.state = 'sweep'  # Use sweep as attack animation
+                self.state = 'sweep'
                 self.animation.set_state('sweep', force_reset=True)
 
                 # Calculate attack animation duration
@@ -119,27 +77,22 @@ class Enemy(Entity):
                 self.attack_animation_timer = attack_duration
 
                 # Perform the attack
-                # Pass the actual object
-                self.attack(closest_type, closest_obj[4])
+                super().attack(target_entity)
                 self.attack_timer = self.attack_cooldown
-                print(
-                    f"[Enemy] Attacking {closest_type} at distance {closest_dist:.1f} (effective: {effective_distance:.1f})")
-                return  # Don't move after deciding to attack
+                return
 
-        # 2) Then move toward target if not attacking
-        if closest_obj and closest_dist > 0:
-            tx = closest_obj[1]
-            ty = closest_obj[2]
-            self.dx, self.dy = self.get_direction_to(tx, ty)
-
+            # Otherwise, move toward target
             # Set walking animation if not already
             if self.state != 'walk':
                 self.state = 'walk'
                 self.animation.set_state('walk')
 
+            # Get direction to target and move
+            self.dx, self.dy = self.get_direction_to(
+                closest_obj[1], closest_obj[2])
             self.move(self.dx, self.dy, dt)
         else:
-            # If no target, set to idle
+            # If no target, go to idle state
             if self.state != 'idle':
                 self.state = 'idle'
                 self.animation.set_state('idle')
@@ -181,72 +134,9 @@ class Enemy(Entity):
             return 0, 0
         return dx / distance, dy / distance
 
-    def attack(self, target_type, target):
-        """Deal damage to the target."""
-        target.take_damage(self.damage)
-
-    def take_damage(self, amount):
-        """Override take_damage to play hurt animation"""
-        # Don't take damage if already dead
-        if not self.alive or self.health <= 0:
-            return
-
-        if amount > 0:
-            print(
-                f"[Enemy] Taking {amount} damage at ({self.x:.1f}, {self.y:.1f}), health: {self.health}/{self.max_health}")
-            self.health -= amount
-            print(
-                f"[Enemy] Health after damage: {self.health}/{self.max_health}")
-
-            if self.health <= 0:
-                # Mark as dying but don't set alive=False yet (let animation finish)
-                self.health = 0
-                self.state = 'dying'
-                self.animation.set_state('dying', force_reset=True)
-                animations_length = len(
-                    self.animation.config['dying']['animations'])
-                death_duration = self.animation.config['dying']['duration'] * \
-                    animations_length
-                self.attack_animation_timer = death_duration
-                print(
-                    f"[Enemy] KILLED! Starting death animation for {death_duration:.2f}s")
-            else:
-                # Only show hurt animation if not already in a more important state
-                if self.state not in ['dying', 'sweep']:
-                    self.state = 'hurt'
-                    self.animation.set_state('hurt', force_reset=True)
-                    animations_length = len(
-                        self.animation.config['hurt']['animations'])
-                    hurt_duration = self.animation.config['hurt']['duration'] * \
-                        animations_length
-                    self.attack_animation_timer = hurt_duration
-                    print(
-                        f"[Enemy] Showing hurt animation for {hurt_duration:.2f}s")
-
     def draw(self, surf):
-        # Get the current sprite from the animation system
-        current_sprite = self.animation.get_current_sprite()
+        # Use the base class's draw method for animation
+        super().draw(surf)
 
-        if current_sprite:
-            # Calculate top-left position for blitting (center the sprite)
-            draw_x = self.x - self.animation.sprite_width / 2
-            draw_y = self.y - self.animation.sprite_height / 2
-            scale = 2  # Adjust scale factor as needed
-            scaled_sprite = pygame.transform.scale(current_sprite,
-                                                   (self.animation.sprite_width * scale,
-                                                    self.animation.sprite_height * scale))
-            # Draw the sprite
-            surf.blit(scaled_sprite, (int(draw_x), int(draw_y)))
-        else:
-            raise Exception("[Enemy] No animation")
-
-        # HP bar
-        bar_x = self.x - 25
-        bar_y = self.y - self.radius - 10
-        draw_hp_bar(
-            surf,
-            bar_x,
-            bar_y,
-            self.health,
-            self.max_health,
-            self.color)
+        # Add HP bar
+        self.draw_health_bar(surf)

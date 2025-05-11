@@ -1,116 +1,162 @@
-# Game Name
-GAME_NAME = "Incantato"
+"""
+Module containing all configuration constants for the game.
+"""
+import pygame
 
-# Screen constants
-WIDTH = 1028
-HEIGHT = 720
-FPS = 60
 
-# Basic colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-BLUE = (0, 0, 255)
-PURPLE = (128, 0, 128)
-GREEN = (0, 255, 0)
-YELLOW = (255, 255, 0)
+class Config:
+    # Game Name
+    GAME_NAME = "Incantato"
 
-# Element colors with both primary and accent variants
-ELEMENT_COLORS = {
-    'FIRE': {
-        'primary': (255, 80, 0),    # Bright orange
-        'accent': (255, 160, 30)    # Light orange
-    },
-    'WATER': {
-        'primary': (0, 80, 255),    # Deep blue
-        'accent': (30, 144, 255)    # Light blue
-    },
-    'ICE': {
-        'primary': (135, 206, 235),  # Sky blue
-        'accent': (176, 224, 230)   # Powder blue
-    },
-    'WIND': {
-        'primary': (200, 200, 200),  # Light gray
-        'accent': (220, 220, 255)   # Light blue-white
-    },
-    'WOOD': {
-        'primary': (34, 139, 34),   # Forest green
-        'accent': (50, 205, 50)     # Lime green
-    },
-    'ROCK': {
-        'primary': (139, 69, 19),   # Brown
-        'accent': (160, 82, 45)     # Sienna
-    },
-    'THUNDER': {
-        'primary': (255, 215, 0),   # Golden yellow
-        'accent': (255, 255, 100)   # Bright yellow
-    },
-    'SHADOW': {
-        'primary': (80, 0, 80),     # Dark purple
-        'accent': (128, 0, 128)     # Purple
-    },
-    'LIGHT': {
-        'primary': (255, 223, 186),  # Light peach
-        'accent': (255, 236, 179)   # Pale yellow
-    },
-    'SOUND': {
-        'primary': (138, 43, 226),  # Blue violet
-        'accent': (147, 112, 219)   # Medium purple
+    # Screen constants
+    WIDTH = 1280
+    HEIGHT = 720
+    FPS = 60
+    SKILLS_LIMIT = 4
+    FONT_SIZES = {
+        'TITLE': 48,
+        'MENU': 32,
+        'SKILL': 24,
+        'DESC': 18,
+        'UI': 16
     }
-}
+    # Basic colors
+    WHITE = (255, 255, 255)
+    BLACK = (0, 0, 0)
+    LIGHT_GREY = (200, 200, 200)
+    GREY = (128, 128, 128)
+    RED = (255, 0, 0)
+    BLUE = (0, 0, 255)
+    PURPLE = (128, 0, 128)
+    GREEN = (0, 255, 0)
+    YELLOW = (255, 255, 0)
 
-# UI colors
-UI_COLORS = {
-    'hp_bar_bg': (60, 60, 60),
-    'hp_bar_fill': (50, 220, 50),
-    'hp_text': (255, 255, 255),
-    'stamina_bar_bg': (60, 60, 60),
-    'stamina_bar_fill': (220, 220, 0),
-    'stamina_text': (255, 255, 255),
-    'skill_box_bg': (40, 40, 40),
-    'cooldown_overlay': (0, 0, 0, 128),
-    'skill_text': (255, 255, 255),
-    'skill_hotkey': (200, 200, 200),
-}
+    # Element colors with both primary and accent variants
+    ELEMENT_COLORS = {
+        'FIRE': {
+            'primary': (255, 80, 0),    # Bright orange
+            'accent': (255, 160, 30)    # Light orange
+        },
+        'WATER': {
+            'primary': (0, 80, 255),    # Deep blue
+            'accent': (30, 144, 255)    # Light blue
+        },
+        'ICE': {
+            'primary': (135, 206, 235),  # Sky blue
+            'accent': (176, 224, 230)   # Powder blue
+        },
+        'WIND': {
+            'primary': (200, 200, 200),  # Light gray
+            'accent': (220, 220, 255)   # Light blue-white
+        },
+        'WOOD': {
+            'primary': (34, 139, 34),   # Forest green
+            'accent': (50, 205, 50)     # Lime green
+        },
+        'ROCK': {
+            'primary': (139, 69, 19),   # Brown
+            'accent': (160, 82, 45)     # Sienna
+        },
+        'THUNDER': {
+            'primary': (255, 215, 0),   # Golden yellow
+            'accent': (255, 255, 100)   # Bright yellow
+        },
+        'SHADOW': {
+            'primary': (80, 0, 80),     # Dark purple
+            'accent': (128, 0, 128)     # Purple
+        },
+        'LIGHT': {
+            'primary': (255, 223, 186),  # Light peach
+            'accent': (255, 236, 179)   # Pale yellow
+        },
+        'SOUND': {
+            'primary': (138, 43, 226),  # Blue violet
+            'accent': (147, 112, 219)   # Medium purple
+        }
+    }
 
-# Game balance constants
-WAVE_MULTIPLIER = 0.2
-PLAYER_BASE_HP = 100
-ENEMY_BASE_HP = 50
-PLAYER_BASE_SPEED = 60  # 1 * 60
-PLAYER_SPRINT_SPEED = 180  # 3.0 * 60
-ENEMY_BASE_SPEED = 105  # 1.75 * 60
-SPRITE_SIZE = 32
-RENDER_SIZE = WIDTH // 16
-ATTACK_COOLDOWN = 1.25
-ATTACK_RADIUS = 32
+    # UI colors
+    UI_COLORS = {
+        'hp_bar_bg': (60, 60, 60),
+        'hp_bar_fill': (50, 220, 50),
+        'hp_text': (255, 255, 255),
+        'stamina_bar_bg': (60, 60, 60),
+        'stamina_bar_fill': (220, 220, 0),
+        'stamina_text': (255, 255, 255),
+        'skill_box_bg': (40, 40, 40),
+        'cooldown_overlay': (0, 0, 0, 128),
+        'skill_text': (255, 255, 255),
+        'skill_hotkey': (200, 200, 200),
+    }
 
+    # Game balance constants
+    WAVE_MULTIPLIER = 0.2
+    PLAYER_BASE_HP = 100
+    ENEMY_BASE_HP = 50
+    PLAYER_BASE_SPEED = 60  # 1 * 60
+    PLAYER_SPRINT_SPEED = 180  # 3.0 * 60
+    ENEMY_BASE_SPEED = 105  # 1.75 * 60
+    SPRITE_SIZE = 32
+    RENDER_SIZE = 64
+    ATTACK_COOLDOWN = 1.25
+    ATTACK_RADIUS = 96
 
-# Player configuration
-PLAYER_WALK_SPEED = 90  # 1.5 * 60
-PLAYER_SPRINT_SPEED = 180  # 3.0 * 60
-PLAYER_MAX_STAMINA = 100
-PLAYER_STAMINA_REGEN = 30
-PLAYER_SPRINT_DRAIN = 80
-PLAYER_DASH_COST = 50
-PLAYER_DASH_DISTANCE = 100
-PLAYER_STAMINA_COOLDOWN = 2.5  # Cooldown period in seconds
-PLAYER_RADIUS = RENDER_SIZE / 3
-PLAYER_MAX_HEALTH = 100
-PLAYER_SUMMON_LIMIT = 5
-PLAYER_SPRITE_PATH = "assets/sprites/player_sheet.png"
+    # Define animation configurations based on sprite sheet columns
+    # Remember: Columns are 0-indexed!
+    ANIMATION_CONFIG = {
+        # State: {animations, frames, duration_per_frame, loop?, directional?, fixed_row?}
+        # Col 1,2
+        'idle':   {'animations': [0, 1], 'duration': 0.2, 'loop': True, 'directional': True},
+        # Cols 3, 4
+        'walk':   {'animations': [2, 1, 3], 'duration': 0.15, 'loop': True, 'directional': True},
+        # Cols 3,4
+        'sprint': {'animations': [2, 1, 3], 'duration': 0.1, 'loop': True, 'directional': True},
+        # Cols 5-8
+        'sweep': {'animations': [4, 5, 6, 7], 'duration': 0.1, 'loop': False, 'directional': True},
+        # Future: Cols 9-12
+        'shoot_arrow': {'animations': [8, 9, 10, 11], 'duration': 0.1, 'loop': False, 'directional': True},
+        # Cols 13, 14, 15
+        'cast':   {'animations': [12, 13, 14], 'duration': 0.1, 'loop': False, 'directional': True},
+        # Cols 16, 17, 18
+        'throw': {'animations': [15, 16, 17], 'duration': 0.1, 'loop': False, 'directional': True},
+        # Future?: Col 20 - Likely needs special handling
+        'hurt': {'animations': [18, 19, 20], 'duration': 0.1, 'loop': False, 'directional': True},
+        # Cols 21-24. Assume fixed row (e.g., UP Row 4) for dying? Or use last direction? Let's try fixed row.
+        'dying':  {'animations': [21, 22, 23], 'duration': 0.2, 'loop': False, 'directional': True},
+    }
 
-# Enemy configuration
-ENEMY_BASE_HP = 50
-ENEMY_BASE_SPEED = 105  # 1.75 * 60
-ENEMY_DAMAGE = 5
-ENEMY_RADIUS = RENDER_SIZE / 3
-ENEMY_SPRITE_PATH = "assets/sprites/enemy_sheet.png"
+    # Player configuration
+    PLAYER_WALK_SPEED = 90  # 1.5 * 60
+    PLAYER_SPRINT_SPEED = 180  # 3.0 * 60
+    PLAYER_MAX_STAMINA = 100
+    PLAYER_STAMINA_REGEN = 10
+    PLAYER_SPRINT_DRAIN = 40
+    PLAYER_DASH_COST = 50
+    PLAYER_DASH_DISTANCE = 128
+    PLAYER_STAMINA_COOLDOWN = 2.5  # Cooldown period in seconds
+    PLAYER_RADIUS = RENDER_SIZE / 3
+    PLAYER_MAX_HEALTH = 100
+    PLAYER_SUMMON_LIMIT = 5
+    PLAYER_COLOR = BLUE  # Assuming BLUE is defined elsewhere
+    PLAYER_SPRITE_PATH = "assets/sprites/player_sheet.png"
+    PLAYER_ANIMATION_CONFIG = ANIMATION_CONFIG
 
-SHADOW_SUMMON_SPRITE_PATH = "assets/sprites/shadow_summon_sheet.png"
+    # Enemy configuration
+    ENEMY_BASE_HP = 50
+    ENEMY_BASE_SPEED = 105  # 1.75 * 60
+    ENEMY_DAMAGE = 5
+    ENEMY_RADIUS = RENDER_SIZE / 3
+    ENEMY_ANIMATION_CONFIG = ANIMATION_CONFIG
+    ENEMY_SPRITE_PATH = "assets/sprites/enemy_sheet.png"
+    ENEMY_COLOR = RED
 
-# File names
-LOG_PATH = "data/log.csv"
-SKILLS_PATH = "data/skills.csv"
-MENU_BGM_PATH = "assets/music/menu.mp3"
-GAME_BGM_PATH = "assets/music/retro-forest.mp3"
+    SHADOW_SUMMON_ANIMATION_CONFIG = ANIMATION_CONFIG
+    SHADOW_SUMMON_SPRITE_PATH = "assets/sprites/shadow_summon_sheet.png"
+
+    # File names
+    LOG_FILENAME = "data/log.csv"
+    SKILLS_FILENAME = "data/skills.csv"
+    MENU_BGM_PATH = "assets/music/menu.mp3"
+    GAME_BGM_PATH = "assets/music/retro-forest.mp3"
+    FONT_PATH = "assets/fonts/PixelifySans-Regular.ttf"
+    MAP_PATH = "assets/map/map.png"

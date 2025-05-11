@@ -3,15 +3,12 @@ import time
 from enum import Enum, auto
 import math
 import pygame
-from utils import draw_hp_bar, angle_diff
-from comprog2.project.incantato.src.sprites import CharacterAnimation
+from utils import Utils
+from animation import CharacterAnimation
 from entity import Entity  # Import the Entity base class
-from config import (
-    WIDTH, HEIGHT,
-    WHITE, GREEN,
-    ELEMENT_COLORS, SHADOW_SUMMON_SPRITE_PATH, SHADOW_SUMMON_ANIMATION_CONFIG, SPRITE_SIZE
-)
+from config import Config as C
 from visual_effects import VisualEffect
+
 
 class SkillType(Enum):
     PROJECTILE = auto()
@@ -21,8 +18,10 @@ class SkillType(Enum):
     SLASH = auto()
     CHAIN = auto()
 
+
 class BaseSkill:
     """Base class for all skills"""
+
     def __init__(self, name, element, skill_type, cooldown, description):
         self.name = name
         self.element = element
@@ -32,412 +31,239 @@ class BaseSkill:
         self.last_use_time = 0
         self.color = self._get_color_from_element(element)
         self.owner = None  # Reference to the owner entity (e.g., player)
-        self.effect_manager = None  # Will be set by the game
 
     def _get_color_from_element(self, element):
-        if element in ELEMENT_COLORS:
-            return ELEMENT_COLORS[element]['primary']
-        return WHITE  # Default fallback
-    
+        if element in C.ELEMENT_COLORS:
+            return C.ELEMENT_COLORS[element]['primary']
+        return C.WHITE  # Default fallback
+
     def is_off_cooldown(self, current_time):
         if current_time is None:
             current_time = time.time()
         return (current_time - self.last_use_time) >= self.cooldown
-    
+
     def trigger_cooldown(self):
         self.last_use_time = time.time()
 
-    def set_effect_manager(self, effect_manager):
-        """Set the effect manager for this skill"""
-        self.effect_manager = effect_manager
-
-    def add_effect(self, effect):
-        """Add a visual effect to the effect manager"""
-        if self.effect_manager:
-            self.effect_manager.add_effect(effect)
-
-    @staticmethod
-    def _calculate_spawn_position(player_x, player_y, target_x, target_y, distance):
-        """Calculate spawn position for projectiles and summons"""
-        dx = target_x - player_x
-        dy = target_y - player_y
-        dist = math.hypot(dx, dy) or 1
-        spawn_x = player_x + (dx / dist) * distance
-        spawn_y = player_y + (dy / dist) * distance
-        return spawn_x, spawn_y
 
 class ProjectileEntity(Entity):
+    """Projectile entity that inherits from Entity base class"""
+
     def __init__(self, start_x, start_y, target_x, target_y, skill):
         super().__init__(
             x=start_x,
             y=start_y,
-            radius=5, # Visual radius
-            max_health=1, # Projectiles die on hit
-            speed=skill.speed * 60, # Convert to pixels per second
+            radius=5,  # Visual radius
+            max_health=1,  # Projectiles die on hit
+            speed=skill.speed * 60,  # Convert to pixels per second
             color=skill.color
         )
         self.damage = skill.damage
         self.element = skill.element
-        self.explosion_radius = skill.radius  # Use skill radius for explosion
-        self.explosion_damage = skill.damage  # Use skill damage for explosion
-
-        # Calculate velocity
-        dx = target_x - start_x
-        dy = target_y - start_y
-        dist = math.hypot(dx, dy)
-        if dist == 0: dist = 1
-        self.dx = dx / dist  # Normalized direction
-        self.dy = dy / dist  # Normalized direction
+        self.explosion_radius = skill.radius
+        self.explosion_damage = skill.damage
+        # Create proper sprite image with glow effect
+        size = max(10, self.radius * 2)
+        self.image = pygame.Surface((size, size), pygame.SRCALPHA)
+        # Draw projectile with glow effect
+        glow_radius = size // 2
+        glow_color = (*self.color, 100)  # Semi-transparent
+        pygame.draw.circle(self.image, glow_color,
+                           (size//2, size//2), glow_radius)
+        pygame.draw.circle(self.image, self.color,
+                           (size//2, size//2), self.radius)
+        pygame.draw.circle(self.image, (255, 255, 255),
+                           (size//2, size//2), self.radius, 1)
+        self.rect = self.image.get_rect(center=(self.pos.x, self.pos.y))
+        # Calculate velocity vector using pygame.math.Vector2
+        direction = pygame.math.Vector2(target_x - start_x, target_y - start_y)
+        if direction.length() > 0:
+            direction.normalize_ip()
+        self.direction = direction
 
     def update(self, dt, enemies):
         """Update projectile position and check collisions"""
         if not self.alive:
             return False
-
-        # Move using normalized direction and speed
-        self.x += self.dx * self.speed * dt
-        self.y += self.dy * self.speed * dt
-
+        # Move using Vector2 and update position
+        movement = self.direction * self.speed * dt
+        self.pos += movement
+        self.rect.center = (int(self.pos.x), int(self.pos.y))
         # Check screen bounds collision
-        if (self.x < 0 or self.x > WIDTH or 
-            self.y < 0 or self.y > HEIGHT):
-            self.explode(enemies)
-            return False
-
+        if (self.pos.x < 0 or self.pos.x > C.WIDTH or
+                self.pos.y < 0 or self.pos.y > C.HEIGHT):
+            return self.explode(enemies)
         # Check collision with enemies
         for enemy in enemies:
             if not enemy.alive:
                 continue
-            dx = enemy.x - self.x
-            dy = enemy.y - self.y
-            dist = math.hypot(dx, dy)
+            # Check approximate distance using Entity method
+            dist = self.get_distance_to(enemy.x, enemy.y)
             if dist <= (self.radius + enemy.radius):
                 # Apply direct damage to the hit enemy
                 enemy.take_damage(self.damage)
-                self.explode(enemies)
-                return False
-
+                return self.explode(enemies)
         return True
 
     def explode(self, enemies):
         """Create explosion effect and damage nearby enemies"""
-        if hasattr(self, 'owner') and hasattr(self.owner, 'game') and self.owner.game and hasattr(self.owner.game, 'effects'):
-            # Create explosion visual effect
-            explosion = VisualEffect(
-                self.x, 
-                self.y, 
-                "explosion", 
-                self.color, 
-                self.explosion_radius,  # Use explosion radius
-                0.3   # Duration
-            )
-            self.owner.game.effects.append(explosion)
-
+        explosion = VisualEffect(
+            self.pos.x,
+            self.pos.y,
+            "explosion",
+            self.color,
+            self.explosion_radius,
+            0.3
+        )
         # Damage nearby enemies
-        hit_count = 0
         for enemy in enemies:
             if not enemy.alive:
                 continue
-            dx = enemy.x - self.x
-            dy = enemy.y - self.y
-            dist = math.hypot(dx, dy)
+            # Use the Entity's get_distance_to method
+            dist = self.get_distance_to(enemy.x, enemy.y)
             if dist <= self.explosion_radius:
-                hit_count += 1
                 enemy.take_damage(self.explosion_damage)
-
+        # Set alive to false will trigger the kill() method
         self.alive = False
+        return explosion
 
     def draw(self, surface):
-        """Draw the projectile with a glow effect"""
-        if self.alive:
-            # Draw glow effect (larger, semi-transparent circle)
-            glow_surface = pygame.Surface((self.radius * 3, self.radius * 3), pygame.SRCALPHA)
-            glow_color = (*self.color, 100)  # Add alpha channel
-            pygame.draw.circle(glow_surface, glow_color, (self.radius * 1.5, self.radius * 1.5), self.radius * 1.5)
-            surface.blit(glow_surface, (int(self.x - self.radius * 1.5), int(self.y - self.radius * 1.5)))
-            # Draw main projectile
-            pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
-            # Draw outline
-            pygame.draw.circle(surface, (255, 255, 255), (int(self.x), int(self.y)), self.radius, 1)
-            # Draw explosion radius if debug mode is enabled
-            if hasattr(self, 'explosion_radius') and self.explosion_radius > 0:
-                # Create a transparent surface for the explosion radius
-                radius_surf = pygame.Surface((self.explosion_radius * 2, self.explosion_radius * 2), pygame.SRCALPHA)
-                # Draw a semi-transparent circle
-                pygame.draw.circle(radius_surf, (*self.color, 30), (self.explosion_radius, self.explosion_radius), self.explosion_radius)
-                # Draw circle outline
-                pygame.draw.circle(radius_surf, (*self.color, 80), (self.explosion_radius, self.explosion_radius), self.explosion_radius, 2)
-                # Blit the radius surface
-                surface.blit(radius_surf, (int(self.x - self.explosion_radius), int(self.y - self.explosion_radius)))
+        """Draw the projectile with glow effect"""
+        if not self.alive:
+            return
+        # Display explosion radius if enabled
+        if hasattr(self, 'explosion_radius') and self.explosion_radius > 0:
+            # Create a transparent surface for the explosion radius
+            radius_surf = pygame.Surface(
+                (self.explosion_radius * 2, self.explosion_radius * 2), pygame.SRCALPHA)
+            # Draw a semi-transparent circle
+            pygame.draw.circle(radius_surf, (*self.color, 30),
+                               (self.explosion_radius, self.explosion_radius), self.explosion_radius)
+            # Draw circle outline
+            pygame.draw.circle(radius_surf, (*self.color, 80), (self.explosion_radius,
+                               self.explosion_radius), self.explosion_radius, 2)
+            # Blit the radius surface
+            surface.blit(radius_surf, (int(
+                self.pos.x - self.explosion_radius), int(self.pos.y - self.explosion_radius)))
+        # Draw the projectile
+        surface.blit(self.image, self.rect)
+
 
 class Projectile(BaseSkill):
     """Projectile skill that creates ProjectileEntity instances"""
+
     def __init__(self, name, element, damage, speed, radius, duration, cooldown, description):
         super().__init__(name, element, SkillType.PROJECTILE, cooldown, description)
         self.damage = damage
         self.speed = speed
         self.radius = radius
         self.duration = duration
-    
-    def activate(self, start_x, start_y, target_x, target_y, enemies):
+
+    @staticmethod
+    def create(skill, start_x, start_y, target_x, target_y):
         """Create a projectile instance"""
-        projectile = ProjectileEntity(start_x, start_y, target_x, target_y, self)
-        # Add visual effect
-        self.add_effect(VisualEffect(
-            start_x, start_y,
-            "explosion",
-            self.color,
-            radius=self.radius,
-            duration=0.2
-        ))
-        return projectile
-    
+        return ProjectileEntity(start_x, start_y, target_x, target_y, skill)
+
     @staticmethod
     def update(projectile, dt, enemies):
         """Update the projectile (for compatibility with existing code)"""
-        return projectile.update(dt, enemies)
-    
+
     @staticmethod
     def draw(projectile, surface):
         """Draw the projectile (for compatibility with existing code)"""
         projectile.draw(surface)
 
+
 class SummonEntity(Entity):
     """Entity class for summons that behaves like other game entities"""
+
     def __init__(self, x, y, skill, attack_radius):
         super().__init__(
             x=x,
             y=y,
             radius=12,
-            max_health=50,
-            speed=max(120, skill.speed * 60), # Ensure minimum speed of 120 pixels per second
-            color=skill.color,
-            attack_radius=attack_radius
+            max_health=50,  # Example health
+            # Ensure minimum speed of 120 pixels per second
+            speed=max(120, skill.speed * 60),
+            color=skill.color
         )
-        print(f"[SummonEntity] Created with speed={self.speed} (from skill.speed={skill.speed})")
         self.damage = skill.damage
-        print(f"[SummonEntity] Damage set to {self.damage}")
         self.element = skill.element
-        self.attack_cooldown = 1.0 # Similar to Enemy's attack cooldown
-        self.attack_timer = 0.0    # For tracking attack cooldown, like Enemy
-        self.attack_animation_timer = 0.0 # For tracking animation duration
-        self.last_attack_time = 0
-        self.dx = 1  # Initial direction
-        self.dy = 0  # Initial direction
-        
-        # State management (similar to Enemy)
-        self.state = 'idle'
+        self.attack_radius = attack_radius
 
-        # Animation
-        try:
-            sprite_path = getattr(skill, 'sprite_path', SHADOW_SUMMON_SPRITE_PATH)
-            animation_config = getattr(skill, 'animation_config', SHADOW_SUMMON_ANIMATION_CONFIG)
-            
-            print(f"[SummonEntity] Loading sprite from: {sprite_path}")
-            self.animation = CharacterAnimation(
-                sprite_sheet_path=sprite_path,
-                config=animation_config,
-                sprite_width=SPRITE_SIZE,
-                sprite_height=SPRITE_SIZE
-            )
-            # Force the animation to idle state
-            self.animation.set_state('idle', force_reset=True)
-            print(f"[SummonEntity] Animation loaded successfully and set to {self.state}")
-        except Exception as e:
-            print(f"[SummonEntity] Error loading animation: {e}")
-            raise Exception(f"Failed to load summon animation: {e}")
+        self.animation = CharacterAnimation(
+            sprite_sheet_path=C.SHADOW_SUMMON_SPRITE_PATH,
+            config=C.SHADOW_SUMMON_ANIMATION_CONFIG,
+            sprite_width=C.SPRITE_SIZE,
+            sprite_height=C.SPRITE_SIZE
+        )
+        self.state = 'idle'
+        self.animation.set_state('idle', force_reset=True)
 
     def update(self, dt, enemies):
         """Update summon behavior: find target, move, attack"""
-        print(f"[SummonEntity] update() called with dt={dt:.3f}, alive={self.alive}, health={self.health}, state={self.state}")
-        print(f"[SummonEntity] Checking interactions with {len(enemies)} enemies")
-        print(f"[SummonEntity] Current position: ({self.x:.1f}, {self.y:.1f}), attack timer: {self.attack_timer:.1f}")
-        
-        # If entity is dead, only update dying animation and do nothing else
-        if not self.alive or self.health <= 0:
-            if self.state != 'dying':
-                self.state = 'dying'
-                self.animation.set_state('dying', force_reset=True)
-                animations_length = len(self.animation.config['dying']['animations'])
-                death_duration = self.animation.config['dying']['duration'] * animations_length
-                self.attack_animation_timer = death_duration
-                
-            # Just update animation and check if it's time to set alive=False
-            self.animation.update(dt)
-            if self.attack_animation_timer > 0:
-                self.attack_animation_timer -= dt
-                if self.attack_animation_timer <= 0:
-                    self.alive = False
-            return False  # Don't do anything else if dying/dead
-        
-        # Handle hurt and attack animations
-        if self.state in ['hurt', 'sweep']:
-            self.attack_animation_timer -= dt
-            self.animation.update(dt)
-            
-            # If animation is done, return to appropriate state
-            if self.attack_animation_timer <= 0:
-                if self.health <= 0:
-                    self.state = 'dying'
-                    self.animation.set_state('dying', force_reset=True)
-                    animations_length = len(self.animation.config['dying']['animations'])
-                    death_duration = self.animation.config['dying']['duration'] * animations_length
-                    self.attack_animation_timer = death_duration
-                else:
-                    # Reset to idle or walking based on whether there's a target
-                    self.state = 'idle'
-                    self.animation.set_state('idle', force_reset=True)
-            
-            return True  # Don't move or attack during hurt/attack animations
-        
+        # If entity is dead or in special animation states, let base class handle it
+        if not self.alive or self.state in ['dying', 'hurt', 'sweep']:
+            super().update_animation(dt)
+            return self.alive
         # Find closest enemy (target)
         target = None
         min_dist = float('inf')
         for enemy in enemies:
             if enemy.alive:
-                dist = math.hypot(enemy.x - self.x, enemy.y - self.y)
+                dist = self.get_distance_to(enemy.x, enemy.y)
                 if dist < min_dist:
                     min_dist = dist
                     target = enemy
-
         # Update attack timer
         if self.attack_timer > 0:
             self.attack_timer -= dt
-            print(f"[SummonEntity] Attack cooldown: {self.attack_timer:.1f}s remaining")
 
-        # Try to attack if we can
+        # Attack target if in range and cooldown ready
         if target and min_dist < self.attack_radius and self.attack_timer <= 0:
             # Set attack animation
-            self.state = 'sweep'  # Use sweep as attack animation
+            self.state = 'sweep'
             self.animation.set_state('sweep', force_reset=True)
-            
             # Calculate attack animation duration
-            animations_length = len(self.animation.config['sweep']['animations'])
-            attack_duration = self.animation.config['sweep']['duration'] * animations_length
+            animations_length = len(
+                self.animation.config['sweep']['animations'])
+            attack_duration = self.animation.config['sweep']['duration'] * \
+                animations_length
             self.attack_animation_timer = attack_duration
-            
             # Perform the attack
-            target.take_damage(self.damage)
+            super().attack(target)
 
             # Add visual effect for attack
-            if hasattr(target, 'game') and target.game and hasattr(target.game, 'effects'):
-                hit_effect = VisualEffect(target.x, target.y, "explosion", self.color, 15, 0.2)
-                target.game.effects.append(hit_effect)
-                print(f"[SummonEntity] Added hit visual effect")
-                
-            self.attack_timer = self.attack_cooldown  # Reset attack timer
-            self.last_attack_time = time.time()       # Update last attack time
-            return True  # Don't move after deciding to attack
-        
+            if hasattr(self, 'owner') and hasattr(self.owner, 'game') and self.owner.game and hasattr(self.owner.game, 'effects'):
+                hit_effect = VisualEffect(
+                    target.x, target.y, "explosion", self.color, 15, 0.2)
+                self.owner.game.effects.append(hit_effect)
+            self.attack_timer = self.attack_cooldown
+            return True
         # Move toward target if not attacking
-        if target and min_dist > 0:
+        elif target:
             # Calculate direction
-            dx = target.x - self.x
-            dy = target.y - self.y
-            if min_dist > 0:
-                self.dx = dx / min_dist
-                self.dy = dy / min_dist
-            
+            self.dx, self.dy = self.get_direction_to(target.x, target.y)
             # Set walking animation if not already
             if self.state != 'walk':
                 self.state = 'walk'
                 self.animation.set_state('walk')
-            
-            # Force minimum movement speed (60 pixels per second)
-            effective_speed = max(60, self.speed)
-            
             # Move toward target
-            move_dist = effective_speed * dt
-            old_x, old_y = self.x, self.y
-            
-            # Apply movement
-            self.x += self.dx * move_dist
-            self.y += self.dy * move_dist
-            
-            # Verify movement actually happened
-            actual_dist_moved = math.hypot(self.x - old_x, self.y - old_y)
-            print(f"[SummonEntity] Moving toward target: ({old_x:.1f}, {old_y:.1f}) -> ({self.x:.1f}, {self.y:.1f}), moved {actual_dist_moved:.1f} pixels")
-            
+            self.move(self.dx, self.dy, dt)
             # Update animation with movement direction
             self.animation.update(dt, self.dx, self.dy)
         else:
-            # If no target, set to idle
+            # If no target, go to idle
             if self.state != 'idle':
                 self.state = 'idle'
                 self.animation.set_state('idle')
             self.animation.update(dt)
-        
-        # Keep within screen bounds
-        self.x = max(self.radius, min(WIDTH - self.radius, self.x))
-        self.y = max(self.radius, min(HEIGHT - self.radius, self.y))
-        
         return True
-
-    def get_direction_to(self, target_x, target_y):
-        """Calculate direction (dx, dy) to a target point, normalized"""
-        dx = target_x - self.x
-        dy = target_y - self.y
-        distance = math.hypot(dx, dy)
-        if distance == 0:
-            return 0, 0
-        return dx / distance, dy / distance
-
-    def take_damage(self, amount):
-        """Override take_damage to handle animations"""
-        # Don't take damage if already dead
-        if not self.alive or self.health <= 0:
-            return
-
-        if amount > 0:
-            self.health -= amount
-            
-            if self.health <= 0:
-                # Mark as dying but don't set alive=False yet (let animation finish)
-                self.health = 0
-                self.state = 'dying'
-                self.animation.set_state('dying', force_reset=True)
-                animations_length = len(self.animation.config['dying']['animations'])
-                death_duration = self.animation.config['dying']['duration'] * animations_length
-                self.attack_animation_timer = death_duration
-            else:
-                # Only show hurt animation if not already in a more important state
-                if self.state not in ['dying', 'sweep']:
-                    self.state = 'hurt'
-                    self.animation.set_state('hurt', force_reset=True)
-                    animations_length = len(self.animation.config['hurt']['animations'])
-                    hurt_duration = self.animation.config['hurt']['duration'] * animations_length
-                    self.attack_animation_timer = hurt_duration
-
-    def draw(self, surface):
-        """Draw summon with sprite, includes HP bar (similar to Enemy.draw)"""
-        # Get the current sprite from the animation system
-        if not self.alive:
-            return
-        current_sprite = self.animation.get_current_sprite()
-
-        if current_sprite:
-            # Calculate top-left position for blitting (center the sprite)
-            draw_x = self.x - self.animation.sprite_width / 2
-            draw_y = self.y - self.animation.sprite_height / 2
-
-            scale = 2  # Adjust scale factor as needed
-            scaled_sprite = pygame.transform.scale(current_sprite, 
-                                              (self.animation.sprite_width * scale, 
-                                               self.animation.sprite_height * scale))
-            # Draw the sprite
-            surface.blit(current_sprite, (int(draw_x), int(draw_y)))
-        else:
-            raise Exception(f"[SummonEntity] No current sprite for state: {self.state}")
-
-        # HP bar (only if not dying)
-        if self.state != 'dying':
-            bar_x = self.x - 25
-            bar_y = self.y - self.radius - 10
-            draw_hp_bar(surface, bar_x, bar_y, self.health, self.max_health, GREEN)
 
 
 class Summon(BaseSkill):
     """Summon skill that creates SummonEntity instances"""
+
     def __init__(self, name, element, damage, speed, radius, duration, cooldown, description, sprite_path, animation_config, attack_radius):
         super().__init__(name, element, SkillType.SUMMON, cooldown, description)
         self.damage = damage
@@ -448,180 +274,225 @@ class Summon(BaseSkill):
         self.animation_config = animation_config
         self.attack_radius = attack_radius
 
-    def activate(self, player_x, player_y, target_x, target_y, enemies):
+    @staticmethod
+    def create(skill, x, y, attack_radius):
         """Create a SummonEntity instance"""
-        x, y = self._calculate_spawn_position(player_x, player_y, target_x, target_y, self.radius)
-        summon = SummonEntity(x, y, self, self.attack_radius)
-        # Add visual effect
-        self.add_effect(VisualEffect(
-            x, y,
-            "explosion",
-            self.color,
-            radius=self.radius,
-            duration=0.3
-        ))
-        return summon
+        return SummonEntity(x, y, skill, attack_radius)
 
     @staticmethod
     def update(summon, dt, enemies):
         """Update the summon (for compatibility with existing code)"""
         return summon.update(dt, enemies)
-    
+
     @staticmethod
     def draw(summon, surface):
         """Draw the summon (for compatibility with existing code)"""
         summon.draw(surface)
 
+
 class Heal(BaseSkill):
     """Heal skill implementation"""
-    def __init__(self, name, element, heal_amount, radius, cooldown, description, heal_summons=False):
+
+    def __init__(self, name, element, heal_amount, radius, duration, cooldown, description, heal_summons=True):
         super().__init__(name, element, SkillType.HEAL, cooldown, description)
         self.heal_amount = heal_amount
         self.radius = radius
-        self.heal_summons = heal_summons
+        self.duration = duration
+        self.heal_summons = heal_summons  # Flag to determine if this heal affects summons
 
-    def activate(self, player, summons=None):
-        """Apply healing to player and optionally summons"""
-        # Heal player
-        player.heal(self.heal_amount)
-        self.add_effect(VisualEffect(
-            player.x, player.y,
-            "heal",
-            self.color,
-            radius=self.radius,
-            duration=0.5
-        ))
+    @staticmethod
+    def activate(skill, target, summons=None):
+        """Apply healing to target and optionally to summons"""
+        # Always heal the primary target (player)
+        if target:
+            target.heal(skill.heal_amount)
 
-        # Heal summons if specified
-        if self.heal_summons and summons:
+        # If heal_summons is True and summons are provided, heal them too
+        if getattr(skill, 'heal_summons', True) and summons:
             for summon in summons:
-                if summon.alive:
-                    summon.heal(self.heal_amount)
-                    self.add_effect(VisualEffect(
-                        summon.x, summon.y,
-                        "heal",
-                        self.color,
-                        radius=self.radius,
-                        duration=0.5
-                    ))
+                if summon.alive and summon.health < summon.max_health:
+                    summon.heal(skill.heal_amount)
+
 
 class AOE(BaseSkill):
     """Area of Effect skill implementation"""
+
     def __init__(self, name, element, damage, radius, duration, cooldown, description):
         super().__init__(name, element, SkillType.AOE, cooldown, description)
         self.damage = damage
         self.radius = radius
         self.duration = duration
 
-    def activate(self, target_x, target_y, enemies):
-        """Apply damage to enemies in area"""
+    @staticmethod
+    def activate(skill, x, y, enemies):
+        """Apply damage to all enemies in radius"""
         hit_count = 0
         for enemy in enemies:
             if not enemy.alive:
                 continue
-            dx = enemy.x - target_x
-            dy = enemy.y - target_y
-            dist = math.hypot(dx, dy)
-            if dist <= self.radius:
-                enemy.take_damage(self.damage)
+            # Calculate distance to enemy
+            dist = math.hypot(enemy.x - x, enemy.y - y)
+            if dist <= skill.radius:
+                enemy.take_damage(skill.damage)
                 hit_count += 1
+        return hit_count > 0
 
-        # Add visual effect
-        self.add_effect(VisualEffect(
-            target_x, target_y,
-            "explosion",
-            self.color,
-            radius=self.radius,
-            duration=self.duration
-        ))
 
 class Slash(BaseSkill):
     """Slash attack skill implementation"""
+
     def __init__(self, name, element, damage, radius, duration, cooldown, description):
         super().__init__(name, element, SkillType.SLASH, cooldown, description)
         self.damage = damage
         self.radius = radius
         self.duration = duration
 
-    def activate(self, player_x, player_y, target_x, target_y, enemies):
+    @staticmethod
+    def activate(skill, player_x, player_y, target_x, target_y, enemies, start_angle=None, sweep_angle=None):
         """Apply damage to enemies in an arc"""
-        angle = math.atan2(target_y - player_y, target_x - player_x)
-        arc_width = math.pi / 3
-        start_angle = angle - (arc_width / 2)
-        sweep_angle = arc_width
-
+        # Calculate target angle (used for debugging or if start/sweep not provided)
+        target_angle = math.atan2(target_y - player_y, target_x - player_x)
+        # If no start/sweep angles provided, calculate default 60-degree arc
+        if start_angle is None or sweep_angle is None:
+            arc_width = math.pi / 3  # 60 degree arc
+            start_angle = target_angle - arc_width/2
+            sweep_angle = arc_width
+        # Calculate end angle for hit detection
+        end_angle = start_angle + sweep_angle
         hit_count = 0
         for enemy in enemies:
             if not enemy.alive:
                 continue
+            # Calculate distance and angle to enemy
             dx = enemy.x - player_x
             dy = enemy.y - player_y
             dist = math.hypot(dx, dy)
-            if dist <= self.radius:
+            if dist <= skill.radius:
+                # Calculate enemy angle
                 enemy_angle = math.atan2(dy, dx)
-                if angle_diff(enemy_angle, angle) <= arc_width / 2:
-                    enemy.take_damage(self.damage)
+                enemy_angle_deg = math.degrees(enemy_angle)
+                # Normalize all angles to 0-360 degree range for comparison
+                start_deg = (math.degrees(start_angle) + 360) % 360
+                end_deg = (math.degrees(end_angle) + 360) % 360
+                enemy_deg = (enemy_angle_deg + 360) % 360
+                # Check if enemy is within the arc
+                is_in_arc = False
+                if start_deg <= end_deg:
+                    # Simple case: start to end
+                    is_in_arc = start_deg <= enemy_deg <= end_deg
+                else:
+                    # Arc crosses 0/360 boundary
+                    is_in_arc = enemy_deg >= start_deg or enemy_deg <= end_deg
+                if is_in_arc:
+                    enemy.take_damage(skill.damage)
                     hit_count += 1
+        return hit_count > 0
 
-        # Add visual effect
-        self.add_effect(VisualEffect(
-            player_x, player_y,
-            "slash",
-            self.color,
-            radius=self.radius,
-            duration=self.duration,
-            start_angle=start_angle,
-            sweep_angle=sweep_angle
-        ))
 
 class Chain(BaseSkill):
-    """Chain lightning skill implementation"""
-    def __init__(self, name, element, damage, radius, duration, cooldown, description, chain_count=3):
+    """Chain attack skill implementation"""
+
+    def __init__(self, name, element, damage, radius, duration, pull, cooldown, description, max_targets=3, chain_range=150):
         super().__init__(name, element, SkillType.CHAIN, cooldown, description)
         self.damage = damage
         self.radius = radius
         self.duration = duration
-        self.chain_count = chain_count
+        self.pull = pull
+        self.max_targets = max_targets  # Maximum number of targets to chain to
+        self.chain_range = chain_range  # Range for chaining between targets
 
-    def activate(self, player_x, player_y, target_x, target_y, enemies):
-        """Apply chain lightning damage"""
-        if not enemies:
-            return
-
-        # Find initial target
-        current_x, current_y = player_x, player_y
-        hit_enemies = set()
-
-        for _ in range(self.chain_count):
-            # Find closest unhit enemy
-            closest_enemy = None
-            min_dist = float('inf')
-            for enemy in enemies:
-                if enemy.alive and enemy not in hit_enemies:
-                    dx = enemy.x - current_x
-                    dy = enemy.y - current_y
-                    dist = math.hypot(dx, dy)
-                    if dist < min_dist and dist <= self.radius:
-                        min_dist = dist
-                        closest_enemy = enemy
-
-            if not closest_enemy:
+    @staticmethod
+    def activate(skill, player_x, player_y, target_x, target_y, enemies):
+        """Apply damage to enemies in a chain, hitting multiple targets in sequence"""
+        # Find all valid targets
+        valid_enemies = [e for e in enemies if e.alive]
+        if not valid_enemies:
+            return False
+        hit_enemies = []  # Track which enemies we've already hit
+        effects = []  # Collect all effects created
+        # Find the initial target (enemy in the direction of click)
+        first_target = None
+        min_dist = float('inf')
+        for enemy in valid_enemies:
+            dist = math.hypot(enemy.x - player_x, enemy.y - player_y)
+            if dist <= skill.radius:
+                # Check if enemy is in the general direction of the target point
+                dx = enemy.x - player_x
+                dy = enemy.y - player_y
+                enemy_angle = math.atan2(dy, dx)
+                target_angle = math.atan2(
+                    target_y - player_y, target_x - player_x)
+                diff = abs(Utils.angle_diff(target_angle, enemy_angle))
+                # Consider enemies in a 60-degree cone in target direction
+                if diff <= math.pi / 3 and dist < min_dist:
+                    min_dist = dist
+                    first_target = enemy
+        if not first_target:
+            return effects
+        # Hit the first target
+        current_target = first_target
+        hit_enemies.append(current_target)
+        current_target.take_damage(skill.damage)
+        # Apply pull effect if enabled to the first target
+        if skill.pull:
+            pull_strength = 60  # Pull strength in pixels
+            pull_dir_x = player_x - current_target.x
+            pull_dir_y = player_y - current_target.y
+            pull_dist = math.hypot(pull_dir_x, pull_dir_y)
+            if pull_dist > 0:
+                # Normalize and scale by pull strength
+                pull_x = (pull_dir_x / pull_dist) * \
+                    min(pull_strength, pull_dist)
+                pull_y = (pull_dir_y / pull_dist) * \
+                    min(pull_strength, pull_dist)
+                # Apply pull
+                current_target.x += pull_x
+                current_target.y += pull_y
+        # Create visual effect for the chain
+        chain_effect = VisualEffect(
+            player_x,
+            player_y,
+            "line",  # Assuming there's a line effect type
+            skill.color,
+            10,  # Thickness
+            0.2,  # Duration
+            end_x=current_target.x,
+            end_y=current_target.y
+        )
+        effects.append(chain_effect)
+        # Now chain to additional targets
+        last_x, last_y = current_target.x, current_target.y
+        # Chain to additional targets up to max_targets
+        for _ in range(1, getattr(skill, 'max_targets', 3)):
+            # Find the next closest enemy that hasn't been hit yet
+            next_target = None
+            min_chain_dist = float('inf')
+            for enemy in valid_enemies:
+                if enemy in hit_enemies:
+                    continue  # Skip already hit enemies
+                chain_dist = math.hypot(enemy.x - last_x, enemy.y - last_y)
+                if chain_dist <= getattr(skill, 'chain_range', 150):
+                    if chain_dist < min_chain_dist:
+                        min_chain_dist = chain_dist
+                        next_target = enemy
+            # If no more targets in range, stop chaining
+            if not next_target:
                 break
-
-            # Apply damage and add to hit set
-            closest_enemy.take_damage(self.damage)
-            hit_enemies.add(closest_enemy)
-
-            # Add visual effect
-            self.add_effect(VisualEffect(
-                current_x, current_y,
+            # Hit the next target
+            hit_enemies.append(next_target)
+            next_target.take_damage(skill.damage)
+            # Create visual effect for the chain
+            chain_effect = VisualEffect(
+                last_x,
+                last_y,
                 "line",
-                self.color,
-                radius=self.radius,
-                duration=self.duration,
-                end_x=closest_enemy.x,
-                end_y=closest_enemy.y
-            ))
-
-            # Update current position for next chain
-            current_x, current_y = closest_enemy.x, closest_enemy.y
+                skill.color,
+                10,
+                0.2,
+                end_x=next_target.x,
+                end_y=next_target.y
+            )
+            effects.append(chain_effect)
+            # Update last position for next chain
+            last_x, last_y = next_target.x, next_target.y
+        return effects
