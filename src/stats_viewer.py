@@ -1,290 +1,721 @@
+from matplotlib.figure import Figure
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 import pandas as pd
 import threading
 import tkinter as tk
 from tkinter import ttk
 import platform
-import subprocess
-import sys
 import tempfile
+import sys
 import shutil
-
-# Don't import matplotlib here in the main module
-# It will be imported in the subprocess on macOS
-
-try:
-    from config import Config as C
-    # Prefer LOG_GAME_SESSION_CSV, then LOG_CSV, then a default.
-    LOG_CSV_FILENAME = 'log_game_session.csv'  # The target file
-    LOG_GAME_CSV_PATH = getattr(C, 'LOG_GAME_SESSION_CSV', None)
-    if LOG_GAME_CSV_PATH is None:
-        # Fallback to generic LOG_CSV
-        LOG_GAME_CSV_PATH = getattr(C, 'LOG_CSV', None)
-
-    if LOG_GAME_CSV_PATH is None:  # If still None, construct from base path
-        log_base_path = getattr(C, 'LOG_BASE_PATH', 'data')
-        LOG_GAME_CSV_PATH = os.path.join(log_base_path, LOG_CSV_FILENAME)
-
-except ImportError:
-    print("Warning: config.py not found. Using default path 'data/log_game_session.csv'")
-    LOG_GAME_CSV_PATH = 'data/log_game_session.csv'
-
+import multiprocessing
+from functools import partial
+from config import Config as C
+# Ensure Matplotlib TkAgg backend is explicitly imported for main thread/non-macOS use
+import matplotlib
+matplotlib.use('TkAgg')
+# Note: plt, sns, np are used within visualization classes,
+# so they are fine as top-level if Tkinter runs in a thread.
+# For macOS subprocess, they must be re-imported there.
 
 # Global variables for tracking
 tk_stats_thread = None
 tk_window_closed = False
 tk_subprocess = None
+tk_process = None
 IS_MACOS = platform.system() == 'Darwin'
 
 
-def _get_actual_log_path():
-    """Tries to find the log file, returning its absolute path if found."""
-    # Try the configured path directly (it might be absolute or correctly relative)
-    if os.path.exists(LOG_GAME_CSV_PATH):
-        return os.path.abspath(LOG_GAME_CSV_PATH)
+def _get_file_path(configured_path):
+    """Tries to find a file based on its configured path, returning its absolute path if found."""
+    # 1. Try the absolute path of the configured_path directly
+    abs_configured_path = os.path.abspath(configured_path)
+    if os.path.exists(abs_configured_path):
+        return abs_configured_path
 
-    # Try relative to the script's directory's parent (common for src/data structure)
-    current_script_dir = os.path.dirname(os.path.abspath(__file__))
-    path_relative_to_parent = os.path.abspath(
-        os.path.join(current_script_dir, '..', LOG_GAME_CSV_PATH))
-    if os.path.exists(path_relative_to_parent):
-        return path_relative_to_parent
+    # 2. If configured_path is relative (e.g., "data/log.csv"),
+    #    try it relative to the script's parent directory (project root).
+    if not os.path.isabs(configured_path):
+        current_script_dir = os.path.dirname(os.path.abspath(__file__))
+        path_relative_to_project_root = os.path.abspath(
+            os.path.join(current_script_dir, '..', configured_path)
+        )
+        if os.path.exists(path_relative_to_project_root):
+            return path_relative_to_project_root
 
-    # Try relative to current working directory (if CWD is workspace root)
-    path_relative_to_cwd = os.path.abspath(LOG_GAME_CSV_PATH)
-    # This might be the same as the first check
-    if os.path.exists(path_relative_to_cwd):
-        return path_relative_to_cwd
+        # 3. Also try relative to current working directory as a fallback for relative paths
+        # os.path.abspath resolves against CWD for relative paths
+        path_relative_to_cwd = os.path.abspath(configured_path)
+        if os.path.exists(path_relative_to_cwd) and path_relative_to_cwd != abs_configured_path:
+            return path_relative_to_cwd
 
-    # Last attempt: look for data directory in standard locations
-    possible_data_dirs = [
-        os.path.join(current_script_dir, '..', 'data'),
-        os.path.join(os.getcwd(), 'data'),
-    ]
-
-    for data_dir in possible_data_dirs:
-        if os.path.isdir(data_dir):
-            possible_file = os.path.join(
-                data_dir, os.path.basename(LOG_GAME_CSV_PATH))
-            if os.path.exists(possible_file):
-                return os.path.abspath(possible_file)
-
-    # Create a dummy file if nothing found
-    return _create_dummy_log_file()
-
-
-def _create_dummy_log_file():
-    """Creates a dummy log file for testing if none exists."""
-    print("Creating a dummy log file for testing.")
-    try:
-        # Create a temporary file
-        dummy_dir = os.path.join(tempfile.gettempdir(), "incantato_stats")
-        os.makedirs(dummy_dir, exist_ok=True)
-        dummy_path = os.path.join(dummy_dir, "dummy_log_game_session.csv")
-
-        # Create test data
-        dummy_data = {
-            'player_name': ['Player1', 'Player2', 'Player3', 'Player4', 'Player5'],
-            'waves_reached': [3, 5, 2, 7, 4],
-            'Time_survived_seconds': [45, 120, 30, 180, 60]
-        }
-
-        # Write to CSV
-        pd.DataFrame(dummy_data).to_csv(dummy_path, index=False)
-        print(f"Created dummy log at: {dummy_path}")
-        return dummy_path
-    except Exception as e:
-        print(f"Error creating dummy file: {e}")
-        return None
-
-
-# This function runs in a normal thread and is safe for Windows/Linux
-def _load_and_display_stats(data_frame, fig_canvas=None):
-    """Loads data from the log file and displays summary statistics and charts."""
-    # Only import matplotlib if needed (when fig_canvas is provided)
-    if fig_canvas:
-        try:
-            import matplotlib
-            matplotlib.use('TkAgg')
-            from matplotlib.figure import Figure
-        except ImportError:
-            print("Warning: Matplotlib not available; charts will not be shown")
-            fig_canvas = None
-
-    data_frame.delete(*data_frame.get_children())
-
-    actual_log_path = _get_actual_log_path()
-
-    if not actual_log_path:
-        error_message = f"Error: Log file '{os.path.basename(LOG_GAME_CSV_PATH)}' not found.\\nChecked default logic with base path: {LOG_GAME_CSV_PATH}"
-        tk.Label(data_frame.master, text=error_message).pack(pady=10)
-        print(error_message)  # Also print to console for debugging
-        return None
-
-    try:
-        df = pd.read_csv(actual_log_path)
-        if df.empty:
-            tk.Label(data_frame.master, text="Log file is empty.").pack(pady=10)
-            return None
-
-        required_cols = {'waves_reached': 'numeric',
-                         'Time_survived_seconds': 'numeric'}
-        for col, col_type in required_cols.items():
-            if col not in df.columns:
-                tk.Label(
-                    data_frame.master, text=f"Error: Column '{col}' not found in {os.path.basename(actual_log_path)}.").pack(pady=5)
-                return None
-            if col_type == 'numeric':
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                df.dropna(subset=[col], inplace=True)
-
-        if df.empty:
-            tk.Label(data_frame.master, text="No valid numeric data after cleaning.").pack(
-                pady=10)
-            return None
-
-        waves_stats = df['waves_reached'].agg(
-            ['min', 'max', 'mean', 'median', 'std']).fillna(0)
-        duration_stats = df['Time_survived_seconds'].agg(
-            ['min', 'max', 'mean', 'median', 'std']).fillna(0)
-        waves_mode = df['waves_reached'].mode()
-        duration_mode = df['Time_survived_seconds'].mode()
-
-        stats_to_display = {
-            "Min": (waves_stats.get('min', 0), duration_stats.get('min', 0)),
-            "Max": (waves_stats.get('max', 0), duration_stats.get('max', 0)),
-            "Mean": (f"{waves_stats.get('mean', 0):.2f}", f"{duration_stats.get('mean', 0):.2f}"),
-            "Median": (waves_stats.get('median', 0), duration_stats.get('median', 0)),
-            "Mode": (", ".join(map(str, waves_mode)) if not waves_mode.empty else "N/A",
-                     ", ".join(map(str, duration_mode)) if not duration_mode.empty else "N/A"),
-            "Std Dev": (f"{waves_stats.get('std', 0):.2f}", f"{duration_stats.get('std', 0):.2f}"),
-        }
-        for stat_name, values in stats_to_display.items():
-            data_frame.insert("", "end", values=(
-                stat_name, values[0], values[1]))
-
-        # Update the matplotlib figure if provided
-        if fig_canvas and hasattr(fig_canvas, 'figure'):
-            fig = fig_canvas.figure
-            fig.clear()
-
-            # Create two subplots for waves and duration
-            ax1 = fig.add_subplot(211)  # Top plot
-            ax2 = fig.add_subplot(212)  # Bottom plot
-
-            # Waves reached histogram
-            ax1.hist(df['waves_reached'], bins=10,
-                     color='skyblue', edgecolor='black')
-            ax1.set_title('Waves Reached Distribution')
-            ax1.set_xlabel('Waves')
-            ax1.set_ylabel('Frequency')
-
-            # Time survived histogram
-            ax2.hist(df['Time_survived_seconds'], bins=10,
-                     color='lightgreen', edgecolor='black')
-            ax2.set_title('Game Duration Distribution')
-            ax2.set_xlabel('Seconds')
-            ax2.set_ylabel('Frequency')
-
-            fig.tight_layout()
-            fig_canvas.draw_idle()  # More efficient than draw()
-
-        return df
-
-    except pd.errors.EmptyDataError:
-        tk.Label(data_frame.master,
-                 text=f"Log file '{os.path.basename(actual_log_path)}' is empty or not a valid CSV.").pack(pady=10)
-    except Exception as e:
-        error_text = f"An error occurred while loading stats:\\n{e}\\nLog path tried: {actual_log_path}"
-        tk.Label(data_frame.master, text=error_text).pack(pady=10)
-        print(
-            f"Error in _load_and_display_stats: {e}, Path: {actual_log_path}")
-
+    print(f"Could not find {configured_path} at expected locations.")
     return None
 
 
+class Visualization:
+    def __init__(self, parent):
+        self.parent = parent
+        self.frame = ttk.Frame(parent)
+        self.frame.pack(fill="both", expand=True, padx=5, pady=5)
+
+    def update(self, game_df, waves_df):
+        pass
+
+# 1. Summary Statistics Table
+
+
+class SummaryStatsVisualization(Visualization):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        # Header
+        tk.Label(self.frame, text=C.VISUALIZE_NAME,
+                 font=("Helvetica", 14, "bold")).pack(pady=(0, 10))
+
+        # Create stats table
+        self.stats_table = ttk.Treeview(self.frame, columns=(
+            "Statistic", "Waves Reached", "Game Duration (s)"), show="headings")
+        self.stats_table.heading("Statistic", text="Statistic")
+        self.stats_table.heading("Waves Reached", text="Waves Reached")
+        self.stats_table.heading("Game Duration (s)", text="Game Duration (s)")
+        self.stats_table.column("Statistic", anchor="w", width=100)
+        self.stats_table.column("Waves Reached", anchor="center", width=150)
+        self.stats_table.column("Game Duration (s)",
+                                anchor="center", width=150)
+        self.stats_table.pack(fill="both", expand=True)
+
+    def update(self, game_df, waves_df):
+        if game_df is None or game_df.empty:
+            return
+
+        self.stats_table.delete(*self.stats_table.get_children())
+
+        try:
+            waves_stats = game_df['waves_reached'].agg(
+                ['min', 'max', 'mean', 'median', 'std']).fillna(0)
+            duration_stats = game_df['Time_survived_seconds'].agg(
+                ['min', 'max', 'mean', 'median', 'std']).fillna(0)
+            waves_mode = game_df['waves_reached'].mode(
+            ).iloc[0] if not game_df['waves_reached'].mode().empty else "N/A"
+            duration_mode = game_df['Time_survived_seconds'].mode(
+            ).iloc[0] if not game_df['Time_survived_seconds'].mode().empty else "N/A"
+
+            stats_to_display = {
+                "Min": (waves_stats['min'], duration_stats['min']),
+                "Max": (waves_stats['max'], duration_stats['max']),
+                "Mean": (f"{waves_stats['mean']:.2f}", f"{duration_stats['mean']:.2f}"),
+                "Median": (waves_stats['median'], duration_stats['median']),
+                "Mode": (waves_mode, duration_mode),
+                "Std Dev": (f"{waves_stats['std']:.2f}", f"{duration_stats['std']:.2f}"),
+                "Count": (len(game_df), len(game_df))
+            }
+
+            for stat_name, values in stats_to_display.items():
+                self.stats_table.insert("", "end", values=(
+                    stat_name, values[0], values[1]))
+        except Exception as e:
+            print(f"Error updating summary stats: {e}")
+
+
+class TopPlayersVisualization(Visualization):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        # Header
+        tk.Label(self.frame, text="Top Players by Waves Reached",
+                 font=("Helvetica", 14, "bold")).pack(pady=(0, 10))
+
+        # Create matplotlib figure
+        self.fig = Figure(figsize=(6, 4), dpi=100)
+        self.ax = self.fig.add_subplot(111)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def update(self, game_df, waves_df):
+        if game_df is None or game_df.empty:
+            return
+
+        try:
+            self.ax.clear()
+
+            # Group by player and get max waves and min time (for tie-breakers)
+            player_stats = game_df.groupby('player_name').agg({
+                'waves_reached': 'max',
+                'Time_survived_seconds': 'min'
+            }).reset_index()
+
+            # Sort by waves (desc) then by time (asc)
+            player_stats = player_stats.sort_values(
+                by=['waves_reached', 'Time_survived_seconds'],
+                ascending=[False, True]
+            )
+
+            # Take top 10 players
+            top_players = player_stats.head(10)
+
+            # Create bar chart
+            bars = self.ax.barh(top_players['player_name'], top_players['waves_reached'],
+                                color='skyblue', edgecolor='navy')
+
+            # Add time as annotation for tie-breakers
+            for i, (_, row) in enumerate(top_players.iterrows()):
+                self.ax.text(row['waves_reached'] + 0.1, i,
+                             f"{row['Time_survived_seconds']}s",
+                             va='center', fontsize=8)
+
+            self.ax.set_title('Top Players by Waves Reached')
+            self.ax.set_xlabel('Waves')
+            self.ax.set_ylabel('Player')
+
+            # Add values to bars
+            for bar in bars:
+                width = bar.get_width()
+                self.ax.text(width + 0.3, bar.get_y() + bar.get_height()/2,
+                             f'{width:.0f}', ha='center', va='center')
+
+            self.fig.tight_layout()
+            self.canvas.draw_idle()
+        except Exception as e:
+            print(f"Error updating top players chart: {e}")
+
+
+class SkillsUsageVisualization(Visualization):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        # Header
+        tk.Label(self.frame, text="Most Popular Skills",
+                 font=("Helvetica", 14, "bold")).pack(pady=(0, 10))
+
+        # Create matplotlib figure
+        self.fig = Figure(figsize=(6, 4), dpi=100)
+        self.ax = self.fig.add_subplot(111)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def update(self, game_df, waves_df):
+        if game_df is None or game_df.empty:
+            return
+
+        try:
+            self.ax.clear()
+
+            # Collect all skills
+            all_skills = []
+            for skill_col in ['skill1', 'skill2', 'skill3', 'skill4']:
+                if skill_col in game_df.columns:
+                    all_skills.extend(game_df[skill_col].tolist())
+
+            # Count frequencies
+            skill_counts = pd.Series(all_skills).value_counts()
+
+            # Get top skills and combine rest as "Others"
+            top_skills = skill_counts.head(9)
+            others_count = skill_counts[9:].sum() if len(
+                skill_counts) > 9 else 0
+
+            if others_count > 0:
+                data = top_skills.append(
+                    pd.Series([others_count], index=['Others']))
+            else:
+                data = top_skills
+
+            # Create pie chart
+            wedges, texts, autotexts = self.ax.pie(
+                data,
+                labels=data.index,
+                autopct='%1.1f%%',
+                textprops={'fontsize': 8},
+                colors=plt.cm.tab10.colors
+            )
+
+            # Equal aspect ratio ensures pie is drawn as a circle
+            self.ax.axis('equal')
+            self.ax.set_title('Most Selected Skills')
+
+            # Adjust font size for labels and percentages
+            plt.setp(autotexts, size=8, weight='bold')
+            plt.setp(texts, size=8)
+
+            self.fig.tight_layout()
+            self.canvas.draw_idle()
+        except Exception as e:
+            print(f"Error updating skills pie chart: {e}")
+
+
+class WaveHistogramVisualization(Visualization):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        # Header
+        tk.Label(self.frame, text="Wave Distribution",
+                 font=("Helvetica", 14, "bold")).pack(pady=(0, 10))
+
+        # Create matplotlib figure
+        self.fig = Figure(figsize=(6, 4), dpi=100)
+        self.ax = self.fig.add_subplot(111)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def update(self, game_df, waves_df):
+        if game_df is None or game_df.empty:
+            return
+
+        try:
+            self.ax.clear()
+
+            # Create histogram of waves reached
+            max_wave = game_df['waves_reached'].max()
+            bins = range(1, max_wave + 2)  # +2 to include the max value
+
+            n, bins, patches = self.ax.hist(
+                game_df['waves_reached'],
+                bins=bins,
+                edgecolor='black',
+                color='skyblue',
+                alpha=0.7
+            )
+
+            # Add count labels above bars
+            for i, count in enumerate(n):
+                if count > 0:
+                    self.ax.text(
+                        bins[i] + 0.5, count + 0.1,
+                        int(count),
+                        ha='center', va='bottom'
+                    )
+
+            self.ax.set_title('Distribution of Waves Reached')
+            self.ax.set_xlabel('Wave Number')
+            self.ax.set_ylabel('Frequency')
+            self.ax.set_xticks(range(1, max_wave + 1))
+
+            self.fig.tight_layout()
+            self.canvas.draw_idle()
+        except Exception as e:
+            print(f"Error updating wave histogram: {e}")
+
+# 5. Time vs Waves Scatter Plot
+
+
+class TimeWavesScatterVisualization(Visualization):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        # Header
+        tk.Label(self.frame, text="Game Duration vs Waves Reached",
+                 font=("Helvetica", 14, "bold")).pack(pady=(0, 10))
+
+        # Create matplotlib figure
+        self.fig = Figure(figsize=(6, 4), dpi=100)
+        self.ax = self.fig.add_subplot(111)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def update(self, game_df, waves_df):
+        if game_df is None or game_df.empty:
+            return
+
+        try:
+            self.ax.clear()
+
+            # Create scatter plot
+            scatter = self.ax.scatter(
+                game_df['Time_survived_seconds'],
+                game_df['waves_reached'],
+                c=game_df['player_name'].astype(
+                    'category').cat.codes,  # Color by player
+                alpha=0.7,
+                s=50,
+                cmap='tab10'
+            )
+
+            # Add player names as annotations
+            for i, row in game_df.iterrows():
+                self.ax.annotate(
+                    row['player_name'],
+                    (row['Time_survived_seconds'], row['waves_reached']),
+                    fontsize=8,
+                    alpha=0.7,
+                    xytext=(5, 0),
+                    textcoords='offset points'
+                )
+
+            # Add best fit line
+            if len(game_df) > 1:
+                x = game_df['Time_survived_seconds']
+                y = game_df['waves_reached']
+                z = np.polyfit(x, y, 1)
+                p = np.poly1d(z)
+                self.ax.plot(x, p(x), "r--", alpha=0.8)
+
+            self.ax.set_title('Game Duration vs Waves Reached')
+            self.ax.set_xlabel('Duration (seconds)')
+            self.ax.set_ylabel('Waves Reached')
+
+            self.fig.tight_layout()
+            self.canvas.draw_idle()
+        except Exception as e:
+            print(f"Error updating time-waves scatter plot: {e}")
+
+# 6. Death Analysis (Correlation Heatmap)
+
+
+class DeathAnalysisVisualization(Visualization):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        # Header
+        tk.Label(self.frame, text="Death Analysis Correlation Heatmap",
+                 font=("Helvetica", 14, "bold")).pack(pady=(0, 10))
+
+        # Create matplotlib figure
+        self.fig = Figure(figsize=(7, 5), dpi=100)
+        self.ax = self.fig.add_subplot(111)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def update(self, game_df, waves_df):
+        if waves_df is None or waves_df.empty:
+            return
+
+        try:
+            self.ax.clear()
+
+            # Filter for last wave of each game where player died
+            last_waves = waves_df.loc[waves_df.groupby('Play_ID')[
+                'wave'].idxmax()]
+
+            # Select relevant columns
+            corr_cols = ['hp', 'stamina', 'skill1_frequency', 'skill2_frequency',
+                         'skill3_frequency', 'skill4_frequency', 'time_per_wave',
+                         'spawned_enemies', 'enemies_left']
+
+            # Create correlation matrix
+            corr_data = last_waves[corr_cols].corr()
+
+            # Create heatmap
+            sns.heatmap(
+                corr_data,
+                annot=True,
+                cmap='coolwarm',
+                ax=self.ax,
+                fmt='.2f',
+                linewidths=0.5,
+                annot_kws={"size": 8}
+            )
+
+            self.ax.set_title('Correlation Between Factors at Death')
+
+            # Rotate x-axis labels for better visibility
+            plt.setp(self.ax.get_xticklabels(), rotation=45,
+                     ha='right', rotation_mode='anchor')
+
+            self.fig.tight_layout()
+            self.canvas.draw_idle()
+        except Exception as e:
+            print(f"Error updating death analysis: {e}")
+
+# Main Stats Viewer App
+
+
+class StatsViewerApp:
+    def __init__(self, game_csv_path=None, waves_csv_path=None):
+        self.game_csv_path = game_csv_path
+        self.waves_csv_path = waves_csv_path
+        self.game_df = None
+        self.waves_df = None
+        self.load_data()
+
+    def load_data(self):
+        """Load data from CSV files"""
+        success = True
+
+        # Load game data
+        if not self.game_csv_path or not os.path.exists(self.game_csv_path):
+            print(
+                f"Warning: Game CSV file not found at {self.game_csv_path}. No game data will be loaded.")
+            self.game_df = pd.DataFrame()  # Ensure game_df is an empty DataFrame, not None
+            success = False
+        else:
+            try:
+                self.game_df = pd.read_csv(self.game_csv_path)
+
+                # Standardize player name column
+                if 'player_name' not in self.game_df.columns and 'name' in self.game_df.columns:
+                    print(
+                        f"Renaming 'name' column to 'player_name' in game data from {self.game_csv_path}")
+                    self.game_df.rename(
+                        columns={'name': 'player_name'}, inplace=True)
+
+                # Ensure required columns exist
+                required_cols = {
+                    'waves_reached': 'numeric',
+                    'Time_survived_seconds': 'numeric',
+                    'player_name': 'string'  # Ensure this is checked after potential rename
+                }
+
+                missing_cols = False
+                for col, col_type in required_cols.items():
+                    if col not in self.game_df.columns:
+                        print(
+                            f"Error: Required column '{col}' not found in game data from {self.game_csv_path}.")
+                        missing_cols = True
+                        success = False  # Mark as not fully successful if essential columns missing
+                    elif col_type == 'numeric':  # Only attempt conversion if column exists
+                        self.game_df[col] = pd.to_numeric(
+                            self.game_df[col], errors='coerce')
+
+                if missing_cols:
+                    print(
+                        "Essential columns missing from game_df. Some visualizations may fail or be empty.")
+
+                # Ensure skill columns exist, fill with 'unknown' if not present
+                for i in range(1, 5):
+                    skill_col = f'skill{i}'
+                    if skill_col not in self.game_df.columns:
+                        self.game_df[skill_col] = 'unknown'
+
+                # Drop rows where essential numeric data couldn't be coerced or is missing
+                # but only if the columns actually exist to avoid errors
+                cols_to_check_for_na = []
+                if 'waves_reached' in self.game_df.columns:
+                    cols_to_check_for_na.append('waves_reached')
+                if 'Time_survived_seconds' in self.game_df.columns:
+                    cols_to_check_for_na.append('Time_survived_seconds')
+
+                if cols_to_check_for_na:
+                    self.game_df.dropna(
+                        subset=cols_to_check_for_na, inplace=True)
+
+                if self.game_df.empty and success:  # if not already marked as failed due to missing cols
+                    print(
+                        f"No valid game data after cleaning from {self.game_csv_path}.")
+                    # success can remain true if file existed but was empty/all invalid rows
+
+            except Exception as e:
+                print(
+                    f"Error loading or processing game data from {self.game_csv_path}: {e}")
+                self.game_df = pd.DataFrame()  # Ensure game_df is an empty DataFrame on error
+
+        # Load waves data
+        if not self.waves_csv_path or not os.path.exists(self.waves_csv_path):
+            print(
+                f"Warning: Waves CSV file not found at {self.waves_csv_path}. No waves data will be loaded.")
+            self.waves_df = pd.DataFrame()  # Ensure waves_df is an empty DataFrame
+        else:
+            try:
+                self.waves_df = pd.read_csv(self.waves_csv_path)
+
+                # Standardize player name column for waves_df
+                if 'player_name' not in self.waves_df.columns and 'name' in self.waves_df.columns:
+                    print(
+                        f"Renaming 'name' column to 'player_name' in waves data from {self.waves_csv_path}")
+                    self.waves_df.rename(
+                        columns={'name': 'player_name'}, inplace=True)
+
+                # Standardize wave number column for waves_df
+                if 'wave' not in self.waves_df.columns and 'waves' in self.waves_df.columns:
+                    print(
+                        f"Renaming 'waves' column to 'wave' in waves data from {self.waves_csv_path}")
+                    self.waves_df.rename(
+                        columns={'waves': 'wave'}, inplace=True)
+
+                # Convert numeric columns, add if missing and fill with 0 or NaN then handle
+                numeric_cols = ['hp_end_wave', 'stamina_end_wave', 'wave', 'time_per_wave_sec',
+                                'spawned_enemies', 'enemies_left']
+                # hp -> hp_end_wave, stamina -> stamina_end_wave, time_per_wave -> time_per_wave_sec
+                col_renames = {'hp': 'hp_end_wave', 'stamina': 'stamina_end_wave',
+                               'time_per_wave': 'time_per_wave_sec'}
+                for old_name, new_name in col_renames.items():
+                    if old_name in self.waves_df.columns and new_name not in self.waves_df.columns:
+                        print(
+                            f"Renaming column '{old_name}' to '{new_name}' in waves data.")
+                        self.waves_df.rename(
+                            columns={old_name: new_name}, inplace=True)
+
+                for col in numeric_cols:
+                    if col in self.waves_df.columns:
+                        self.waves_df[col] = pd.to_numeric(
+                            self.waves_df[col], errors='coerce')
+                    else:
+                        print(
+                            f"Warning: Numeric column '{col}' not found in waves data. It will be ignored or may cause issues.")
+
+                # Convert skill frequency columns
+                for i in range(1, 5):
+                    freq_col = f'skill{i}_freq'
+                    # Check also for skillX_frequency (from earlier iteration)
+                    alt_freq_col = f'skill{i}_frequency'
+                    if alt_freq_col in self.waves_df.columns and freq_col not in self.waves_df.columns:
+                        print(
+                            f"Renaming column '{alt_freq_col}' to '{freq_col}' in waves data.")
+                        self.waves_df.rename(
+                            columns={alt_freq_col: freq_col}, inplace=True)
+
+                    if freq_col in self.waves_df.columns:
+                        self.waves_df[freq_col] = pd.to_numeric(
+                            self.waves_df[freq_col], errors='coerce').fillna(0)
+                    else:
+                        # If the column for skill frequency is missing, add it and fill with 0
+                        print(
+                            f"Warning: Skill frequency column '{freq_col}' not found in waves data. Adding it with default value 0.")
+                        self.waves_df[freq_col] = 0
+
+                if self.waves_df.empty:
+                    print(
+                        f"No valid waves data after cleaning from {self.waves_csv_path}.")
+            except Exception as e:
+                print(
+                    f"Error loading or processing waves data from {self.waves_csv_path}: {e}")
+                self.waves_df = pd.DataFrame()  # Ensure waves_df is an empty DataFrame on error
+
+        return success
+
+    def setup_ui(self, root):
+        """Set up the UI components"""
+        self.root = root
+        self.root.title("Incantato Game Statistics")
+        self.root.geometry("900x650")
+
+        # Main container frame
+        main_frame = ttk.Frame(root, padding="10 10 10 10")
+        main_frame.pack(fill="both", expand=True)
+
+        # Create notebook (tabbed interface)
+        self.notebook = ttk.Notebook(main_frame)
+        self.notebook.pack(fill="both", expand=True, pady=5)
+
+        # Tab 1: Summary Statistics
+        tab_summary = ttk.Frame(self.notebook)
+        self.notebook.add(tab_summary, text="Summary Stats")
+        self.summary_vis = SummaryStatsVisualization(tab_summary)
+
+        # Tab 2: Top Players
+        tab_players = ttk.Frame(self.notebook)
+        self.notebook.add(tab_players, text="Top Players")
+        self.players_vis = TopPlayersVisualization(tab_players)
+
+        # Tab 3: Skills Usage
+        tab_skills = ttk.Frame(self.notebook)
+        self.notebook.add(tab_skills, text="Skills Usage")
+        self.skills_vis = SkillsUsageVisualization(tab_skills)
+
+        # Tab 4: Wave Distribution
+        tab_wave_hist = ttk.Frame(self.notebook)
+        self.notebook.add(tab_wave_hist, text="Wave Distribution")
+        self.wave_hist_vis = WaveHistogramVisualization(tab_wave_hist)
+
+        # Tab 5: Time vs Waves
+        tab_time_waves = ttk.Frame(self.notebook)
+        self.notebook.add(tab_time_waves, text="Time vs Waves")
+        self.time_waves_vis = TimeWavesScatterVisualization(tab_time_waves)
+
+        # Tab 6: Death Analysis
+        tab_death = ttk.Frame(self.notebook)
+        self.notebook.add(tab_death, text="Death Analysis")
+        self.death_vis = DeathAnalysisVisualization(tab_death)
+
+        # Store visualizations in a list for easy updates
+        self.visualizations = [
+            self.summary_vis,
+            self.players_vis,
+            self.skills_vis,
+            self.wave_hist_vis,
+            self.time_waves_vis,
+            self.death_vis
+        ]
+
+        # Add refresh button
+        self.refresh_button = ttk.Button(main_frame, text="Refresh Data",
+                                         command=self.refresh_data)
+        self.refresh_button.pack(pady=(5, 2))
+
+        # Add close button
+        self.close_button = ttk.Button(main_frame, text="Close",
+                                       command=root.destroy)
+        self.close_button.pack(pady=5)
+
+        # Update visualizations with initial data
+        self.update_visualizations()
+
+    def refresh_data(self):
+        """Reload data and update visualizations"""
+        if self.load_data():
+            self.update_visualizations()
+            print("Data refreshed successfully")
+        else:
+            print("Failed to refresh data")
+
+    def update_visualizations(self):
+        """Update all visualizations with current data"""
+        for vis in self.visualizations:
+            vis.update(self.game_df, self.waves_df)
+
+
+# Thread function to run the StatsViewerApp
 def _stats_viewer_thread(game_instance, next_state_id_on_close):
-    """Thread function that creates and runs the Tkinter window for non-macOS platforms."""
+    """Thread function to run the StatsViewerApp (for Windows/Linux)"""
     global tk_window_closed
 
     tk_window_closed = False
-    root = tk.Tk()
-    root.title("Game Statistics")
-    root.geometry("800x600")
 
-    # Main container frame
-    main_frame = ttk.Frame(root, padding="10 10 10 10")
-    main_frame.pack(fill="both", expand=True)
+    actual_game_csv_path = _get_file_path(C.GAMES_LOG_PATH)
+    actual_waves_csv_path = _get_file_path(C.WAVES_LOG_PATH)
 
-    # Create notebook (tabbed interface)
-    notebook = ttk.Notebook(main_frame)
-    notebook.pack(fill="both", expand=True, pady=5)
+    if not actual_game_csv_path:
+        print(
+            f"Error: Game log file not found at {C.GAMES_LOG_PATH}. Stats will be empty or show no data.")
+        # Proceed with None path, App will handle it
 
-    # Tab 1: Statistics Table
-    tab_stats = ttk.Frame(notebook)
-    notebook.add(tab_stats, text="Statistics")
-
-    # Add refresh button to stats tab
-    refresh_button = ttk.Button(tab_stats, text="Refresh Data")
-    refresh_button.pack(pady=(5, 10))
-
-    # Stats table
-    stats_table = ttk.Treeview(tab_stats, columns=(
-        "Statistic", "Waves Reached", "Game Duration (s)"), show="headings")
-    stats_table.heading("Statistic", text="Statistic")
-    stats_table.heading("Waves Reached", text="Waves Reached")
-    stats_table.heading("Game Duration (s)", text="Game Duration (s)")
-    stats_table.column("Statistic", anchor="w", width=100)
-    stats_table.column("Waves Reached", anchor="center", width=150)
-    stats_table.column("Game Duration (s)", anchor="center", width=150)
-    stats_table.pack(fill="both", expand=True, padx=5, pady=5)
+    if not actual_waves_csv_path:
+        print(
+            f"Warning: Waves log file not found at {C.WAVES_LOG_PATH}. Waves-specific stats will be unavailable.")
+        # Proceed with None path, App will handle it
 
     try:
-        # Import matplotlib here (non-macOS only) to avoid conflicts
-        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+        # Import matplotlib here to avoid conflicts
+        import matplotlib
+        matplotlib.use('TkAgg')  # Must be before other matplotlib imports
         from matplotlib.figure import Figure
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import numpy as np
 
-        # Tab 2: Charts
-        tab_charts = ttk.Frame(notebook)
-        notebook.add(tab_charts, text="Charts")
+        # Create Tk root window
+        root = tk.Tk()
 
-        # Create matplotlib figure and canvas
-        fig = Figure(figsize=(8, 6), dpi=100)
-        canvas = FigureCanvasTkAgg(fig, master=tab_charts)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Create the app instance
+        app = StatsViewerApp(actual_game_csv_path, actual_waves_csv_path)
+        app.setup_ui(root)
 
-        # Configure refresh button to update both tabs
-        refresh_button.config(
-            command=lambda: _load_and_display_stats(stats_table, canvas))
+        # Set up window close event
+        def on_close():
+            global tk_window_closed
+            print("Stats window closing...")
+            tk_window_closed = True
+            if game_instance and hasattr(game_instance, 'state_manager'):
+                print(f"Requesting state change to: {next_state_id_on_close}")
+                game_instance.state_manager.set_state(next_state_id_on_close)
+            root.destroy()
 
-    except ImportError:
-        # If matplotlib not available, just use the stats table
-        print("Warning: Matplotlib not available; only showing statistics table")
-        refresh_button.config(
-            command=lambda: _load_and_display_stats(stats_table))
-        canvas = None
+        root.protocol("WM_DELETE_WINDOW", on_close)
 
-    # Initial data load
-    df = _load_and_display_stats(
-        stats_table, canvas if 'canvas' in locals() else None)
-
-    def on_close():
-        global tk_window_closed
-        print("Stats window closing...")
-        tk_window_closed = True
-        if game_instance and hasattr(game_instance, 'state_manager'):
-            print(
-                f"Requesting Pygame state change to: {next_state_id_on_close}")
-            game_instance.state_manager.set_state(next_state_id_on_close)
-        root.destroy()
-
-    root.protocol("WM_DELETE_WINDOW", on_close)
-    root.resizable(True, True)
-
-    try:
+        # Start the Tkinter mainloop
         print("Starting Tkinter mainloop in thread...")
         root.mainloop()
+
     except Exception as e:
         print(f"Exception during Tkinter mainloop: {e}")
     finally:
@@ -292,236 +723,19 @@ def _stats_viewer_thread(game_instance, next_state_id_on_close):
         tk_window_closed = True
 
 
-def _run_macos_stats_viewer_process(next_state_id_on_close):
+def run_stats_viewer(game_instance, next_state_id_on_close):
     """
-    For macOS only: Launch the stats viewer in a separate process.
-    Creates a simple Python script that launches Tkinter in the main thread.
+    Launches the stats viewer with platform-specific handling.
+
+    Args:
+        game_instance: The game instance that will receive state change requests
+        next_state_id_on_close: The state ID to switch to when the viewer is closed
+
+    Returns:
+        For macOS: A checker function that the game loop should call periodically
+        For other platforms: None
     """
-    global tk_subprocess, game_instance
-
-    # Check if there's an existing process
-    if tk_subprocess and tk_subprocess.poll() is None:
-        print("Stats viewer process already running.")
-        return
-
-    # Get the absolute path to the stats data
-    csv_path = _get_actual_log_path()
-    if not csv_path:
-        print(f"Error: Could not find stats CSV file")
-
-        # Automatic fallback: create dummy data for demo
-        csv_path = _create_dummy_log_file()
-        if not csv_path:
-            print("Could not create dummy file either. Cannot proceed.")
-            # Force state change to avoid being stuck
-            if 'game_instance' in globals() and hasattr(game_instance, 'state_manager'):
-                game_instance.state_manager.set_state(next_state_id_on_close)
-            return None
-
-    # Create a temporary script file
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    stats_script_path = os.path.join(script_dir, "__temp_stats_viewer.py")
-
-    with open(stats_script_path, 'w') as f:
-        f.write("""
-import os
-import sys
-import pandas as pd
-import tkinter as tk
-from tkinter import ttk
-import matplotlib
-matplotlib.use('TkAgg')  # Must be before other matplotlib imports
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
-
-def main():
-    # Get the CSV path from command line
-    if len(sys.argv) < 2:
-        print("Error: Missing CSV path argument")
-        return 1
-    
-    csv_path = sys.argv[1]
-    if not os.path.exists(csv_path):
-        print(f"Error: CSV file not found: {csv_path}")
-        return 1
-    
-    # Create the Tkinter window
-    root = tk.Tk()
-    root.title("Game Statistics")
-    root.geometry("800x600")
-    
-    # Main container frame
-    main_frame = ttk.Frame(root, padding="10 10 10 10")
-    main_frame.pack(fill="both", expand=True)
-    
-    # Create notebook (tabbed interface)
-    notebook = ttk.Notebook(main_frame)
-    notebook.pack(fill="both", expand=True, pady=5)
-    
-    # Tab 1: Statistics Table
-    tab_stats = ttk.Frame(notebook)
-    notebook.add(tab_stats, text="Statistics")
-    
-    # Add refresh button to stats tab
-    refresh_button = ttk.Button(tab_stats, text="Refresh Data")
-    refresh_button.pack(pady=(5, 10))
-    
-    # Stats table
-    stats_table = ttk.Treeview(tab_stats, columns=("Statistic", "Waves Reached", "Game Duration (s)"), show="headings")
-    stats_table.heading("Statistic", text="Statistic")
-    stats_table.heading("Waves Reached", text="Waves Reached")
-    stats_table.heading("Game Duration (s)", text="Game Duration (s)")
-    stats_table.column("Statistic", anchor="w", width=100)
-    stats_table.column("Waves Reached", anchor="center", width=150)
-    stats_table.column("Game Duration (s)", anchor="center", width=150)
-    stats_table.pack(fill="both", expand=True, padx=5, pady=5)
-    
-    # Tab 2: Charts
-    tab_charts = ttk.Frame(notebook)
-    notebook.add(tab_charts, text="Charts")
-    
-    # Create matplotlib figure and canvas
-    fig = Figure(figsize=(8, 6), dpi=100)
-    canvas = FigureCanvasTkAgg(fig, master=tab_charts)
-    canvas.draw()
-    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-    
-    def load_and_display_stats():
-        # Clear previous data
-        stats_table.delete(*stats_table.get_children())
-        
-        try:
-            df = pd.read_csv(csv_path)
-            if df.empty:
-                tk.Label(tab_stats, text="Log file is empty.").pack(pady=10)
-                return
-            
-            # Check and convert numeric columns
-            required_cols = {'waves_reached': 'numeric', 'Time_survived_seconds': 'numeric'}
-            for col, col_type in required_cols.items():
-                if col not in df.columns:
-                    tk.Label(tab_stats, text=f"Error: Column '{col}' not found.").pack(pady=5)
-                    return
-                if col_type == 'numeric':
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-                    df.dropna(subset=[col], inplace=True)
-            
-            if df.empty:
-                tk.Label(tab_stats, text="No valid numeric data after cleaning.").pack(pady=10)
-                return
-            
-            # Calculate statistics
-            waves_stats = df['waves_reached'].agg(['min', 'max', 'mean', 'median', 'std']).fillna(0)
-            duration_stats = df['Time_survived_seconds'].agg(['min', 'max', 'mean', 'median', 'std']).fillna(0)
-            waves_mode = df['waves_reached'].mode()
-            duration_mode = df['Time_survived_seconds'].mode()
-            
-            # Display in table
-            stats_to_display = {
-                "Min": (waves_stats.get('min', 0), duration_stats.get('min', 0)),
-                "Max": (waves_stats.get('max', 0), duration_stats.get('max', 0)),
-                "Mean": (f"{waves_stats.get('mean', 0):.2f}", f"{duration_stats.get('mean', 0):.2f}"),
-                "Median": (waves_stats.get('median', 0), duration_stats.get('median', 0)),
-                "Mode": (", ".join(map(str, waves_mode)) if not waves_mode.empty else "N/A",
-                         ", ".join(map(str, duration_mode)) if not duration_mode.empty else "N/A"),
-                "Std Dev": (f"{waves_stats.get('std', 0):.2f}", f"{duration_stats.get('std', 0):.2f}"),
-            }
-            
-            for stat_name, values in stats_to_display.items():
-                stats_table.insert("", "end", values=(stat_name, values[0], values[1]))
-            
-            # Update charts
-            fig.clear()
-            
-            # Create two subplots for waves and duration
-            ax1 = fig.add_subplot(211)
-            ax2 = fig.add_subplot(212)
-            
-            # Waves reached histogram
-            ax1.hist(df['waves_reached'], bins=10, color='skyblue', edgecolor='black')
-            ax1.set_title('Waves Reached Distribution')
-            ax1.set_xlabel('Waves')
-            ax1.set_ylabel('Frequency')
-            
-            # Time survived histogram
-            ax2.hist(df['Time_survived_seconds'], bins=10, color='lightgreen', edgecolor='black')
-            ax2.set_title('Game Duration Distribution')
-            ax2.set_xlabel('Seconds')
-            ax2.set_ylabel('Frequency')
-            
-            fig.tight_layout()
-            canvas.draw_idle()
-            
-        except Exception as e:
-            error_text = f"An error occurred while loading stats:\\n{e}"
-            tk.Label(tab_stats, text=error_text).pack(pady=10)
-            print(f"Error: {e}")
-    
-    # Set up refresh button
-    refresh_button.config(command=load_and_display_stats)
-    
-    # Initial data load
-    load_and_display_stats()
-    
-    # Set up a close button to ensure clean exit
-    close_button = ttk.Button(main_frame, text="Close", command=root.destroy)
-    close_button.pack(pady=10)
-    
-    # Start the Tkinter main loop
-    root.mainloop()
-    return 0
-
-if __name__ == "__main__":
-    sys.exit(main())
-""")
-
-    # Make a copy of the CSV data to a location that's more likely to be accessible by the subprocess
-    temp_csv_path = os.path.join(os.path.dirname(
-        stats_script_path), "__temp_stats_data.csv")
-    try:
-        shutil.copy2(csv_path, temp_csv_path)
-        print(f"Copied stats data to temporary location: {temp_csv_path}")
-        csv_path = temp_csv_path  # Use the copy
-    except Exception as e:
-        print(f"Warning: Could not copy CSV data to temporary location: {e}")
-        # Continue with original path
-
-    # Launch the process
-    try:
-        print(
-            f"Launching stats viewer in separate process: {stats_script_path}")
-        python_exe = sys.executable  # Get the current Python interpreter path
-        tk_subprocess = subprocess.Popen(
-            [python_exe, stats_script_path, csv_path])
-
-        # Set up a sentinel file to detect when the process ends
-        def check_process():
-            if tk_subprocess.poll() is not None:
-                print("Stats viewer process has ended")
-                # Signal to the game to change state
-                if 'game_instance' in globals() and hasattr(game_instance, 'state_manager'):
-                    game_instance.state_manager.set_state(
-                        next_state_id_on_close)
-                return False
-            return True
-
-        # This function will be called from PyGame's main loop to check process status
-        return check_process
-
-    except Exception as e:
-        print(f"Error launching stats viewer process: {e}")
-        # Force state change to avoid being stuck
-        if 'game_instance' in globals() and hasattr(game_instance, 'state_manager'):
-            game_instance.state_manager.set_state(next_state_id_on_close)
-        return None
-
-
-def run_stats_viewer_non_blocking(game_instance, next_state_id_on_close):
-    """
-    Public function to launch the Tkinter stats window in a separate thread or process.
-    Does not block the main thread (PyGame).
-    """
-    global tk_stats_thread, tk_window_closed, tk_subprocess
+    global tk_stats_thread, tk_window_closed, tk_subprocess, tk_process
 
     # Store game_instance globally for access during cleanup
     globals()['game_instance'] = game_instance
@@ -540,25 +754,28 @@ def run_stats_viewer_non_blocking(game_instance, next_state_id_on_close):
             print("Stats window thread already running.")
             return None
 
-        print("Launching Tkinter stats window in separate thread...")
+        print("Launching stats viewer in separate thread...")
         tk_stats_thread = threading.Thread(
             target=_stats_viewer_thread,
             args=(game_instance, next_state_id_on_close),
             daemon=True
         )
         tk_stats_thread.start()
-        print(f"Stats viewer thread started (id: {tk_stats_thread.ident})")
+        print(f"Stats viewer thread started")
         return None  # No checker needed for thread approach
+
+
+# For backwards compatibility
+run_stats_viewer_non_blocking = run_stats_viewer
 
 
 def run_stats_viewer_blocking(game_instance, next_state_id_on_close):
     """
     Legacy function to launch the Tkinter stats window. Blocks execution.
     Closure of the Tkinter window triggers a state change in game_instance.
-
     On macOS, this will now use the process-based approach to avoid crashes.
     """
-    global tk_subprocess
+    global tk_subprocess, tk_process
 
     # Store game_instance globally for access during cleanup
     globals()['game_instance'] = game_instance
@@ -584,9 +801,9 @@ def run_stats_viewer_blocking(game_instance, next_state_id_on_close):
                         next_state_id_on_close)
                 print("Stats viewer process completed or forced to complete")
     else:
-        print("Warning: Using blocking stats viewer. Consider using run_stats_viewer_non_blocking instead.")
+        print("Using blocking stats viewer.")
         _stats_viewer_thread(game_instance, next_state_id_on_close)
-        print("run_stats_viewer_blocking: Tkinter window closed, mainloop ended.")
+        print("Tkinter window closed, mainloop ended.")
 
     # Always ensure state change before returning
     if hasattr(game_instance, 'state_manager'):
@@ -599,92 +816,161 @@ def close_stats_viewer():
     """
     Attempts to close an externally managed Tkinter stats window or process.
     """
-    global tk_window_closed, tk_subprocess
+    global tk_window_closed, tk_subprocess, tk_process
 
     print("stats_viewer.close_stats_viewer() called.")
 
-    if IS_MACOS and tk_subprocess and tk_subprocess.poll() is None:
-        print("Terminating stats viewer process")
-        tk_subprocess.terminate()
+    if IS_MACOS:
+        if tk_process and tk_process.is_alive():
+            print("Terminating stats viewer process")
+            tk_process.terminate()
+        elif tk_subprocess and tk_subprocess.poll() is None:
+            print("Terminating subprocess")
+            tk_subprocess.terminate()
     else:
         tk_window_closed = True
 
 
 def is_stats_viewer_open():
     """Returns True if the stats viewer is currently open."""
-    global tk_stats_thread, tk_window_closed, tk_subprocess
+    global tk_stats_thread, tk_window_closed, tk_subprocess, tk_process
 
     if IS_MACOS:
-        return tk_subprocess and tk_subprocess.poll() is None
+        return (tk_process and tk_process.is_alive()) or (tk_subprocess and tk_subprocess.poll() is None)
     else:
         return tk_stats_thread and tk_stats_thread.is_alive() and not tk_window_closed
 
 
-if __name__ == '__main__':
-    print("Running stats_viewer.py directly for testing...")
+def _run_macos_stats_viewer_process(next_state_id_on_close):
+    """
+    For macOS only: Launch the stats viewer in a separate process using multiprocessing.
+    """
+    global tk_process, game_instance
 
-    class MockStateManager:
-        def set_state(self, state_id):
-            print(f"[MockStateManager] Would set state to: {state_id}")
+    if tk_process and tk_process.is_alive():
+        print("Stats viewer process already running.")
+        return None
 
-    class MockGame:
-        def __init__(self):
-            self.state_manager = MockStateManager()
-            print("[MockGame] Initialized.")
+    actual_game_csv_path = _get_file_path(C.GAMES_LOG_PATH)
+    actual_waves_csv_path = _get_file_path(C.WAVES_LOG_PATH)
 
-    mock_game = MockGame()
+    if not actual_game_csv_path:
+        print(
+            f"Error: Game log file not found at {C.GAMES_LOG_PATH}. Cannot start stats viewer process for macOS.")
+        # Optionally, trigger state change or handle error more gracefully
+        if 'game_instance' in globals() and hasattr(game_instance, 'state_manager'):
+            game_instance.state_manager.set_state(next_state_id_on_close)
+        return None  # Critical: game log is essential for the viewer to be useful
 
-    print(f"LOG_GAME_CSV_PATH is configured to: {LOG_GAME_CSV_PATH}")
-    actual_path_for_test = _get_actual_log_path()
-    print(f"Attempting to load stats from: {actual_path_for_test}")
+    if not actual_waves_csv_path:
+        print(
+            f"Warning: Waves log file not found at {C.WAVES_LOG_PATH}. Waves-specific stats will be unavailable in macOS process.")
+        # Proceed, waves_csv_path can be None
 
-    if not actual_path_for_test:
-        print(f"WARNING: Log file could not be located. Stats window may show an error or use a dummy.")
-        # Attempt to create a dummy in a known location if all else fails
-        dummy_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
-        dummy_path = os.path.join(
-            dummy_dir, os.path.basename(LOG_GAME_CSV_PATH))
-        try:
-            os.makedirs(dummy_dir, exist_ok=True)
-            if not os.path.exists(dummy_path):
-                dummy_data = {'player_name': ['TestPlayer'], 'waves_reached': [
-                    1, 2, 3, 4, 5], 'Time_survived_seconds': [10, 20, 30, 40, 50]}
-                pd.DataFrame(dummy_data).to_csv(dummy_path, index=False)
-                print(f"Created dummy log for testing at: {dummy_path}")
-                # Point LOG_GAME_CSV_PATH to this dummy for the test
-                LOG_GAME_CSV_PATH = dummy_path
-            else:
-                print(f"Dummy log already exists at: {dummy_path}")
-        except Exception as e:
-            print(f"Could not create dummy CSV for testing: {e}")
+    # Make a temporary copy of the CSV data for the separate process
+    # This is important on macOS to avoid issues with file access from a subprocess
+    temp_game_csv_path = None
+    temp_waves_csv_path = None  # Can remain None if actual_waves_csv_path is None
 
-    # Based on platform, choose the appropriate approach
-    print(f"Platform detected: {platform.system()}")
+    try:
+        # Game log must exist at this point, so actual_game_csv_path is not None
+        temp_game_csv_path = os.path.join(
+            tempfile.gettempdir(), f"incantato_game_log_{os.getpid()}.csv")
+        shutil.copy2(actual_game_csv_path, temp_game_csv_path)
+        # print(f"Copied game log to temporary location for macOS process: {temp_game_csv_path}") # Simplified
 
-    if IS_MACOS:
-        print("Testing on macOS - using subprocess approach...")
-        check_fn = run_stats_viewer_non_blocking(
-            mock_game, "TEST_MENU_STATE_AFTER_CLOSE")
+        if actual_waves_csv_path:
+            temp_waves_csv_path = os.path.join(
+                tempfile.gettempdir(), f"incantato_waves_log_{os.getpid()}.csv")
+            shutil.copy2(actual_waves_csv_path, temp_waves_csv_path)
+            # print(f"Copied waves log to temporary location for macOS process: {temp_waves_csv_path}") # Simplified
 
-        if check_fn:
-            # Keep main thread alive for a while to allow viewing the window
-            import time
-            try:
-                while check_fn():
-                    time.sleep(0.1)
-            except KeyboardInterrupt:
-                print("Test interrupted by user.")
-                close_stats_viewer()
-    else:
-        print("Testing on Windows/Linux - using non-blocking thread mode...")
-        run_stats_viewer_non_blocking(mock_game, "TEST_MENU_STATE_AFTER_CLOSE")
+    except Exception as e:
+        print(
+            f"Error copying log files to temporary location for macOS process: {e}.")
+        # If copying fails, we probably shouldn't proceed as the subprocess might not have access.
+        if 'game_instance' in globals() and hasattr(game_instance, 'state_manager'):
+            game_instance.state_manager.set_state(next_state_id_on_close)
+        return None
 
-        # Keep main thread alive for a while to allow viewing the window
-        import time
-        try:
-            while is_stats_viewer_open():
-                time.sleep(0.1)
-        except KeyboardInterrupt:
-            print("Test interrupted by user.")
+    exit_flag = multiprocessing.Value('i', 0)
+    try:
+        # print(f"Launching stats viewer in separate macOS process with game data: {temp_game_csv_path}") # Simplified
+        tk_process = multiprocessing.Process(
+            target=_run_stats_viewer_app_process,
+            args=(temp_game_csv_path, temp_waves_csv_path,
+                  exit_flag),  # Pass exit_flag here
+            daemon=True
+        )
+        tk_process.start()
+        # print(f"Stats viewer process started (pid: {tk_process.pid})") # Simplified
 
-    print("Test finished.")
+        # Define a function to check if the process is done
+        def check_process():
+            if not tk_process.is_alive() or exit_flag.value == 1:
+                print("Stats viewer process has ended or signaled completion")
+                # Signal to the game to change state
+                if 'game_instance' in globals() and hasattr(game_instance, 'state_manager'):
+                    game_instance.state_manager.set_state(
+                        next_state_id_on_close)
+                return False
+            return True
+
+        # Return the checker function
+        return check_process
+
+    except Exception as e:
+        print(f"Error launching stats viewer process: {e}")
+        # Force state change to avoid being stuck
+        if 'game_instance' in globals() and hasattr(game_instance, 'state_manager'):
+            game_instance.state_manager.set_state(next_state_id_on_close)
+        return None
+
+
+def _run_stats_viewer_app_process(game_csv_path, waves_csv_path, exit_flag):
+    """Run the stats viewer app in a separate process for macOS"""
+    try:
+        # ALL IMPORTS NEEDED BY StatsViewerApp AND ITS VISUALIZATION SUBCLASSES
+        # MUST BE HERE.
+        import tkinter as tk
+        from tkinter import ttk
+        import pandas as pd
+
+        import matplotlib
+        matplotlib.use('TkAgg')
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import numpy as np
+        import os
+        import tempfile
+        import sys  # Potentially for other system-level things if used by pandas/matplotlib indirectly
+
+        # print(f"Starting stats viewer app process with data at: {game_csv_path}") # Essential debug print, keep
+
+        root = tk.Tk()
+        # NOTE: The StatsViewerApp class definition and all Visualization subclasses
+        # must be self-contained or their definitions passed/available to this process.
+        # Python's multiprocessing on macOS (with 'spawn' start method by default)
+        # means this function runs in a new process that doesn't inherit globals in the same way a thread would.
+        # If StatsViewerApp is defined in the same file, it should be okay.
+        app = StatsViewerApp(game_csv_path, waves_csv_path)
+        app.setup_ui(root)
+
+        def on_close():
+            print("Stats viewer window closing...")
+            exit_flag.value = 1
+            root.destroy()
+
+        root.protocol("WM_DELETE_WINDOW", on_close)
+        root.mainloop()
+        exit_flag.value = 1  # Ensure flag is set if mainloop exits cleanly
+        # print("Stats viewer process: Tkinter mainloop ended") # Debug feedback, keep
+
+    except Exception as e:
+        print(f"Exception in stats viewer app process: {e}")
+        if 'exit_flag' in locals() and exit_flag:
+            exit_flag.value = 1
+        import traceback
+        traceback.print_exc()  # This will give more details on the error

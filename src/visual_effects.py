@@ -194,16 +194,7 @@ class VisualEffect:
             surf.blit(effect_surf, (self.x - self.radius, self.y - self.radius))
 
         elif self.effect_type == "line":
-            # For chain lightning, we directly draw on the surface rather than creating a new one
             if self.end_x is not None and self.end_y is not None:
-                # Debug info
-                print(
-                    f"[VisualEffect] Drawing line from ({self.x:.1f}, {self.y:.1f}) to ({self.end_x:.1f}, {self.end_y:.1f})")
-                print(
-                    f"[VisualEffect] Line color: {self.color}, alpha: {self.alpha:.1f}, width: {self.line_width}")
-
-                # Draw main lightning bolt line
-                # Semi-transparent main line
                 alpha_color = (*self.color, int(self.alpha * 0.7))
                 pygame.draw.line(surf, alpha_color, (int(self.x), int(self.y)),
                                  (int(self.end_x), int(self.end_y)), max(1, int(self.line_width * 0.3)))

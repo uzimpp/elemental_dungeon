@@ -712,7 +712,7 @@ class DeckSelectionState(GameState):
     def load_skill_data(self):
         skill_data = []
         try:
-            with open(C.SKILLS_FILENAME, newline='', encoding='utf-8') as f:
+            with open(C.SKILLS_PATH, newline='', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     skill_data.append(row)

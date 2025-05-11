@@ -7,6 +7,7 @@ import pygame
 class Config:
     # Game Name
     GAME_NAME = "Incantato"
+    VISUALIZE_NAME = "Data Visualizer of Incantato"
 
     # Screen constants
     WIDTH = 1280
@@ -90,12 +91,12 @@ class Config:
     }
 
     # Game balance constants
-    WAVE_MULTIPLIER = 0.2
+    WAVE_MULTIPLIER = 0.1
     PLAYER_BASE_HP = 100
     ENEMY_BASE_HP = 50
-    PLAYER_BASE_SPEED = 60  # 1 * 60
-    PLAYER_SPRINT_SPEED = 180  # 3.0 * 60
-    ENEMY_BASE_SPEED = 105  # 1.75 * 60
+    PLAYER_BASE_SPEED = 64  # 1 * 60
+    PLAYER_SPRINT_SPEED = 192  # 3.0 * 60
+    ENEMY_BASE_SPEED = 112  # 1.75 * 60
     SPRITE_SIZE = 32
     RENDER_SIZE = 64
     ATTACK_COOLDOWN = 1.25
@@ -122,16 +123,16 @@ class Config:
         # Future?: Col 20 - Likely needs special handling
         'hurt': {'animations': [18, 19, 20], 'duration': 0.1, 'loop': False, 'directional': True},
         # Cols 21-24. Assume fixed row (e.g., UP Row 4) for dying? Or use last direction? Let's try fixed row.
-        'dying':  {'animations': [21, 22, 23], 'duration': 0.2, 'loop': False, 'directional': True},
+        'dying':  {'animations': [21, 22, 23], 'duration': 0.3, 'loop': False, 'directional': True},
     }
 
     # Player configuration
     PLAYER_WALK_SPEED = 90  # 1.5 * 60
     PLAYER_SPRINT_SPEED = 180  # 3.0 * 60
     PLAYER_MAX_STAMINA = 100
-    PLAYER_STAMINA_REGEN = 10
-    PLAYER_SPRINT_DRAIN = 40
-    PLAYER_DASH_COST = 50
+    PLAYER_STAMINA_REGEN = 15
+    PLAYER_SPRINT_DRAIN = 20
+    PLAYER_DASH_COST = 30
     PLAYER_DASH_DISTANCE = 128
     PLAYER_STAMINA_COOLDOWN = 2.5  # Cooldown period in seconds
     PLAYER_RADIUS = RENDER_SIZE / 3
@@ -154,8 +155,9 @@ class Config:
     SHADOW_SUMMON_SPRITE_PATH = "assets/sprites/shadow_summon_sheet.png"
 
     # File names
-    LOG_FILENAME = "data/log.csv"
-    SKILLS_FILENAME = "data/skills.csv"
+    GAMES_LOG_PATH = "data/games.csv"
+    WAVES_LOG_PATH = "data/waves.csv"
+    SKILLS_PATH = "data/skills.csv"
     MENU_BGM_PATH = "assets/music/menu.mp3"
     GAME_BGM_PATH = "assets/music/retro-forest.mp3"
     FONT_PATH = "assets/fonts/PixelifySans-Regular.ttf"

@@ -27,7 +27,6 @@ class Game:
 
         # Game state tracking
         self.wave_number = 1
-        self.skills_filename = C.SKILLS_FILENAME
         self.player_name = None
         self.last_player_name = None
 
