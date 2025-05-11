@@ -115,8 +115,6 @@ When the game launches:
 
 ## 🛠 Game Version
 verion 0.7
-
-- [ ] Data visualization features will be expanded in future versions.
 **(if time allows)**
 - [ ] More skill types will be created in the future.
 - [ ] More enemy types will be created in the future.
