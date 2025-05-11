@@ -31,6 +31,8 @@ Survive as many waves as possible! Each wave becomes progressively more difficul
 | **Mouse** | Aiming or facing direction of player|
 | **ESC** | Exit game |
 
+video https://youtu.be/EJqSXPGo23g
+
 ## 🔮 Skills
 
 | Type | Description | How to Use | Tips |
