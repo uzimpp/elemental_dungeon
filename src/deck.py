@@ -3,7 +3,7 @@ import math
 import pygame
 from skill import SkillType, Projectile, Summon, Heal, AOE, Slash, Chain
 from config import Config as C
-from visual_effects import VisualEffect
+from visual_effects import VisualEffect, DashAfterimage
 
 
 class Deck:

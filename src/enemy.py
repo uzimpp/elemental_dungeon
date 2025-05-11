@@ -11,22 +11,34 @@ class Enemy(Entity):
             x,
             y,
             wave_number,
-            base_speed,
-            base_hp):
-        scaled_hp = base_hp * (wave_number * C.WAVE_MULTIPLIER)
-        super().__init__(x, y, C.SPRITE_SIZE // 2, scaled_hp, base_speed, C.ENEMY_COLOR)
-
-        # Enemy specific attributes
-        self.damage = C.ENEMY_DAMAGE
+            base_speed=C.ENEMY_BASE_SPEED,
+            base_hp=C.ENEMY_BASE_HP):
+        # Calculate enemy stats based on wave number
+        hp_scaling = 1 + ((wave_number - 1) * C.WAVE_MULTIPLIER)
+        speed_scaling = 1 + ((wave_number - 1) * C.WAVE_MULTIPLIER * 0.5)
         
-        # Initialize animation
+        # Set max health and speed with wave scaling
+        max_health = int(base_hp * hp_scaling)
+        speed = base_speed * speed_scaling
+        
+        # Initialize the entity
+        super().__init__(x, y, C.ENEMY_RADIUS, max_health, speed, C.ENEMY_COLOR)
+        
+        # Set up combat attributes
+        self.damage = C.ENEMY_DAMAGE
+        self.attack_cooldown = C.ATTACK_COOLDOWN
+        self.attack_timer = 0
+        self.attack_radius = 40  # Attack range
+        
+        # Set up animation
         self.animation = CharacterAnimation(
             sprite_sheet_path=C.ENEMY_SPRITE_PATH,
             config=C.ENEMY_ANIMATION_CONFIG,
             sprite_width=C.SPRITE_SIZE,
             sprite_height=C.SPRITE_SIZE
         )
-        self.animation.set_state('idle', force_reset=True)
+        self.state = 'idle'
+        self.animation.set_state('idle')
 
     def update(self, player, dt):
         # If entity is dead or in special animation states, let base class handle it

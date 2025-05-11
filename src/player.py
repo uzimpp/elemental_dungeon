@@ -61,6 +61,7 @@ class Player(Entity):
         self.stamina_depleted_time = None
         self.stamina_cooldown = C.PLAYER_STAMINA_COOLDOWN
         self.is_sprinting = False
+        self.attack_radius = C.ATTACK_RADIUS
 
         self.animation = CharacterAnimation(
             sprite_sheet_path=C.PLAYER_SPRITE_PATH,

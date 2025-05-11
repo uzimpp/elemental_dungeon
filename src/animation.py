@@ -101,6 +101,7 @@ class CharacterAnimation:
             self.ANGLES, key=lambda angle: Utils.angle_diff(angle, target_angle_deg))
         return closest_angle
 
+
     def set_state(self, new_state, force_reset=False):
         """Changes the current animation state if different."""
         if new_state != self.current_state or force_reset:

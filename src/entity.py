@@ -211,6 +211,12 @@ class Entity(pygame.sprite.Sprite):
         """Draw the entity on the screen"""
         if not self.alive and (not hasattr(self, 'animation') or self.state != 'dying'):
             return  # Don't draw dead entities unless they're in dying animation
+        
+        # Draw hitbox - always visible for debugging
+        hitbox_color = (*self.color, 100)  # Semi-transparent
+        pygame.draw.circle(screen, hitbox_color, (int(self.pos.x), int(self.pos.y)), self.radius)
+        # Draw hitbox outline
+        pygame.draw.circle(screen, self.color, (int(self.pos.x), int(self.pos.y)), self.radius, 2)
             
         # If we have an animation, use it
         if hasattr(self, 'animation') and self.animation is not None:
@@ -247,7 +253,7 @@ class Entity(pygame.sprite.Sprite):
                               (int(self.pos.x), int(self.pos.y)), self.radius)
 
         # Draw attack radius if set
-        if self.attack_radius > 0:
+        if hasattr(self, 'attack_radius') and self.attack_radius > 0:
             # Create a transparent surface for the attack radius indicator
             radius_surf = pygame.Surface(
                 (self.attack_radius * 2, self.attack_radius * 2), pygame.SRCALPHA)

@@ -15,27 +15,69 @@ class GameStateManager:
         self.current_state = None
         self.states = {}
         self.overlay = None
+        self.paused = False
+        self.previous_state_id = None
     
     def add_state(self, state_id, state):
+        """Add a state to the state dictionary"""
         self.states[state_id] = state
     
     def set_state(self, state_id):
+        """Transition to a new state"""
+        # Store current state ID for potential returns
         if self.current_state:
+            for state_id, state in self.states.items():
+                if state == self.current_state:
+                    self.previous_state_id = state_id
+                    break
             self.current_state.exit()
+            
         self.current_state = self.states[state_id]
         self.current_state.enter()
     
+    def return_to_previous_state(self):
+        """Return to the previous state if available"""
+        if self.previous_state_id:
+            self.set_state(self.previous_state_id)
+    
     def set_overlay(self, overlay):
+        """Set an overlay and pause the game"""
         self.overlay = overlay
+        self.pause()
     
     def clear_overlay(self):
+        """Clear the overlay and resume the game"""
         self.overlay = None
+        self.resume()
+    
+    def pause(self):
+        """Pause the game"""
+        self.paused = True
+        # Notify current state that game is paused
+        if self.current_state and hasattr(self.current_state, 'on_pause'):
+            self.current_state.on_pause()
+    
+    def resume(self):
+        """Resume the game"""
+        self.paused = False
+        # Notify current state that game is resumed
+        if self.current_state and hasattr(self.current_state, 'on_resume'):
+            self.current_state.on_resume()
+    
+    def toggle_pause(self):
+        """Toggle between paused and resumed states"""
+        if self.paused:
+            self.resume()
+        else:
+            self.pause()
+    
+    def is_paused(self):
+        """Check if the game is paused"""
+        return self.paused
     
     def update(self, dt):
-        if self.current_state:
-            result = self.current_state.update(dt)
-            if result:  # Allow state to request state change
-                self.set_state(result)
+        """Update the current state and overlay"""
+        # Always update overlay if it exists
         if self.overlay:
             overlay_result = self.overlay.update(dt)
             if overlay_result:
@@ -44,14 +86,23 @@ class GameStateManager:
                 else:
                     self.clear_overlay()
                     self.set_state(overlay_result)
+                return
+        
+        # Only update the game state if not paused
+        if not self.paused and self.current_state:
+            result = self.current_state.update(dt)
+            if result:  # Allow state to request state change
+                self.set_state(result)
     
     def render(self, screen):
+        """Render the current state and overlay"""
         if self.current_state:
             self.current_state.render(screen)
         if self.overlay:
             self.overlay.render(screen)
     
     def handle_events(self, events):
+        """Handle events for the current state and overlay"""
         result = None
         if self.overlay:
             result = self.overlay.handle_events(events)
@@ -63,7 +114,8 @@ class GameStateManager:
                 self.set_state(result)
                 return None
         
-        if not result and self.current_state:
+        # Only handle game state events if not paused
+        if not self.paused and not result and self.current_state:
             result = self.current_state.handle_events(events)
             if result:
                 self.set_state(result)
@@ -75,11 +127,33 @@ class GameState:
         self.game = game
         self.ui_manager = UIManager(game.screen)
     
-    def enter(self): pass
-    def exit(self): pass
-    def update(self, dt): return None
-    def render(self, screen): pass
-    def handle_events(self, events): return None
+    def enter(self): 
+        """Called when entering this state"""
+        pass
+    
+    def exit(self): 
+        """Called when exiting this state"""
+        pass
+    
+    def update(self, dt): 
+        """Update state logic"""
+        return None
+    
+    def render(self, screen): 
+        """Render the state"""
+        pass
+    
+    def handle_events(self, events): 
+        """Handle input events"""
+        return None
+    
+    def on_pause(self):
+        """Called when the game is paused"""
+        pass
+    
+    def on_resume(self):
+        """Called when the game is resumed"""
+        pass
 
 class PauseOverlay:
     """Reusable overlay for pause menu"""
@@ -139,8 +213,10 @@ class PauseOverlay:
                     music_enabled = self.game.audio.toggle_music()
                     self.buttons[1].set_text(f"Music: {'On' if music_enabled else 'Off'}")
                 elif self.buttons[2].is_clicked(mouse_pos, True):  # Retry
+                    self.game.reset_game()
                     return "DECK_SELECTION"
                 elif self.buttons[3].is_clicked(mouse_pos, True):  # Quit
+                    self.game.reset_game()
                     return "MENU"
         return None
 
@@ -196,8 +272,10 @@ class GameOverOverlay:
                 mouse_pos = pygame.mouse.get_pos()
                 
                 if self.buttons[0].is_clicked(mouse_pos, True):  # Try Again
+                    self.game.reset_game()
                     return "DECK_SELECTION"
                 elif self.buttons[1].is_clicked(mouse_pos, True):  # Main Menu
+                    self.game.reset_game()
                     return "MENU"
                 elif self.buttons[2].is_clicked(mouse_pos, True):  # Quit
                     return "QUIT"
@@ -490,6 +568,7 @@ class DeckSelectionState(GameState):
                         elif i == 1:  # Confirm button
                             if len(self.selected_skill_data) == C.SKILLS_LIMIT:
                                 self.create_player_deck()
+                                self.game.prepare_game()  # Initialize gameplay
                                 return "PLAYING"
                 
                 # Handle scroll buttons
@@ -586,163 +665,6 @@ class PlayingState(GameState):
         super().__init__(game)
         self.background = None
         self.load_background()
-    
-    def load_background(self):
-        """Load the game background image"""
-        try:
-            bg_path = C.MAP_PATH
-            self.background = pygame.image.load(bg_path).convert()
-        except Exception as e:
-            print(f"Error loading background: {e}")
-            self.background = None
-    
-    def enter(self):
-        """Initialize UI when entering state"""
-        self.setup_ui()
-    
-    def setup_ui(self):
-        """Set up UI elements for gameplay"""
-        # Clear previous UI elements
-        self.ui_manager.clear_group("status")
-        self.ui_manager.clear_group("skills")
-        
-        # Add HP bar
-        hp_bar = ProgressBar(
-            10, 50, 200, 20, 
-            self.game.player.max_health,
-            bg_color=C.UI_COLORS['hp_bar_bg'],
-            fill_color=C.UI_COLORS['hp_bar_fill'],
-            text_color=C.UI_COLORS['hp_text'],
-            font=pygame.font.Font(C.FONT_PATH, 16),
-            label="HP"
-        )
-        self.ui_manager.add_element(hp_bar, "status")
-        
-        # Add stamina bar
-        stamina_bar = ProgressBar(
-            10, 80, 200, 20,
-            self.game.player.max_stamina,
-            bg_color=C.UI_COLORS['stamina_bar_bg'],
-            fill_color=C.UI_COLORS['stamina_bar_fill'],
-            text_color=C.UI_COLORS['stamina_text'],
-            font=pygame.font.Font(C.FONT_PATH, 16),
-            label="Stamina"
-        )
-        self.ui_manager.add_element(stamina_bar, "status")
-        
-        # Add skill displays
-        skill_font = pygame.font.Font(C.FONT_PATH, 16)
-        for i, skill in enumerate(self.game.player.deck.skills):
-            skill_display = SkillDisplay(
-                10 + i * 110, C.HEIGHT - 100,
-                100, 80,
-                skill, skill_font, 
-                hotkey=str(i+1)
-            )
-            self.ui_manager.add_element(skill_display, "skills")
-    
-    def update(self, dt):
-        # 1. Update enemy positions and attacks
-        self.game.enemy_group.update(self.game.player, dt)
-        
-        # 2. Handle player input (movement)
-        self.game.player.handle_input(dt)
-        
-        # 3. Update deck
-        self.game.player.deck.update(dt, self.game.enemies)
-        
-        # 4. Update UI elements
-        # Update HP bar
-        status_elements = self.ui_manager.elements.get("status", [])
-        if len(status_elements) >= 1:
-            status_elements[0].set_value(self.game.player.health)
-        
-        # Update stamina bar
-        if len(status_elements) >= 2:
-            status_elements[1].set_value(self.game.player.stamina)
-        
-        # Update skill cooldowns
-        now = time.time()
-        skill_elements = self.ui_manager.elements.get("skills", [])
-        for skill_display in skill_elements:
-            skill_display.update_cooldown(now)
-            
-        # Update all UI elements
-        mouse_pos = pygame.mouse.get_pos()
-        self.ui_manager.update_all(mouse_pos, dt)
-        
-        # 5. Check collisions
-        self.game.check_collisions()
-        
-        # 6. Wave logic
-        if len(self.game.enemy_group) == 0:
-            self.game.wave_number += 1
-            self.game.spawn_wave()
-        
-        # Check for player death
-        if self.game.player.health <= 0:
-            self.game.state_manager.set_overlay(GameOverOverlay(self.game))
-        
-        return None
-    
-    def render(self, screen):
-        # Draw background
-        if self.background:
-            screen.blit(self.background, (0, 0))
-        else:
-            screen.fill((200, 220, 255))  # fallback color
-        
-        # Draw wave info
-        ui_font = pygame.font.Font(C.FONT_PATH, 24)
-        wave_text = ui_font.render(f"WAVE: {self.game.wave_number}", True, C.BLACK)
-        screen.blit(wave_text, (10, 10))
-        
-        # Draw game objects
-        for enemy in self.game.enemy_group:
-            enemy.draw(screen)
-            
-        self.game.player.draw(screen)
-        self.game.player.deck.draw(screen)
-        
-        # Draw UI
-        self.ui_manager.draw_all()
-    
-    def handle_events(self, events):
-        for event in events:
-            if event.type == pygame.QUIT:
-                return "QUIT"
-                
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    self.game.state_manager.set_overlay(PauseOverlay(self.game))
-                    return None
-                
-                # Volume controls
-                elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
-                    current_vol = self.game.audio.music_volume
-                    self.game.audio.set_music_volume(current_vol - 0.1)
-                
-                elif event.key == pygame.K_EQUALS or event.key == pygame.K_KP_PLUS:
-                    current_vol = self.game.audio.music_volume
-                    self.game.audio.set_music_volume(current_vol + 0.1)
-                
-                elif event.key == pygame.K_m:
-                    self.game.audio.toggle_music()
-            
-            # Process gameplay events (skill usage, etc.)
-            mouse_pos = pygame.mouse.get_pos()
-            now = time.time()
-            result = self.game.player.handle_event(event, mouse_pos, self.game.enemies, now)
-            if result == 'exit':
-                return "MENU"
-        return None
-
-class PlayingState(GameState):
-    """Main gameplay state"""
-    def __init__(self, game):
-        super().__init__(game)
-        self.background = None
-        self.load_background()
         self.paused = False
         self.ui_font = Font().get_font('MENU')
         
@@ -772,6 +694,7 @@ class PlayingState(GameState):
         # Clear previous UI elements
         self.ui_manager.clear_group("status")
         self.ui_manager.clear_group("skills")
+        self.ui_manager.clear_group("buttons")
         
         # Add HP bar
         hp_bar = ProgressBar(
@@ -797,6 +720,15 @@ class PlayingState(GameState):
         )
         self.ui_manager.add_element(stamina_bar, "status")
         
+        # Add stats button
+        stats_button = Button(
+            C.WIDTH - 110, 10, 100, 30, 
+            "Stats", Font().get_font('UI'),
+            bg_color=(60, 60, 100)
+        )
+        stats_button.on_click = self.show_stats
+        self.ui_manager.add_element(stats_button, "buttons")
+        
         # Add skill displays
         skill_font = Font().get_font('UI')
         for i, skill in enumerate(self.game.player.deck.skills):
@@ -808,21 +740,60 @@ class PlayingState(GameState):
             )
             self.ui_manager.add_element(skill_display, "skills")
     
+    def show_stats(self):
+        """Handle opening the stats window"""
+        # This method will be called when the stats button is clicked
+        self.game.show_stats_window()
+    
+    def on_pause(self):
+        """Called when game is paused"""
+        self.paused = True
+        # Additional pause logic can be added here
+        # For example, show a "PAUSED" indicator or play a pause sound
+    
+    def on_resume(self):
+        """Called when game is resumed"""
+        self.paused = False
+        # Additional resume logic can be added here
+    
     def update(self, dt):
         # Skip updates if game objects aren't ready
         if not hasattr(self.game, 'player') or not self.game.player:
             return None
+        
+        # Game logic updates - only run when not paused
+        if not self.paused and not self.game.state_manager.is_paused():
+            # 1. Update enemy positions and attacks
+            self.game.enemy_group.update(self.game.player, dt)
             
-        # 1. Update enemy positions and attacks
-        self.game.enemy_group.update(self.game.player, dt)
+            # 2. Handle player input (movement)
+            self.game.player.handle_input(dt)
+            
+            # 3. Update deck
+            self.game.player.deck.update(dt, self.game.enemies)
+            
+            # 5. Check collisions
+            self.game.check_collisions()
+            
+            # 6. Wave logic
+            if len(self.game.enemy_group) == 0:
+                self.game.wave_number += 1
+                self.game.spawn_wave()
+            
+            # Check for player death
+            if self.game.player.health <= 0:
+                # Log the game results
+                DataCollection.log_csv(self.game, self.game.wave_number)
+                # Show game over overlay
+                self.game.state_manager.set_overlay(GameOverOverlay(self.game))
         
-        # 2. Handle player input (movement)
-        self.game.player.handle_input(dt)
+        # Always update UI elements regardless of pause state
+        self.update_ui(dt)
         
-        # 3. Update deck
-        self.game.player.deck.update(dt, self.game.enemies)
-        
-        # 4. Update UI elements
+        return None
+    
+    def update_ui(self, dt):
+        """Update UI elements (always happens even when paused)"""
         # Update HP bar
         status_elements = self.ui_manager.elements.get("status", [])
         if len(status_elements) >= 1:
@@ -841,23 +812,6 @@ class PlayingState(GameState):
         # Update all UI elements
         mouse_pos = pygame.mouse.get_pos()
         self.ui_manager.update_all(mouse_pos, dt)
-        
-        # 5. Check collisions
-        self.game.check_collisions()
-        
-        # 6. Wave logic
-        if len(self.game.enemy_group) == 0:
-            self.game.wave_number += 1
-            self.game.spawn_wave()
-        
-        # Check for player death
-        if self.game.player.health <= 0:
-            # Log the game results
-            DataCollection.log_csv(self.game, self.game.wave_number)
-            # Show game over overlay
-            self.game.state_manager.set_overlay(GameOverOverlay(self.game))
-        
-        return None
     
     def render(self, screen):
         # Draw background
@@ -871,11 +825,15 @@ class PlayingState(GameState):
         screen.blit(wave_text, (10, 10))
         
         # Draw game objects
+        # First draw enemies beneath player
         for enemy in self.game.enemy_group:
             enemy.draw(screen)
-            
-        self.game.player.draw(screen)
-        self.game.player.deck.draw(screen)
+        
+        # Draw player and skills    
+        if hasattr(self.game, 'player') and self.game.player:
+            self.game.player.draw(screen)
+            if hasattr(self.game.player, 'deck'):
+                self.game.player.deck.draw(screen)
         
         # Draw UI
         self.ui_manager.draw_all()
@@ -885,12 +843,21 @@ class PlayingState(GameState):
             if event.type == pygame.QUIT:
                 return "QUIT"
                 
+            # Check for UI button clicks
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mouse_pos = pygame.mouse.get_pos()
+                clicked_element = self.ui_manager.handle_event(event, "buttons")
+                if clicked_element and hasattr(clicked_element, 'on_click'):
+                    clicked_element.on_click()
+                
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    self.game.state_manager.set_overlay(PauseOverlay(self.game))
+                    # Create and set the pause overlay
+                    pause_overlay = PauseOverlay(self.game)
+                    self.game.state_manager.set_overlay(pause_overlay)
                     return None
                 
-                # Volume controls
+                # Volume controls - these work even when paused
                 elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
                     current_vol = self.game.audio.music_volume
                     self.game.audio.set_music_volume(current_vol - 0.1)
@@ -901,135 +868,18 @@ class PlayingState(GameState):
                 
                 elif event.key == pygame.K_m:
                     self.game.audio.toggle_music()
+                
+                # Add a key for manually toggling pause (for testing)
+                elif event.key == pygame.K_p:
+                    self.game.state_manager.toggle_pause()
             
-            # Process gameplay events (skill usage, etc.)
-            if hasattr(self.game, 'player') and self.game.player:
+            # Only process gameplay events if not paused
+            if not self.game.state_manager.is_paused() and hasattr(self.game, 'player') and self.game.player:
                 mouse_pos = pygame.mouse.get_pos()
                 now = time.time()
                 result = self.game.player.handle_event(event, mouse_pos, self.game.enemies, now)
                 if result == 'exit':
                     return "MENU"
         
-        return None
-class PauseOverlay:
-    """Reusable overlay for pause menu"""
-    def __init__(self, game):
-        self.game = game
-        self.font = pygame.font.Font(C.FONT_PATH, 32)
-        
-        # Centered buttons
-        screen_width = game.screen.get_width()
-        button_width = 200
-        button_height = 50
-        button_x = (screen_width - button_width) // 2
-        
-        music_status = 'On' if self.game.audio.music_enabled else 'Off'
-        
-        self.buttons = [
-            Button(button_x, 250, button_width, button_height, "Resume", self.font),
-            Button(button_x, 320, button_width, button_height, f"Music: {music_status}", self.font),
-            Button(button_x, 390, button_width, button_height, "Retry", self.font),
-            Button(button_x, 460, button_width, button_height, "Quit", self.font)
-        ]
-    
-    def update(self, dt):
-        mouse_pos = pygame.mouse.get_pos()
-        for button in self.buttons:
-            button.update(mouse_pos)
-        return None
-    
-    def render(self, screen):
-        # Semi-transparent overlay
-        overlay = pygame.Surface((screen.get_width(), screen.get_height()), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 128))  # 50% transparent black
-        screen.blit(overlay, (0, 0))
-        
-        # Title
-        title = self.font.render("PAUSED", True, (255, 255, 255))
-        screen.blit(title, (screen.get_width()//2 - title.get_width()//2, 180))
-        
-        # Buttons
-        for button in self.buttons:
-            button.draw(screen)
-    
-    def handle_events(self, events):
-        for event in events:
-            if event.type == pygame.QUIT:
-                return "QUIT"
-                
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                return "CLOSE_OVERLAY"
-                
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                mouse_pos = pygame.mouse.get_pos()
-                
-                if self.buttons[0].is_clicked(mouse_pos, True):  # Resume
-                    return "CLOSE_OVERLAY"
-                elif self.buttons[1].is_clicked(mouse_pos, True):  # Music toggle
-                    music_enabled = self.game.audio.toggle_music()
-                    self.buttons[1].text = f"Music: {'On' if music_enabled else 'Off'}"
-                elif self.buttons[2].is_clicked(mouse_pos, True):  # Retry
-                    return "DECK_SELECTION"
-                elif self.buttons[3].is_clicked(mouse_pos, True):  # Quit
-                    return "MENU"
-        return None
-
-class GameOverOverlay:
-    """Reusable game over overlay"""
-    def __init__(self, game):
-        self.game = game
-        self.title_font = Font().get_font('TITLE')
-        self.font = pygame.font.Font(C.FONT_PATH, 32)
-        
-        # Centered buttons
-        screen_width = game.screen.get_width()
-        button_width = 200
-        button_height = 50
-        button_x = (screen_width - button_width) // 2
-        
-        self.buttons = [
-            Button(button_x, 350, button_width, button_height, "Try Again", self.font),
-            Button(button_x, 420, button_width, button_height, "Main Menu", self.font),
-            Button(button_x, 490, button_width, button_height, "Quit", self.font)
-        ]
-    
-    def update(self, dt):
-        mouse_pos = pygame.mouse.get_pos()
-        for button in self.buttons:
-            button.update(mouse_pos)
-        return None
-    
-    def render(self, screen):
-        # Semi-transparent overlay
-        overlay = pygame.Surface((screen.get_width(), screen.get_height()), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 192))  # Darker overlay for game over
-        screen.blit(overlay, (0, 0))
-        
-        # Title
-        title = self.title_font.render("GAME OVER", True, (255, 50, 50))
-        screen.blit(title, (screen.get_width()//2 - title.get_width()//2, 150))
-        
-        # Stats
-        wave_text = self.font.render(f"Waves Survived: {self.game.wave_number}", True, (255, 255, 255))
-        screen.blit(wave_text, (screen.get_width()//2 - wave_text.get_width()//2, 230))
-        
-        # Buttons
-        for button in self.buttons:
-            button.draw(screen)
-    
-    def handle_events(self, events):
-        for event in events:
-            if event.type == pygame.QUIT:
-                return "QUIT"
-                
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                mouse_pos = pygame.mouse.get_pos()
-                
-                if self.buttons[0].is_clicked(mouse_pos, True):  # Try Again
-                    return "DECK_SELECTION"
-                elif self.buttons[1].is_clicked(mouse_pos, True):  # Main Menu
-                    return "MENU"
-                elif self.buttons[2].is_clicked(mouse_pos, True):  # Quit
-                    return "QUIT"
         return None
 

@@ -26,7 +26,5 @@ class Utils:
         Returns the absolute difference between two angles a and b,
         normalized to the range [0, pi].
         """
-        diff = (b - a) % (2 * math.pi)
-        if diff > math.pi:
-            diff = 2 * math.pi - diff
-        return abs(diff)
+        diff = abs(a - b) % 360
+        return min(diff, 360 - diff)

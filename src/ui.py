@@ -42,6 +42,7 @@ class Button(UIElement):
         self.hover_color = hover_color
         self.bg_color = bg_color
         self.border_color = border_color
+        self.on_click = None  # Callback function to be called when button is clicked
         self._render()
         
     def _render(self):
@@ -232,6 +233,7 @@ class UIManager:
             if group in self.elements:
                 for element in self.elements[group]:
                     if hasattr(element, 'is_clicked') and element.is_clicked(mouse_pos, True):
+                        # Call the element's on_click method if it exists
                         if hasattr(element, 'on_click') and callable(element.on_click):
                             element.on_click()
                         return element  # Return the clicked element
