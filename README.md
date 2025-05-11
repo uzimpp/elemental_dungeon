@@ -110,7 +110,7 @@ When the game launches:
 
 ## 📁 Project Structure
 - `src/`: Game engine, player, enemies, and skill classes
-- `assets/`: Game assets (sfx, bgm)
+- `assets/`: Game assets (sprits, bgm, map, etc.)
 - `data/`: Data storage for game statistics (CSV files)
 
 ## 🛠 Game Version
@@ -120,11 +120,6 @@ verion 0.7
 **(if time allows)**
 - [ ] More skill types will be created in the future.
 - [ ] More enemy types will be created in the future.
-
-## 📋 Project Timeline
-
-- 50% Checkpoint (v0.5): April 16, 2025
-- Final Submission (v1.0): May 11, 2025
 
 ## 👤 Creator
 
