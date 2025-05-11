@@ -15,12 +15,12 @@ class Camera:
         self.shake_intensity = 0
         self.shake_duration = 0
         self.shake_start_time = 0
-        
+
     def start_shake(self, intensity=5, duration=0.3):
         self.shake_intensity = intensity
         self.shake_duration = duration
         self.shake_start_time = time.time()
-        
+
     def update(self):
         # Update camera shake
         if self.shake_duration > 0:
@@ -29,10 +29,12 @@ class Camera:
                 # Calculate shake intensity based on remaining time (fade out)
                 remaining_pct = 1 - (elapsed / self.shake_duration)
                 current_intensity = self.shake_intensity * remaining_pct
-                
+
                 # Apply random offset
-                self.offset.x = random.uniform(-current_intensity, current_intensity)
-                self.offset.y = random.uniform(-current_intensity, current_intensity)
+                self.offset.x = random.uniform(-current_intensity,
+                                               current_intensity)
+                self.offset.y = random.uniform(-current_intensity,
+                                               current_intensity)
             else:
                 # Shake finished
                 self.shake_duration = 0
@@ -46,7 +48,8 @@ class Camera:
 
 class Player(Entity):
     def __init__(self, name, deck=None):
-        super().__init__(C.WIDTH//2, C.HEIGHT//2, C.SPRITE_SIZE//2, C.PLAYER_MAX_HEALTH, C.PLAYER_WALK_SPEED, C.PLAYER_COLOR)
+        super().__init__(C.WIDTH//2, C.HEIGHT//2, C.SPRITE_SIZE//2,
+                         C.PLAYER_MAX_HEALTH, C.PLAYER_WALK_SPEED, C.PLAYER_COLOR)
         self.name = name
         self._deck = deck
         # Speed attributes
@@ -125,7 +128,8 @@ class Player(Entity):
         """Handle keyboard input for movement"""
         keys = pygame.key.get_pressed()
         # Check sprint key
-        self.is_sprinting = (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]) and self.stamina > 0
+        self.is_sprinting = (keys[pygame.K_LSHIFT]
+                             or keys[pygame.K_RSHIFT]) and self.stamina > 0
         base_speed = self.sprint_speed if self.is_sprinting else self.walk_speed
         current_speed = base_speed * speed_multiplier
         # Build movement vector from WASD keys
@@ -148,7 +152,8 @@ class Player(Entity):
         else:
             # Point towards mouse when idle
             mouse_pos = pygame.mouse.get_pos()
-            mouse_vector = pygame.math.Vector2(mouse_pos[0] - self.x, mouse_pos[1] - self.y)
+            mouse_vector = pygame.math.Vector2(
+                mouse_pos[0] - self.x, mouse_pos[1] - self.y)
             if mouse_vector.length() > 0:
                 mouse_vector.normalize_ip()
                 self.dx = mouse_vector.x
@@ -160,7 +165,7 @@ class Player(Entity):
         # Stay within screen boundaries
         self.x = max(half_width, min(C.WIDTH - half_width, self.x))
         self.y = max(half_height, min(C.HEIGHT - half_height, self.y))
-    
+
     def _update_stamina(self, dt):
         """Update stamina based on player actions"""
         # Drain stamina if sprinting and moving
@@ -181,7 +186,7 @@ class Player(Entity):
                 if self.stamina > self.max_stamina:
                     self.stamina = self.max_stamina
                     self.stamina_depleted_time = None
-    
+
     def _update_animation_state(self, dt):
         """Update animation state based on player movement"""
         if self.state not in ['cast', 'sweep', 'hurt', 'dying']:
@@ -236,39 +241,43 @@ class Player(Entity):
             scale = C.RENDER_SIZE / C.SPRITE_SIZE
             half_width = (self.animation.sprite_width * scale) / 2
             half_height = (self.animation.sprite_height * scale) / 2
-            
+
             # Stay within screen boundaries
             self.x = max(half_width, min(C.WIDTH - half_width, self.x))
             self.y = max(half_height, min(C.HEIGHT - half_height, self.y))
         else:
             # Not enough stamina
             pass
-    
+
     def _get_dash_direction(self):
         """Calculate the direction vector for dash"""
         # Try to get direction from keyboard input
         keys = pygame.key.get_pressed()
         dash_vector = pygame.math.Vector2(0, 0)
-        
-        if keys[pygame.K_w]: dash_vector.y -= 1
-        if keys[pygame.K_s]: dash_vector.y += 1
-        if keys[pygame.K_a]: dash_vector.x -= 1
-        if keys[pygame.K_d]: dash_vector.x += 1
+
+        if keys[pygame.K_w]:
+            dash_vector.y -= 1
+        if keys[pygame.K_s]:
+            dash_vector.y += 1
+        if keys[pygame.K_a]:
+            dash_vector.x -= 1
+        if keys[pygame.K_d]:
+            dash_vector.x += 1
 
         # If no keys pressed, use facing direction
         if dash_vector.length() == 0:
             angle_rad = math.radians(self.animation.current_direction_angle)
             dash_vector.x = math.cos(angle_rad)
             dash_vector.y = math.sin(angle_rad)
-            
+
             # Avoid zero vector
             if abs(dash_vector.x) < 0.001 and abs(dash_vector.y) < 0.001:
                 return pygame.math.Vector2(0, 0)
-                
+
         # Normalize direction vector
         if dash_vector.length() > 0:
             dash_vector.normalize_ip()
-            
+
         return dash_vector
 
     def cast_skill(self, skill_idx, mouse_pos, enemies, now):
@@ -296,19 +305,20 @@ class Player(Entity):
             # Scale the sprite if needed
             if scale != 1:
                 scaled_sprite = pygame.transform.scale(current_sprite,
-                                                   (int(scaled_width),
-                                                    int(scaled_height)))
+                                                       (int(scaled_width),
+                                                        int(scaled_height)))
             else:
                 scaled_sprite = current_sprite
-            
+
             # Calculate top-left position for blitting with camera offset
             cam_pos = self.camera.apply(pygame.math.Vector2(self.x, self.y))
             draw_x = cam_pos.x - scaled_width / 2
             draw_y = cam_pos.y - scaled_height / 2
-            
+
             # Draw the sprite
             surf.blit(scaled_sprite, (int(draw_x), int(draw_y)))
         else:
             # Fallback to circle if sprite is not available
             cam_pos = self.camera.apply(pygame.math.Vector2(self.x, self.y))
-            pygame.draw.circle(surf, self.color, (int(cam_pos.x), int(cam_pos.y)), self.radius)
+            pygame.draw.circle(surf, self.color, (int(
+                cam_pos.x), int(cam_pos.y)), self.radius)

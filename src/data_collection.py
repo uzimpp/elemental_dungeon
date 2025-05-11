@@ -3,6 +3,7 @@ import time
 import os
 from config import Config as C
 
+
 class DataCollection:
     """Handles data collection for the game in"""
 
@@ -19,7 +20,7 @@ class DataCollection:
             data_dir = os.path.dirname(C.LOG_FILENAME)
             if data_dir and not os.path.exists(data_dir):
                 os.makedirs(data_dir)
-                
+
             with open(C.LOG_FILENAME, "a", newline="") as f:
                 w = csv.writer(f)
                 # Write header if file is empty

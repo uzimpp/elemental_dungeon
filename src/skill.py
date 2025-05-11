@@ -9,6 +9,7 @@ from entity import Entity  # Import the Entity base class
 from config import Config as C
 from visual_effects import VisualEffect
 
+
 class SkillType(Enum):
     PROJECTILE = auto()
     SUMMON = auto()
@@ -17,8 +18,10 @@ class SkillType(Enum):
     SLASH = auto()
     CHAIN = auto()
 
+
 class BaseSkill:
     """Base class for all skills"""
+
     def __init__(self, name, element, skill_type, cooldown, description):
         self.name = name
         self.element = element
@@ -42,15 +45,17 @@ class BaseSkill:
     def trigger_cooldown(self):
         self.last_use_time = time.time()
 
+
 class ProjectileEntity(Entity):
     """Projectile entity that inherits from Entity base class"""
+
     def __init__(self, start_x, start_y, target_x, target_y, skill):
         super().__init__(
             x=start_x,
             y=start_y,
-            radius=5, # Visual radius
-            max_health=1, # Projectiles die on hit
-            speed=skill.speed * 60, # Convert to pixels per second
+            radius=5,  # Visual radius
+            max_health=1,  # Projectiles die on hit
+            speed=skill.speed * 60,  # Convert to pixels per second
             color=skill.color
         )
         self.damage = skill.damage
@@ -63,9 +68,12 @@ class ProjectileEntity(Entity):
         # Draw projectile with glow effect
         glow_radius = size // 2
         glow_color = (*self.color, 100)  # Semi-transparent
-        pygame.draw.circle(self.image, glow_color, (size//2, size//2), glow_radius)
-        pygame.draw.circle(self.image, self.color, (size//2, size//2), self.radius)
-        pygame.draw.circle(self.image, (255, 255, 255), (size//2, size//2), self.radius, 1)
+        pygame.draw.circle(self.image, glow_color,
+                           (size//2, size//2), glow_radius)
+        pygame.draw.circle(self.image, self.color,
+                           (size//2, size//2), self.radius)
+        pygame.draw.circle(self.image, (255, 255, 255),
+                           (size//2, size//2), self.radius, 1)
         self.rect = self.image.get_rect(center=(self.pos.x, self.pos.y))
         # Calculate velocity vector using pygame.math.Vector2
         direction = pygame.math.Vector2(target_x - start_x, target_y - start_y)
@@ -82,8 +90,8 @@ class ProjectileEntity(Entity):
         self.pos += movement
         self.rect.center = (int(self.pos.x), int(self.pos.y))
         # Check screen bounds collision
-        if (self.pos.x < 0 or self.pos.x > C.WIDTH or 
-            self.pos.y < 0 or self.pos.y > C.HEIGHT):
+        if (self.pos.x < 0 or self.pos.x > C.WIDTH or
+                self.pos.y < 0 or self.pos.y > C.HEIGHT):
             return self.explode(enemies)
         # Check collision with enemies
         for enemy in enemies:
@@ -100,10 +108,10 @@ class ProjectileEntity(Entity):
     def explode(self, enemies):
         """Create explosion effect and damage nearby enemies"""
         explosion = VisualEffect(
-            self.pos.x, 
-            self.pos.y, 
-            "explosion", 
-            self.color, 
+            self.pos.x,
+            self.pos.y,
+            "explosion",
+            self.color,
             self.explosion_radius,
             0.3
         )
@@ -126,18 +134,24 @@ class ProjectileEntity(Entity):
         # Display explosion radius if enabled
         if hasattr(self, 'explosion_radius') and self.explosion_radius > 0:
             # Create a transparent surface for the explosion radius
-            radius_surf = pygame.Surface((self.explosion_radius * 2, self.explosion_radius * 2), pygame.SRCALPHA)
+            radius_surf = pygame.Surface(
+                (self.explosion_radius * 2, self.explosion_radius * 2), pygame.SRCALPHA)
             # Draw a semi-transparent circle
-            pygame.draw.circle(radius_surf, (*self.color, 30), (self.explosion_radius, self.explosion_radius), self.explosion_radius)
+            pygame.draw.circle(radius_surf, (*self.color, 30),
+                               (self.explosion_radius, self.explosion_radius), self.explosion_radius)
             # Draw circle outline
-            pygame.draw.circle(radius_surf, (*self.color, 80), (self.explosion_radius, self.explosion_radius), self.explosion_radius, 2)
+            pygame.draw.circle(radius_surf, (*self.color, 80), (self.explosion_radius,
+                               self.explosion_radius), self.explosion_radius, 2)
             # Blit the radius surface
-            surface.blit(radius_surf, (int(self.pos.x - self.explosion_radius), int(self.pos.y - self.explosion_radius)))
+            surface.blit(radius_surf, (int(
+                self.pos.x - self.explosion_radius), int(self.pos.y - self.explosion_radius)))
         # Draw the projectile
         surface.blit(self.image, self.rect)
 
+
 class Projectile(BaseSkill):
     """Projectile skill that creates ProjectileEntity instances"""
+
     def __init__(self, name, element, damage, speed, radius, duration, cooldown, description):
         super().__init__(name, element, SkillType.PROJECTILE, cooldown, description)
         self.damage = damage
@@ -159,21 +173,24 @@ class Projectile(BaseSkill):
         """Draw the projectile (for compatibility with existing code)"""
         projectile.draw(surface)
 
+
 class SummonEntity(Entity):
     """Entity class for summons that behaves like other game entities"""
+
     def __init__(self, x, y, skill, attack_radius):
         super().__init__(
             x=x,
             y=y,
             radius=12,
-            max_health=50, # Example health
-            speed=max(120, skill.speed * 60), # Ensure minimum speed of 120 pixels per second
+            max_health=50,  # Example health
+            # Ensure minimum speed of 120 pixels per second
+            speed=max(120, skill.speed * 60),
             color=skill.color
         )
         self.damage = skill.damage
         self.element = skill.element
         self.attack_radius = attack_radius
-     
+
         self.animation = CharacterAnimation(
             sprite_sheet_path=C.SHADOW_SUMMON_SPRITE_PATH,
             config=C.SHADOW_SUMMON_ANIMATION_CONFIG,
@@ -208,15 +225,18 @@ class SummonEntity(Entity):
             self.state = 'sweep'
             self.animation.set_state('sweep', force_reset=True)
             # Calculate attack animation duration
-            animations_length = len(self.animation.config['sweep']['animations'])
-            attack_duration = self.animation.config['sweep']['duration'] * animations_length
+            animations_length = len(
+                self.animation.config['sweep']['animations'])
+            attack_duration = self.animation.config['sweep']['duration'] * \
+                animations_length
             self.attack_animation_timer = attack_duration
             # Perform the attack
             super().attack(target)
 
             # Add visual effect for attack
             if hasattr(self, 'owner') and hasattr(self.owner, 'game') and self.owner.game and hasattr(self.owner.game, 'effects'):
-                hit_effect = VisualEffect(target.x, target.y, "explosion", self.color, 15, 0.2)
+                hit_effect = VisualEffect(
+                    target.x, target.y, "explosion", self.color, 15, 0.2)
                 self.owner.game.effects.append(hit_effect)
             self.attack_timer = self.attack_cooldown
             return True
@@ -240,8 +260,10 @@ class SummonEntity(Entity):
             self.animation.update(dt)
         return True
 
+
 class Summon(BaseSkill):
     """Summon skill that creates SummonEntity instances"""
+
     def __init__(self, name, element, damage, speed, radius, duration, cooldown, description, sprite_path, animation_config, attack_radius):
         super().__init__(name, element, SkillType.SUMMON, cooldown, description)
         self.damage = damage
@@ -256,40 +278,45 @@ class Summon(BaseSkill):
     def create(skill, x, y, attack_radius):
         """Create a SummonEntity instance"""
         return SummonEntity(x, y, skill, attack_radius)
-    
+
     @staticmethod
     def update(summon, dt, enemies):
         """Update the summon (for compatibility with existing code)"""
         return summon.update(dt, enemies)
+
     @staticmethod
     def draw(summon, surface):
         """Draw the summon (for compatibility with existing code)"""
         summon.draw(surface)
 
+
 class Heal(BaseSkill):
     """Heal skill implementation"""
+
     def __init__(self, name, element, heal_amount, radius, duration, cooldown, description, heal_summons=True):
         super().__init__(name, element, SkillType.HEAL, cooldown, description)
         self.heal_amount = heal_amount
         self.radius = radius
         self.duration = duration
         self.heal_summons = heal_summons  # Flag to determine if this heal affects summons
-    
+
     @staticmethod
     def activate(skill, target, summons=None):
         """Apply healing to target and optionally to summons"""
         # Always heal the primary target (player)
         if target:
             target.heal(skill.heal_amount)
-        
+
         # If heal_summons is True and summons are provided, heal them too
         if getattr(skill, 'heal_summons', True) and summons:
             for summon in summons:
                 if summon.alive and summon.health < summon.max_health:
                     summon.heal(skill.heal_amount)
 
+
 class AOE(BaseSkill):
     """Area of Effect skill implementation"""
+
     def __init__(self, name, element, damage, radius, duration, cooldown, description):
         super().__init__(name, element, SkillType.AOE, cooldown, description)
         self.damage = damage
@@ -301,7 +328,8 @@ class AOE(BaseSkill):
         """Apply damage to all enemies in radius"""
         hit_count = 0
         for enemy in enemies:
-            if not enemy.alive: continue
+            if not enemy.alive:
+                continue
             # Calculate distance to enemy
             dist = math.hypot(enemy.x - x, enemy.y - y)
             if dist <= skill.radius:
@@ -309,8 +337,10 @@ class AOE(BaseSkill):
                 hit_count += 1
         return hit_count > 0
 
+
 class Slash(BaseSkill):
     """Slash attack skill implementation"""
+
     def __init__(self, name, element, damage, radius, duration, cooldown, description):
         super().__init__(name, element, SkillType.SLASH, cooldown, description)
         self.damage = damage
@@ -331,7 +361,7 @@ class Slash(BaseSkill):
         end_angle = start_angle + sweep_angle
         hit_count = 0
         for enemy in enemies:
-            if not enemy.alive: 
+            if not enemy.alive:
                 continue
             # Calculate distance and angle to enemy
             dx = enemy.x - player_x
@@ -358,8 +388,10 @@ class Slash(BaseSkill):
                     hit_count += 1
         return hit_count > 0
 
+
 class Chain(BaseSkill):
     """Chain attack skill implementation"""
+
     def __init__(self, name, element, damage, radius, duration, pull, cooldown, description, max_targets=3, chain_range=150):
         super().__init__(name, element, SkillType.CHAIN, cooldown, description)
         self.damage = damage
@@ -388,7 +420,8 @@ class Chain(BaseSkill):
                 dx = enemy.x - player_x
                 dy = enemy.y - player_y
                 enemy_angle = math.atan2(dy, dx)
-                target_angle = math.atan2(target_y - player_y, target_x - player_x)
+                target_angle = math.atan2(
+                    target_y - player_y, target_x - player_x)
                 diff = abs(Utils.angle_diff(target_angle, enemy_angle))
                 # Consider enemies in a 60-degree cone in target direction
                 if diff <= math.pi / 3 and dist < min_dist:
@@ -408,15 +441,17 @@ class Chain(BaseSkill):
             pull_dist = math.hypot(pull_dir_x, pull_dir_y)
             if pull_dist > 0:
                 # Normalize and scale by pull strength
-                pull_x = (pull_dir_x / pull_dist) * min(pull_strength, pull_dist)
-                pull_y = (pull_dir_y / pull_dist) * min(pull_strength, pull_dist)
+                pull_x = (pull_dir_x / pull_dist) * \
+                    min(pull_strength, pull_dist)
+                pull_y = (pull_dir_y / pull_dist) * \
+                    min(pull_strength, pull_dist)
                 # Apply pull
                 current_target.x += pull_x
                 current_target.y += pull_y
         # Create visual effect for the chain
         chain_effect = VisualEffect(
-            player_x, 
-            player_y, 
+            player_x,
+            player_y,
             "line",  # Assuming there's a line effect type
             skill.color,
             10,  # Thickness
@@ -448,8 +483,8 @@ class Chain(BaseSkill):
             next_target.take_damage(skill.damage)
             # Create visual effect for the chain
             chain_effect = VisualEffect(
-                last_x, 
-                last_y, 
+                last_x,
+                last_y,
                 "line",
                 skill.color,
                 10,

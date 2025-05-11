@@ -2,6 +2,8 @@
 Module containing all configuration constants for the game.
 """
 import pygame
+
+
 class Config:
     # Game Name
     GAME_NAME = "Incantato"

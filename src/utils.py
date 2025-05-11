@@ -19,6 +19,7 @@ def resolve_overlap(a, b):
         b.x += push_x
         b.y += push_y
 
+
 class Utils:
     @staticmethod
     def angle_diff(a, b):

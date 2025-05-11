@@ -16,20 +16,20 @@ class Enemy(Entity):
         # Calculate enemy stats based on wave number
         hp_scaling = 1 + ((wave_number - 1) * C.WAVE_MULTIPLIER)
         speed_scaling = 1 + ((wave_number - 1) * C.WAVE_MULTIPLIER * 0.5)
-        
+
         # Set max health and speed with wave scaling
         max_health = int(base_hp * hp_scaling)
         speed = base_speed * speed_scaling
-        
+
         # Initialize the entity
         super().__init__(x, y, C.ENEMY_RADIUS, max_health, speed, C.ENEMY_COLOR)
-        
+
         # Set up combat attributes
         self.damage = C.ENEMY_DAMAGE
         self.attack_cooldown = C.ATTACK_COOLDOWN
         self.attack_timer = 0
         self.attack_radius = 40  # Attack range
-        
+
         # Set up animation
         self.animation = CharacterAnimation(
             sprite_sheet_path=C.ENEMY_SPRITE_PATH,
@@ -51,14 +51,15 @@ class Enemy(Entity):
             self.attack_timer -= dt
 
         # Find closest target (player or summon)
-        closest_type, closest_dist, closest_obj = self.get_closest_target(player)
+        closest_type, closest_dist, closest_obj = self.get_closest_target(
+            player)
 
         # Decide behavior based on distance
         if closest_obj:
             # Get target's radius to properly calculate attack distance
             target_radius = closest_obj[3]
             target_entity = closest_obj[4]
-            
+
             # Effective attack range accounts for both entity radii
             effective_distance = closest_dist - self.radius - target_radius
 
@@ -67,25 +68,28 @@ class Enemy(Entity):
                 # Set attack animation
                 self.state = 'sweep'
                 self.animation.set_state('sweep', force_reset=True)
-                
+
                 # Calculate attack animation duration
-                animations_length = len(self.animation.config['sweep']['animations'])
-                attack_duration = self.animation.config['sweep']['duration'] * animations_length
+                animations_length = len(
+                    self.animation.config['sweep']['animations'])
+                attack_duration = self.animation.config['sweep']['duration'] * \
+                    animations_length
                 self.attack_animation_timer = attack_duration
-                
+
                 # Perform the attack
                 super().attack(target_entity)
                 self.attack_timer = self.attack_cooldown
                 return
-                
+
             # Otherwise, move toward target
             # Set walking animation if not already
             if self.state != 'walk':
                 self.state = 'walk'
                 self.animation.set_state('walk')
-                
+
             # Get direction to target and move
-            self.dx, self.dy = self.get_direction_to(closest_obj[1], closest_obj[2])
+            self.dx, self.dy = self.get_direction_to(
+                closest_obj[1], closest_obj[2])
             self.move(self.dx, self.dy, dt)
         else:
             # If no target, go to idle state
@@ -133,6 +137,6 @@ class Enemy(Entity):
     def draw(self, surf):
         # Use the base class's draw method for animation
         super().draw(surf)
-        
+
         # Add HP bar
         self.draw_health_bar(surf)

@@ -3,6 +3,7 @@ import math
 from config import Config as C
 from utils import Utils
 
+
 class SpriteSheet:
     """Utility class to handle loading and extracting sprites from a sheet."""
 
@@ -22,7 +23,6 @@ class SpriteSheet:
         # Blit the relevant part of the sprite sheet onto the blank surface
         sprite.blit(self.sprite_sheet, (0, 0), (x, y, width, height))
         return sprite
-
 
 
 class CharacterAnimation:
@@ -84,7 +84,8 @@ class CharacterAnimation:
             for col in range(max_col):
                 x = col * self.sprite_width
                 y = row * self.sprite_height
-                sprite = self.sprite_sheet.get_sprite(x, y, self.sprite_width, self.sprite_height)
+                sprite = self.sprite_sheet.get_sprite(
+                    x, y, self.sprite_width, self.sprite_height)
                 row_frames.append(sprite)
             all_frames.append(row_frames)
         return all_frames
@@ -100,7 +101,6 @@ class CharacterAnimation:
         closest_angle = min(
             self.ANGLES, key=lambda angle: Utils.angle_diff(angle, target_angle_deg))
         return closest_angle
-
 
     def set_state(self, new_state, force_reset=False):
         """Changes the current animation state if different."""
@@ -172,7 +172,8 @@ class CharacterAnimation:
 
         # Determine column index
         animations = state_cfg['animations']
-        frame_idx = min(self.current_frame_index, len(animations) - 1)  # Safety check
+        frame_idx = min(self.current_frame_index, len(
+            animations) - 1)  # Safety check
         col_index = animations[frame_idx]
 
         # Get the sprite

@@ -8,6 +8,7 @@ from visual_effects import VisualEffect, DashAfterimage
 
 class Deck:
     """Centralized manager for player skills, projectiles, summons and effects"""
+
     def __init__(self):
         self._skills = []
         # Replace lists with sprite groups
@@ -33,14 +34,14 @@ class Deck:
     def projectiles(self):
         return self._projectiles
 
-    @property 
+    @property
     def summons(self):
         return self._summons
 
     @property
     def skills(self):
         return self._skills
-    
+
     @skills.setter
     def skills(self, value):
         self._skills = value
@@ -225,7 +226,7 @@ class Deck:
             # Create the actual summon entity at the calculated position
             summon_entity = skill.create(
                 skill, spawn_x, spawn_y, C.ATTACK_RADIUS)
-            
+
             # Add to sprite group
             self._summons.add(summon_entity)
 
@@ -264,26 +265,27 @@ class Deck:
 
             # Apply damage to enemies in radius
             AOE.activate(skill, target_x, target_y, enemies)
-            
+
         elif skill.skill_type == SkillType.SLASH:
             # Calculate angle from player to target
             angle = math.atan2(target_y - player.y, target_x - player.x)
-            
+
             # Define sweep parameters
             arc_width = math.pi / 3  # 60 degree sweep
-            # This is a CLOCKWISE sweep - starting to the left of target angle 
+            # This is a CLOCKWISE sweep - starting to the left of target angle
             # and ending to the right of target angle
-            start_angle = angle - (arc_width / 2)  # Start 30 degrees to the "left" of target
+            # Start 30 degrees to the "left" of target
+            start_angle = angle - (arc_width / 2)
             sweep_angle = arc_width  # Sweep 60 degrees clockwise
-            
+
             # Create visual effect with the correct start angle and sweep direction
             effect = VisualEffect(
-                player.x, 
-                player.y, 
-                "slash", 
-                skill.color, 
-                skill.radius, 
-                0.3, 
+                player.x,
+                player.y,
+                "slash",
+                skill.color,
+                skill.radius,
+                0.3,
                 start_angle=start_angle,
                 sweep_angle=sweep_angle
             )
@@ -291,11 +293,12 @@ class Deck:
 
             # Apply damage to enemies in arc - hit detection must match the visual
             Slash.activate(skill, player.x, player.y,
-                          target_x, target_y, enemies, start_angle, sweep_angle)
-                           
+                           target_x, target_y, enemies, start_angle, sweep_angle)
+
         elif skill.skill_type == SkillType.CHAIN:
             # Call the Chain's activate method to perform the chain logic
-            chain_effects = Chain.activate(skill, player.x, player.y, target_x, target_y, enemies)
+            chain_effects = Chain.activate(
+                skill, player.x, player.y, target_x, target_y, enemies)
             # Add all effects returned by Chain.activate
             for effect in chain_effects:
                 self.add_effect(effect)
@@ -319,7 +322,7 @@ class Deck:
                 dead_projectiles.append(projectile)
                 if result is not False:  # It's an effect
                     self.add_effect(result)
-        
+
         # Remove dead projectiles
         for projectile in dead_projectiles:
             self.projectiles.remove(projectile)
@@ -331,7 +334,7 @@ class Deck:
         for summon in self._summons:
             if not summon.update(dt, enemies):
                 dead_summons.append(summon)
-        
+
         # Remove dead summons
         for summon in dead_summons:
             self._summons.remove(summon)
@@ -339,7 +342,8 @@ class Deck:
     def _update_effects(self, dt):
         """Update all visual effects"""
         # Remove inactive effects
-        self._effects = [effect for effect in self._effects if effect.update(dt)]
+        self._effects = [
+            effect for effect in self._effects if effect.update(dt)]
 
     def draw(self, surface):
         """Draw all active entities managed by the deck"""
@@ -350,7 +354,7 @@ class Deck:
         # Draw summons
         for summon in self._summons:
             summon.draw(surface)
-        
+
         # Draw effects
         for effect in self._effects:
             effect.draw(surface)
