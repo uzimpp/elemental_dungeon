@@ -1,4 +1,4 @@
-
+![Mermaid Diagram May 12 2025](https://github.com/user-attachments/assets/6abf0506-aa10-4650-8fd3-b5f3ac87e2f4)
 # Incantato 🧙‍♂️
 
 <img width="100%" alt="Screenshot 2568-04-09 at 10 06 45" src="https://github.com/user-attachments/assets/ef749a41-918e-4b93-bdfd-3b6749ad4566" />
@@ -31,8 +31,6 @@ Survive as many waves as possible! Each wave becomes progressively more difficul
 | **Mouse** | Aiming or facing direction of player|
 | **ESC** | Exit game |
 
-video [https://youtu.be/EJqSXPGo23g](https://youtu.be/rTT6APAU7Ag)
-
 ## 🔮 Skills
 
 | Type | Description | How to Use | Tips |
@@ -53,7 +51,6 @@ video [https://youtu.be/EJqSXPGo23g](https://youtu.be/rTT6APAU7Ag)
 ## 👾 Enemies
 
 * **Orc Knight** - Deal more damange, less agile
-
 
 ## 📊 Data
 
@@ -111,6 +108,9 @@ When the game launches:
 * **Cooldown Tracking:** Keep an eye on your skill cooldowns to maximize damage output
 
 ## 📁 Project Structure
+
+![UML](https://github.com/user-attachments/assets/d935fde6-80d7-4768-ab1f-1a8d134b1e74)
+
 - `src/`: Game engine, player, enemies, and skill classes
 - `assets/`: Game assets (sprits, bgm, map, etc.)
 - `data/`: Data storage for game statistics (CSV files)
@@ -121,6 +121,7 @@ verion 1.0
 ## 👤 Creator
 
 - Worakrit Kullanatpokin
+- video [https://youtu.be/EJqSXPGo23g](https://youtu.be/rTT6APAU7Ag)
 
 ## 🤝 Credits
 Sprite sheets: https://merchant-shade.itch.io/16x16-puny-characters<br/>
