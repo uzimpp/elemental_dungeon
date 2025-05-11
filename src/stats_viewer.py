@@ -66,8 +66,6 @@ class Visualization:
     def update(self, game_df, waves_df):
         pass
 
-# 1. Summary Statistics Table
-
 
 class SummaryStatsVisualization(Visualization):
     def __init__(self, parent):

@@ -644,7 +644,7 @@ class NameEntryState(GameState):
 
 class DeckSelectionState(GameState):
     """State for selecting skills for player deck"""
-    SKILLS_PER_PAGE = 5
+    SKILLS_PER_PAGE = 4
 
     def __init__(self, game):
         super().__init__(game)

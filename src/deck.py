@@ -74,13 +74,18 @@ class Deck:
                 radius=float(selected_skill["radius"]),
                 duration=float(selected_skill["duration"]),
                 cooldown=float(selected_skill["cooldown"]),
-                description=selected_skill["description"]
+                description=selected_skill["description"],
+                pull=(selected_skill.get(
+                    "pull", "FALSE").strip().lower() == "true")
             )
         elif skill_type == SkillType.SUMMON:
             element = selected_skill["element"].upper()
             if element == "SHADOW":
                 sprite_path = C.SHADOW_SUMMON_SPRITE_PATH
                 animation_config = C.SHADOW_SUMMON_ANIMATION_CONFIG
+            elif element == "WOOD":
+                sprite_path = C.WOOD_SUMMON_SPRITE_PATH
+                animation_config = C.WOOD_SUMMON_ANIMATION_CONFIG
             else:
                 raise ValueError(
                     f"Unsupported element for summon: {element}")
@@ -122,7 +127,9 @@ class Deck:
                 radius=float(selected_skill["radius"]),
                 duration=float(selected_skill["duration"]),
                 cooldown=float(selected_skill["cooldown"]),
-                description=selected_skill["description"]
+                description=selected_skill["description"],
+                pull=(selected_skill.get(
+                    "pull", "FALSE").strip().lower() == "true")
             )
         elif skill_type == SkillType.SLASH:
             skill = Slash(
@@ -132,7 +139,9 @@ class Deck:
                 radius=float(selected_skill["radius"]),
                 duration=float(selected_skill["duration"]),
                 cooldown=float(selected_skill["cooldown"]),
-                description=selected_skill["description"]
+                description=selected_skill["description"],
+                pull=(selected_skill.get(
+                    "pull", "FALSE").strip().lower() == "true")
             )
         elif skill_type == SkillType.CHAIN:
             skill = Chain(
@@ -199,7 +208,7 @@ class Deck:
             spawn_y = player.y + (dy / dist) * spawn_distance
 
             # Create the actual projectile entity at the calculated position
-            projectile_entity = skill.create(
+            projectile_entity = type(skill).activate(
                 skill, spawn_x, spawn_y, target_x, target_y)
             projectile_entity.owner = player  # Set the owner reference
 
@@ -229,8 +238,9 @@ class Deck:
             spawn_y = player.y + (dy / dist) * spawn_distance
 
             # Create the actual summon entity at the calculated position
-            summon_entity = skill.create(
+            summon_entity = type(skill).activate(
                 skill, spawn_x, spawn_y, C.ATTACK_RADIUS)
+            summon_entity.owner = player  # Set the owner reference
 
             # Add to sprite group
             self._summons.add(summon_entity)

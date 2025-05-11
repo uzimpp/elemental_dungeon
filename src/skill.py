@@ -5,7 +5,7 @@ import math
 import pygame
 from utils import Utils
 from animation import CharacterAnimation
-from entity import Entity  # Import the Entity base class
+from entity import Entity
 from config import Config as C
 from visual_effects import VisualEffect
 
@@ -22,7 +22,7 @@ class SkillType(Enum):
 class BaseSkill:
     """Base class for all skills"""
 
-    def __init__(self, name, element, skill_type, cooldown, description):
+    def __init__(self, name, element, skill_type, cooldown, description, pull=False):
         self.name = name
         self.element = element
         self.skill_type = skill_type
@@ -30,7 +30,8 @@ class BaseSkill:
         self.description = description
         self.last_use_time = 0
         self.color = self._get_color_from_element(element)
-        self.owner = None  # Reference to the owner entity (e.g., player)
+        self.owner = None
+        self.pull = pull
 
     def _get_color_from_element(self, element):
         if element in C.ELEMENT_COLORS:
@@ -44,6 +45,32 @@ class BaseSkill:
 
     def trigger_cooldown(self):
         self.last_use_time = time.time()
+
+    def get_pull_effect(self, x, y, enemy):
+        if self.pull:
+            # Pull strength in pixels, can be adjusted or made skill-specific
+            pull_strength = C.PULL_STRENGTH
+            # Calculate direction from enemy to AOE center
+            pull_dir_x = x - enemy.x
+            pull_dir_y = y - enemy.y
+            pull_dist = math.hypot(pull_dir_x, pull_dir_y)
+
+            if pull_dist > 0:  # Avoid division by zero if enemy is at the center
+                # Normalize and scale by pull strength
+                # Move enemy by a fixed amount or a fraction of the distance
+                # Pull half way or by strength, whichever is smaller
+                move_x = (pull_dir_x / pull_dist) * \
+                    min(pull_strength, pull_dist * 0.5)
+                move_y = (pull_dir_y / pull_dist) * \
+                    min(pull_strength, pull_dist * 0.5)
+
+                enemy.x += move_x
+                enemy.y += move_y
+                # Ensure enemy doesn't get pulled out of bounds (optional, depends on game design)
+                enemy.x = max(enemy.radius, min(
+                    C.WIDTH - enemy.radius, enemy.x))
+                enemy.y = max(enemy.radius, min(
+                    C.HEIGHT - enemy.radius, enemy.y))
 
 
 class ProjectileEntity(Entity):
@@ -62,6 +89,7 @@ class ProjectileEntity(Entity):
         self.element = skill.element
         self.explosion_radius = skill.radius
         self.explosion_damage = skill.damage
+        self.skill_definition = skill  # Store the skill definition instance
         # Create proper sprite image with glow effect
         size = max(10, self.radius * 2)
         self.image = pygame.Surface((size, size), pygame.SRCALPHA)
@@ -123,6 +151,9 @@ class ProjectileEntity(Entity):
             dist = self.get_distance_to(enemy.x, enemy.y)
             if dist <= self.explosion_radius:
                 enemy.take_damage(self.explosion_damage)
+                if self.skill_definition.pull:
+                    self.skill_definition.get_pull_effect(
+                        self.pos.x, self.pos.y, enemy)
         # Set alive to false will trigger the kill() method
         self.alive = False
         return explosion
@@ -152,15 +183,15 @@ class ProjectileEntity(Entity):
 class Projectile(BaseSkill):
     """Projectile skill that creates ProjectileEntity instances"""
 
-    def __init__(self, name, element, damage, speed, radius, duration, cooldown, description):
-        super().__init__(name, element, SkillType.PROJECTILE, cooldown, description)
+    def __init__(self, name, element, damage, speed, radius, duration, cooldown, description, pull):
+        super().__init__(name, element, SkillType.PROJECTILE, cooldown, description, pull)
         self.damage = damage
         self.speed = speed
         self.radius = radius
         self.duration = duration
 
     @staticmethod
-    def create(skill, start_x, start_y, target_x, target_y):
+    def activate(skill, start_x, start_y, target_x, target_y):
         """Create a projectile instance"""
         return ProjectileEntity(start_x, start_y, target_x, target_y, skill)
 
@@ -275,7 +306,7 @@ class Summon(BaseSkill):
         self.attack_radius = attack_radius
 
     @staticmethod
-    def create(skill, x, y, attack_radius):
+    def activate(skill, x, y, attack_radius):
         """Create a SummonEntity instance"""
         return SummonEntity(x, y, skill, attack_radius)
 
@@ -293,7 +324,7 @@ class Summon(BaseSkill):
 class Heal(BaseSkill):
     """Heal skill implementation"""
 
-    def __init__(self, name, element, heal_amount, radius, duration, cooldown, description, heal_summons=True):
+    def __init__(self, name, element, heal_amount, radius, duration, cooldown, description, heal_summons=False):
         super().__init__(name, element, SkillType.HEAL, cooldown, description)
         self.heal_amount = heal_amount
         self.radius = radius
@@ -317,8 +348,8 @@ class Heal(BaseSkill):
 class AOE(BaseSkill):
     """Area of Effect skill implementation"""
 
-    def __init__(self, name, element, damage, radius, duration, cooldown, description):
-        super().__init__(name, element, SkillType.AOE, cooldown, description)
+    def __init__(self, name, element, damage, radius, duration, cooldown, description, pull):
+        super().__init__(name, element, SkillType.AOE, cooldown, description, pull)
         self.damage = damage
         self.radius = radius
         self.duration = duration
@@ -334,6 +365,7 @@ class AOE(BaseSkill):
             dist = math.hypot(enemy.x - x, enemy.y - y)
             if dist <= skill.radius:
                 enemy.take_damage(skill.damage)
+                skill.get_pull_effect(x, y, enemy)
                 hit_count += 1
         return hit_count > 0
 
@@ -341,8 +373,8 @@ class AOE(BaseSkill):
 class Slash(BaseSkill):
     """Slash attack skill implementation"""
 
-    def __init__(self, name, element, damage, radius, duration, cooldown, description):
-        super().__init__(name, element, SkillType.SLASH, cooldown, description)
+    def __init__(self, name, element, damage, radius, duration, cooldown, description, pull):
+        super().__init__(name, element, SkillType.SLASH, cooldown, description, pull)
         self.damage = damage
         self.radius = radius
         self.duration = duration
@@ -393,11 +425,10 @@ class Chain(BaseSkill):
     """Chain attack skill implementation"""
 
     def __init__(self, name, element, damage, radius, duration, pull, cooldown, description, max_targets=3, chain_range=150):
-        super().__init__(name, element, SkillType.CHAIN, cooldown, description)
+        super().__init__(name, element, SkillType.CHAIN, cooldown, description, pull)
         self.damage = damage
         self.radius = radius
         self.duration = duration
-        self.pull = pull
         self.max_targets = max_targets  # Maximum number of targets to chain to
         self.chain_range = chain_range  # Range for chaining between targets
 
@@ -435,19 +466,8 @@ class Chain(BaseSkill):
         current_target.take_damage(skill.damage)
         # Apply pull effect if enabled to the first target
         if skill.pull:
-            pull_strength = 60  # Pull strength in pixels
-            pull_dir_x = player_x - current_target.x
-            pull_dir_y = player_y - current_target.y
-            pull_dist = math.hypot(pull_dir_x, pull_dir_y)
-            if pull_dist > 0:
-                # Normalize and scale by pull strength
-                pull_x = (pull_dir_x / pull_dist) * \
-                    min(pull_strength, pull_dist)
-                pull_y = (pull_dir_y / pull_dist) * \
-                    min(pull_strength, pull_dist)
-                # Apply pull
-                current_target.x += pull_x
-                current_target.y += pull_y
+            skill.get_pull_effect(player_x, player_y, current_target)
+
         # Create visual effect for the chain
         chain_effect = VisualEffect(
             player_x,

@@ -114,12 +114,7 @@ When the game launches:
 - `data/`: Data storage for game statistics (CSV files)
 
 ## 🛠 Game Version
-verion 0.7
-
-- [ ] Data visualization features will be expanded in future versions.
-**(if time allows)**
-- [ ] More skill types will be created in the future.
-- [ ] More enemy types will be created in the future.
+verion 1.0
 
 ## 👤 Creator
 

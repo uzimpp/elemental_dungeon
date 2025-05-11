@@ -101,7 +101,7 @@ class Config:
     RENDER_SIZE = 64
     ATTACK_COOLDOWN = 1.25
     ATTACK_RADIUS = 96
-
+    PULL_STRENGTH = 48
     # Define animation configurations based on sprite sheet columns
     # Remember: Columns are 0-indexed!
     ANIMATION_CONFIG = {
@@ -153,6 +153,8 @@ class Config:
 
     SHADOW_SUMMON_ANIMATION_CONFIG = ANIMATION_CONFIG
     SHADOW_SUMMON_SPRITE_PATH = "assets/sprites/shadow_summon_sheet.png"
+    WOOD_SUMMON_ANIMATION_CONFIG = ANIMATION_CONFIG
+    WOOD_SUMMON_SPRITE_PATH = "assets/sprites/wood_summon_sheet.png"
 
     # File names
     GAMES_LOG_PATH = "data/games.csv"
