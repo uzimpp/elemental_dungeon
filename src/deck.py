@@ -73,10 +73,10 @@ class Deck:
                 radius=float(selected_skill["radius"]),
                 duration=float(selected_skill["duration"]),
                 cooldown=float(selected_skill["cooldown"]),
-                description=skill["description"]
+                description=selected_skill["description"]
             )
         elif skill_type == SkillType.SUMMON:
-            element = skill["element"].upper()
+            element = selected_skill["element"].upper()
             if element == "SHADOW":
                 sprite_path = C.SHADOW_SUMMON_SPRITE_PATH
                 animation_config = C.SHADOW_SUMMON_ANIMATION_CONFIG
@@ -125,7 +125,7 @@ class Deck:
             )
         elif skill_type == SkillType.SLASH:
             skill = Slash(
-                name=skill["name"],
+                name=selected_skill["name"],
                 element=selected_skill["element"].upper(),
                 damage=int(selected_skill["damage"]),
                 radius=float(selected_skill["radius"]),

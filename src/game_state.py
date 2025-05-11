@@ -5,6 +5,9 @@ from config import Config as C
 from ui import Button, ProgressBar, SkillDisplay, UIManager
 from deck import Deck
 from ui import UI
+from font import Font
+from data_collection import DataCollection
+
 class GameStateManager:
     """Manages transitions between game states"""
     def __init__(self, game):
@@ -82,7 +85,7 @@ class PauseOverlay:
     """Reusable overlay for pause menu"""
     def __init__(self, game):
         self.game = game
-        self.font = pygame.font.Font(C.FONT_PATH, 32)
+        self.font = Font().get_font('MENU')
         
         # Centered buttons
         screen_width = game.screen.get_width()
@@ -90,9 +93,11 @@ class PauseOverlay:
         button_height = 50
         button_x = (screen_width - button_width) // 2
         
+        music_status = 'On' if self.game.audio.music_enabled else 'Off'
+        
         self.buttons = [
             Button(button_x, 250, button_width, button_height, "Resume", self.font),
-            Button(button_x, 320, button_width, button_height, f"Music: {'On' if game.audio.music_enabled else 'Off'}", self.font),
+            Button(button_x, 320, button_width, button_height, f"Music: {music_status}", self.font),
             Button(button_x, 390, button_width, button_height, "Retry", self.font),
             Button(button_x, 460, button_width, button_height, "Quit", self.font)
         ]
@@ -106,7 +111,7 @@ class PauseOverlay:
     def render(self, screen):
         # Semi-transparent overlay
         overlay = pygame.Surface((screen.get_width(), screen.get_height()), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 128))
+        overlay.fill((0, 0, 0, 128))  # 50% transparent black
         screen.blit(overlay, (0, 0))
         
         # Title
@@ -143,8 +148,8 @@ class GameOverOverlay:
     """Reusable game over overlay"""
     def __init__(self, game):
         self.game = game
-        self.title_font = pygame.font.Font(C.FONT_PATH, 48)
-        self.font = pygame.font.Font(C.FONT_PATH, 32)
+        self.title_font = Font().get_font('TITLE')
+        self.font = Font().get_font('MENU')
         
         # Centered buttons
         screen_width = game.screen.get_width()
@@ -202,9 +207,9 @@ class MenuState(GameState):
     """Main menu state"""
     def __init__(self, game):
         super().__init__(game)
-        self.title_font = pygame.font.Font(C.FONT_PATH, 48)
-        self.menu_font = pygame.font.Font(C.FONT_PATH, 32)
-        self.info_font = pygame.font.Font(C.FONT_PATH, 20)
+        self.title_font = Font().get_font('TITLE')
+        self.menu_font = Font().get_font('MENU')
+        self.info_font = Font().get_font('UI')
         
         # Create buttons
         screen_width = game.screen.get_width()
@@ -263,8 +268,8 @@ class NameEntryState(GameState):
     """State for entering player name"""
     def __init__(self, game):
         super().__init__(game)
-        self.title_font = pygame.font.Font(C.FONT_PATH, 36)
-        self.input_font = pygame.font.Font(C.FONT_PATH, 48)
+        self.title_font = Font().get_font('TITLE')
+        self.input_font = Font().get_font('TITLE')
         self.player_name = ""
         self.active = True
         
@@ -346,14 +351,17 @@ class NameEntryState(GameState):
 
 class DeckSelectionState(GameState):
     """State for selecting skills for player deck"""
+    SKILLS_PER_PAGE = 5
+
     def __init__(self, game):
         super().__init__(game)
-
+        self.title_font = Font().get_font('TITLE')
+        self.skill_font = Font().get_font('SKILL')
+        self.desc_font = Font().get_font('DESC')
         
         # Skill selection data
-        self.skill_data = []  # Raw skill data from CSV
-        self.selected_skill_data = []  # Selected skills data
-        self.skills_per_page = 5
+        self.skill_data = []
+        self.selected_skill_data = []
         self.scroll_offset = 0
         self.selected_index = 0
         
@@ -361,16 +369,16 @@ class DeckSelectionState(GameState):
         screen_width = game.screen.get_width()
         
         # Back button
-        back_button = Button(10, 10, 100, 40, "Back", C.DESC_FONT)
+        back_button = Button(10, 10, 100, 40, "Back", Font().get_font('DESC'))
         self.ui_manager.add_element(back_button, "navigation")
         
         # Confirm button 
-        confirm_button = Button((screen_width - 200) // 2, 650, 200, 50, "Confirm", C.SKILL_FONT)
+        confirm_button = Button((screen_width - 200) // 2, 650, 200, 50, "Confirm", Font().get_font('SKILL'))
         self.ui_manager.add_element(confirm_button, "navigation")
         
         # Scroll buttons
-        up_button = Button(screen_width // 2 + 180, 80, 40, 40, "▲", C.SKILL_FONT)
-        down_button = Button(screen_width // 2 + 180, 440, 40, 40, "▼", C.SKILL_FONT)
+        up_button = Button(screen_width // 2 + 180, 80, 40, 40, "▲", Font().get_font('SKILL'))
+        down_button = Button(screen_width // 2 + 180, 440, 40, 40, "▼", Font().get_font('SKILL'))
         self.ui_manager.add_element(up_button, "scroll")
         self.ui_manager.add_element(down_button, "scroll")
         
@@ -388,7 +396,7 @@ class DeckSelectionState(GameState):
         """Load raw skill data from CSV file"""
         skill_data = []
         try:
-            with open(self.game.skills_filename, newline='', encoding='utf-8') as f:
+            with open(C.SKILLS_FILENAME, newline='', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     skill_data.append(row)
@@ -404,16 +412,15 @@ class DeckSelectionState(GameState):
     def render(self, screen):
         # Background
         screen.fill((40, 40, 80))
-        
+
         # Title
         title = self.title_font.render(f"BUILD YOUR DECK (Pick {C.SKILLS_LIMIT})", True, (255, 255, 255))
         screen.blit(title, (screen.get_width()//2 - title.get_width()//2, 30))
-        
+
         # Draw skill list
         self.draw_skill_list(screen)
-        
         # Draw selected skills
-        UI.draw_selected_skills(screen)
+        UI.draw_selected_skills(screen, self.selected_skill_data)
         
         # Draw UI elements (buttons)
         self.ui_manager.draw_all()
@@ -424,23 +431,22 @@ class DeckSelectionState(GameState):
         list_height = 400
         list_x = (screen.get_width() - list_width) // 2
         list_y = 80
-        
         # Draw list background
         pygame.draw.rect(screen, (30, 30, 60), (list_x, list_y, list_width, list_height))
         pygame.draw.rect(screen, (100, 100, 150), (list_x, list_y, list_width, list_height), 2)
         
         # Draw scrollbar if needed
-        if len(self.skill_data) > self.skills_per_page:
-            scrollbar_height = list_height * min(1.0, self.skills_per_page / len(self.skill_data))
-            scrollbar_pos = list_y + (list_height - scrollbar_height) * (self.scroll_offset / (len(self.skill_data) - self.skills_per_page))
+        if len(self.skill_data) > self.SKILLS_PER_PAGE:
+            scrollbar_height = list_height * min(1.0, self.SKILLS_PER_PAGE / len(self.skill_data))
+            scrollbar_pos = list_y + (list_height - scrollbar_height) * (self.scroll_offset / (len(self.skill_data) - self.SKILLS_PER_PAGE))
             pygame.draw.rect(screen, (150, 150, 180), (list_x + list_width - 15, scrollbar_pos, 10, scrollbar_height))
         
         # Draw visible skills
-        visible_skills = self.skill_data[self.scroll_offset:self.scroll_offset + self.skills_per_page]
+        visible_skills = self.skill_data[self.scroll_offset:self.scroll_offset + self.SKILLS_PER_PAGE]
         for i, skill in enumerate(visible_skills):
             # Check if this skill is already chosen
             is_chosen = skill in self.selected_skill_data
-            skill_y = list_y + 10 + i * (list_height // self.skills_per_page)
+            skill_y = list_y + 10 + i * (list_height // self.SKILLS_PER_PAGE)
             
             # Create clickable area for the skill
             skill_rect = pygame.Rect(list_x + 5, skill_y - 5, list_width - 25, 70)
@@ -452,19 +458,19 @@ class DeckSelectionState(GameState):
             # Skill name with element color
             element = skill["element"].upper()
             element_color = self.element_colors.get(element, (255, 255, 255))
-            skill_text = C.SKILL_FONT.render(f"[{element}] {skill['name']}", True, 
+            skill_text = self.skill_font.render(f"[{element}] {skill['name']}", True, 
                                                (150, 150, 150) if is_chosen else element_color)
             screen.blit(skill_text, (list_x + 15, skill_y))
             
             # Display cooldown and type
-            cd_text = C.DESC_FONT.render(f"Cooldown: {float(skill['cooldown']):.1f}s | Type: {skill['skill_type']}", True, (200, 200, 200))
+            cd_text = self.desc_font.render(f"Cooldown: {float(skill['cooldown']):.1f}s | Type: {skill['skill_type']}", True, (200, 200, 200))
             screen.blit(cd_text, (list_x + 15, skill_y + 30))
             
             # Skill description (truncated for space)
             desc = skill["description"]
             if len(desc) > 60:
                 desc = desc[:57] + "..."
-            desc_text = C.DESC_FONT.render(desc, True, (200, 200, 200))
+            desc_text = self.desc_font.render(desc, True, (200, 200, 200))
             screen.blit(desc_text, (list_x + 15, skill_y + 50))
 
     def handle_events(self, events):
@@ -492,7 +498,7 @@ class DeckSelectionState(GameState):
                     if button.is_clicked(mouse_pos, True):
                         if i == 0 and self.scroll_offset > 0:  # Up button
                             self.scroll_offset -= 1
-                        elif i == 1 and self.scroll_offset < len(self.skill_data) - self.skills_per_page:  # Down button
+                        elif i == 1 and self.scroll_offset < len(self.skill_data) - self.SKILLS_PER_PAGE:  # Down button
                             self.scroll_offset += 1
                 
                 # Check skill list clicks
@@ -506,10 +512,10 @@ class DeckSelectionState(GameState):
                     list_y <= mouse_pos[1] <= list_y + list_height):
                     
                     # Calculate which skill was clicked
-                    skill_height = list_height // self.skills_per_page
+                    skill_height = list_height // self.SKILLS_PER_PAGE
                     clicked_index = (mouse_pos[1] - list_y) // skill_height
                     
-                    if 0 <= clicked_index < min(self.skills_per_page, len(self.skill_data) - self.scroll_offset):
+                    if 0 <= clicked_index < min(self.SKILLS_PER_PAGE, len(self.skill_data) - self.scroll_offset):
                         abs_index = self.scroll_offset + clicked_index
                         self.selected_index = abs_index
                         
@@ -540,8 +546,8 @@ class DeckSelectionState(GameState):
                 elif event.key == pygame.K_DOWN:
                     self.selected_index = min(len(self.skill_data) - 1, self.selected_index + 1)
                     # Adjust scroll if needed
-                    if self.selected_index >= self.scroll_offset + self.skills_per_page:
-                        self.scroll_offset = self.selected_index - self.skills_per_page + 1
+                    if self.selected_index >= self.scroll_offset + self.SKILLS_PER_PAGE:
+                        self.scroll_offset = self.selected_index - self.SKILLS_PER_PAGE + 1
                 
                 elif event.key == pygame.K_RETURN:
                     # Add selected skill to chosen (if not already chosen and haven't reached limit)
@@ -571,10 +577,7 @@ class DeckSelectionState(GameState):
     def create_player_deck(self):
         """Create skill objects in the deck class based on selected skills"""
         deck = Deck()
-        for skill_data in self.selected_skill_data:
-            if not isinstance(skill_data, dict):
-                skill_data = dict(skill_data)
-            deck.create_deck(skill_data)
+        deck.create_skills(self.selected_skill_data)
         self.game.player.deck = deck
 
 class PlayingState(GameState):
@@ -741,6 +744,7 @@ class PlayingState(GameState):
         self.background = None
         self.load_background()
         self.paused = False
+        self.ui_font = Font().get_font('MENU')
         
     def load_background(self):
         """Load the game background image"""
@@ -769,10 +773,6 @@ class PlayingState(GameState):
         self.ui_manager.clear_group("status")
         self.ui_manager.clear_group("skills")
         
-        # Only setup UI if player exists
-        if not hasattr(self.game, 'player') or not self.game.player:
-            return
-            
         # Add HP bar
         hp_bar = ProgressBar(
             10, 50, 200, 20, 
@@ -780,7 +780,7 @@ class PlayingState(GameState):
             bg_color=C.UI_COLORS['hp_bar_bg'],
             fill_color=C.UI_COLORS['hp_bar_fill'],
             text_color=C.UI_COLORS['hp_text'],
-            font=pygame.font.Font(C.FONT_PATH, 16),
+            font=Font().get_font('UI'),
             label="HP"
         )
         self.ui_manager.add_element(hp_bar, "status")
@@ -792,22 +792,21 @@ class PlayingState(GameState):
             bg_color=C.UI_COLORS['stamina_bar_bg'],
             fill_color=C.UI_COLORS['stamina_bar_fill'],
             text_color=C.UI_COLORS['stamina_text'],
-            font=pygame.font.Font(C.FONT_PATH, 16),
+            font=Font().get_font('UI'),
             label="Stamina"
         )
         self.ui_manager.add_element(stamina_bar, "status")
         
         # Add skill displays
-        if hasattr(self.game.player, 'deck') and self.game.player.deck:
-            skill_font = pygame.font.Font(C.FONT_PATH, 16)
-            for i, skill in enumerate(self.game.player.deck.skills):
-                skill_display = SkillDisplay(
-                    10 + i * 110, C.HEIGHT - 100,
-                    100, 80,
-                    skill, skill_font, 
-                    hotkey=str(i+1)
-                )
-                self.ui_manager.add_element(skill_display, "skills")
+        skill_font = Font().get_font('UI')
+        for i, skill in enumerate(self.game.player.deck.skills):
+            skill_display = SkillDisplay(
+                10 + i * 110, C.HEIGHT - 100,
+                100, 80,
+                skill, skill_font, 
+                hotkey=str(i+1)
+            )
+            self.ui_manager.add_element(skill_display, "skills")
     
     def update(self, dt):
         # Skip updates if game objects aren't ready
@@ -868,19 +867,15 @@ class PlayingState(GameState):
             screen.fill((200, 220, 255))  # fallback color
         
         # Draw wave info
-        ui_font = pygame.font.Font(C.FONT_PATH, 24)
-        wave_text = ui_font.render(f"WAVE: {self.game.wave_number}", True, C.BLACK)
+        wave_text = self.ui_font.render(f"WAVE: {self.game.wave_number}", True, C.BLACK)
         screen.blit(wave_text, (10, 10))
         
         # Draw game objects
         for enemy in self.game.enemy_group:
             enemy.draw(screen)
-        
-        # Draw player and effects if they exist    
-        if hasattr(self.game, 'player') and self.game.player:
-            self.game.player.draw(screen)
-            if hasattr(self.game.player, 'deck') and self.game.player.deck:
-                self.game.player.deck.draw(screen)
+            
+        self.game.player.draw(screen)
+        self.game.player.deck.draw(screen)
         
         # Draw UI
         self.ui_manager.draw_all()
@@ -892,7 +887,6 @@ class PlayingState(GameState):
                 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    # Show pause overlay
                     self.game.state_manager.set_overlay(PauseOverlay(self.game))
                     return None
                 
@@ -917,7 +911,6 @@ class PlayingState(GameState):
                     return "MENU"
         
         return None
-
 class PauseOverlay:
     """Reusable overlay for pause menu"""
     def __init__(self, game):
@@ -985,7 +978,7 @@ class GameOverOverlay:
     """Reusable game over overlay"""
     def __init__(self, game):
         self.game = game
-        self.title_font = pygame.font.Font(C.FONT_PATH, 48)
+        self.title_font = Font().get_font('TITLE')
         self.font = pygame.font.Font(C.FONT_PATH, 32)
         
         # Centered buttons
@@ -1039,3 +1032,4 @@ class GameOverOverlay:
                 elif self.buttons[2].is_clicked(mouse_pos, True):  # Quit
                     return "QUIT"
         return None
+

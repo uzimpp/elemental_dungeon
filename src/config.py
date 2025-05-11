@@ -10,9 +10,14 @@ class Config:
     WIDTH = 1280
     HEIGHT = 720
     FPS = 60
-
     SKILLS_LIMIT = 4
-
+    FONT_SIZES = {
+        'TITLE': 48,
+        'MENU': 32,
+        'SKILL': 24,
+        'DESC': 18,
+        'UI': 16
+    }
     # Basic colors
     WHITE = (255, 255, 255)
     BLACK = (0, 0, 0)
@@ -140,7 +145,7 @@ class Config:
     ENEMY_RADIUS = RENDER_SIZE / 3
     ENEMY_ANIMATION_CONFIG = ANIMATION_CONFIG
     ENEMY_SPRITE_PATH = "assets/sprites/enemy_sheet.png"
-
+    ENEMY_COLOR = RED
 
     SHADOW_SUMMON_ANIMATION_CONFIG = ANIMATION_CONFIG
     SHADOW_SUMMON_SPRITE_PATH = "assets/sprites/shadow_summon_sheet.png"
@@ -152,7 +157,3 @@ class Config:
     GAME_BGM_PATH = "assets/music/retro-forest.mp3"
     FONT_PATH = "assets/fonts/PixelifySans-Regular.ttf"
     MAP_PATH = "assets/map/map.png"
-
-    TITLE_FONT = pygame.font.Font(FONT_PATH, 36)
-    SKILL_FONT = pygame.font.Font(FONT_PATH, 24)
-    DESC_FONT = pygame.font.Font(FONT_PATH, 18)

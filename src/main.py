@@ -3,6 +3,7 @@ import pygame
 import sys
 import time
 import random
+from font import Font
 from player import Player
 from enemy import Enemy
 from utils import resolve_overlap
@@ -15,6 +16,7 @@ class Game:
     def __init__(self):
         """Initialize game state and assets."""
         pygame.init()
+        Font().initialize(C.FONT_PATH, C.FONT_SIZES)
         self.screen = pygame.display.set_mode((C.WIDTH, C.HEIGHT))
         pygame.display.set_caption(C.GAME_NAME)
         self.clock = pygame.time.Clock()

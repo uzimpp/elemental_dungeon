@@ -1,5 +1,5 @@
 import math
-from utils import draw_hp_bar
+from ui import UI
 from entity import Entity
 from animation import CharacterAnimation
 from config import Config as C
@@ -123,12 +123,4 @@ class Enemy(Entity):
         super().draw(surf)
         
         # Add HP bar
-        bar_x = self.x - 25
-        bar_y = self.y - self.radius - 10
-        draw_hp_bar(
-            surf,
-            bar_x,
-            bar_y,
-            self.health,
-            self.max_health,
-            self.color)
+        self.draw_health_bar(surf)

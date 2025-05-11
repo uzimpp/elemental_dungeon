@@ -1,6 +1,7 @@
 import pygame
 import time
 from config import Config as C
+from font import Font
 
 class UIElement(pygame.sprite.Sprite):
     """Base class for all UI elements"""
@@ -152,7 +153,8 @@ class SkillDisplay(UIElement):
         element_rect = element_text.get_rect(centerx=self.rect.width//2, top=25)
         self.image.blit(element_text, element_rect)
         
-        type_text = self.font.render(self.skill.type, True, C.WHITE)
+        # Render skill type text (using skill_type property)
+        type_text = self.font.render(self.skill.skill_type.name, True, C.WHITE)
         type_rect = type_text.get_rect(centerx=self.rect.width//2, top=40)
         self.image.blit(type_text, type_rect)
         
@@ -240,40 +242,43 @@ class UI:
     @staticmethod
     def draw_selected_skills(screen, selected_skills):
         """Draw the selected skills area"""
+        skill_font = Font().get_font('SKILL')
+        desc_font = Font().get_font('DESC')
         chosen_y = 500
-        chosen_title = C.SKILL_FONT.render(f"Selected Skills ({len(selected_skills)}/{C.SKILLS_LIMIT})", True, (255, 255, 255))
+        chosen_title = skill_font.render(f"Selected Skills ({len(selected_skills)}/{C.SKILLS_LIMIT})", True, (255, 255, 255))
         screen.blit(chosen_title, (screen.get_width()//2 - chosen_title.get_width()//2, chosen_y - 30))
-        
         # Draw slots for chosen skills
         for i in range(C.SKILLS_LIMIT):
             slot_x = (screen.get_width() // 2) - ((C.SKILLS_LIMIT * 120) // 2) + (i * 120) + 10
             slot_y = chosen_y
-            
             # Draw slot background
             slot_rect = pygame.Rect(slot_x, slot_y, 100, 80)
             pygame.draw.rect(screen, (30, 30, 60), slot_rect)
             pygame.draw.rect(screen, (100, 100, 150), slot_rect, 2)
-            
+
             # If there's a skill in this slot, draw it
             if i < len(selected_skills):
                 skill = selected_skills[i]
                 element = skill["element"].upper()
-                element_color = C.ELEMENT_COLORS.get(element, (255, 255, 255))
-                
+                # Get the primary color from the element color dictionary, with fallback to white
+                if element in C.ELEMENT_COLORS:
+                    element_color = C.ELEMENT_COLORS[element]['primary']
+                else:
+                    element_color = (255, 255, 255)  # Default to white if element not found
+
                 # Draw element color indicator
                 pygame.draw.rect(screen, element_color, (slot_x, slot_y, 5, 80))
-                
                 # Skill name (centered in slot)
-                name_text = C.SKILL_FONT.render(skill["name"], True, (255, 255, 255))
+                name_text = skill_font.render(skill["name"], True, (255, 255, 255))
                 name_rect = name_text.get_rect(center=(slot_x + 50, slot_y + 30))
                 screen.blit(name_text, name_rect)
-                
+
                 # Element and cooldown
-                element_text = C.DESC_FONT.render(element, True, element_color)
+                element_text = desc_font.render(element, True, element_color)
                 element_rect = element_text.get_rect(center=(slot_x + 50, slot_y + 50))
                 screen.blit(element_text, element_rect)
-                
-                cooldown_text = C.DESC_FONT.render(f"{float(skill['cooldown']):.1f}s", True, (200, 200, 200))
+
+                cooldown_text = desc_font.render(f"{float(skill['cooldown']):.1f}s", True, (200, 200, 200))
                 cooldown_rect = cooldown_text.get_rect(center=(slot_x + 50, slot_y + 65))
                 screen.blit(cooldown_text, cooldown_rect)
     

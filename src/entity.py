@@ -1,6 +1,6 @@
 import pygame
 from config import Config as C
-
+from ui import UI
 
 class Entity(pygame.sprite.Sprite):
     def __init__(self, x, y, radius, max_health, speed, color):
@@ -265,30 +265,29 @@ class Entity(pygame.sprite.Sprite):
         if self.alive or (hasattr(self, 'animation') and self.state == 'dying'):
             self.draw_health_bar(screen)
 
-    def draw_health_bar(self, screen):
+    def draw_health_bar(self, surf):
         """Draw health bar above the entity"""
-        bar_width = self.radius * 2
-        bar_height = 5
-        bar_x = self.pos.x - self.radius
-        bar_y = self.pos.y - self.radius - 10
-
-        pygame.draw.rect(screen, C.GREY,
-                         (bar_x, bar_y, bar_width, bar_height))
-        health_width = (self.health / self.max_health) * bar_width
-        if health_width > 0:
-            pygame.draw.rect(screen, self.color,
-                             (bar_x, bar_y, health_width, bar_height))
+        # Add HP bar
+        bar_x = self.x - 25
+        bar_y = self.y - self.radius - 10
+        UI.draw_hp_bar(
+            surf,
+            bar_x,
+            bar_y,
+            self.health,
+            self.max_health,
+            self.color)
 
     def update(self, dt):
         """Update method to be overridden by child classes"""
         # Update animation if available
         if hasattr(self, 'animation') and self.animation is not None:
             self.update_animation(dt)
-            
+
         # Update attack timer
         if hasattr(self, 'attack_timer') and self.attack_timer > 0:
             self.attack_timer -= dt
-            
+
         # Implement basic check - if health is zero, mark as dead
         if self.health <= 0 and self.alive:
             if not hasattr(self, 'animation') or self.animation is None:

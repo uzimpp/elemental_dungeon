@@ -168,11 +168,11 @@ class SummonEntity(Entity):
             radius=12,
             max_health=50, # Example health
             speed=max(120, skill.speed * 60), # Ensure minimum speed of 120 pixels per second
-            color=skill.color,
-            attack_radius=attack_radius
+            color=skill.color
         )
         self.damage = skill.damage
         self.element = skill.element
+        self.attack_radius = attack_radius
      
         self.animation = CharacterAnimation(
             sprite_sheet_path=C.SHADOW_SUMMON_SPRITE_PATH,
