@@ -13,7 +13,6 @@ from utils import resolve_overlap, draw_hp_bar, angle_diff
 from game_state import *
 from audio import Audio
 from config import Config as C
-from data_collection import DataCollection
 
 
 class Game:

@@ -9,7 +9,7 @@ from visual_effects import VisualEffect
 class Deck:
     """Centralized manager for player skills, projectiles, summons and effects"""
     def __init__(self):
-        self.skills = []
+        self._skills = []
         # Replace lists with sprite groups
         self._projectiles = pygame.sprite.Group()
         self._summons = pygame.sprite.Group()
@@ -37,111 +37,117 @@ class Deck:
     def summons(self):
         return self._summons
 
-    def load_from_csv(self, filename):
+    @property
+    def skills(self):
+        return self._skills
+    
+    @skills.setter
+    def skills(self, value):
+        self._skills = value
+
+    def add_skill(self, skill):
+        self._skills.append(skill)
+
+    def create_skills(self, selected_skills):
         """Load skills from CSV file into this deck"""
+        for selected_skill in selected_skills:
+            skill = self.create_skill(selected_skill)
+            if skill:
+                self.add_skill(skill)
+
+    def create_skill(self, selected_skill):
+        """Load skills from CSV file into this deck"""
+        skill_type_str = selected_skill["skill_type"].upper()
         try:
-            with open(filename, newline='', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    skill_type_str = row["skill_type"].upper()
-                    try:
-                        skill_type = SkillType[skill_type_str]
-                    except KeyError:
-                        print(f"Unknown skill type: {skill_type_str}")
-                        continue
+            skill_type = SkillType[skill_type_str]
+        except KeyError:
+            print(f"Unknown skill type: {skill_type_str}")
+            return None
+        # Create the appropriate skill based on type
+        if skill_type == SkillType.PROJECTILE:
+            skill = Projectile(
+                name=selected_skill["name"],
+                element=selected_skill["element"].upper(),
+                damage=int(selected_skill["damage"]),
+                speed=float(selected_skill["speed"]),
+                radius=float(selected_skill["radius"]),
+                duration=float(selected_skill["duration"]),
+                cooldown=float(selected_skill["cooldown"]),
+                description=skill["description"]
+            )
+        elif skill_type == SkillType.SUMMON:
+            element = skill["element"].upper()
+            if element == "SHADOW":
+                sprite_path = C.SHADOW_SUMMON_SPRITE_PATH
+                animation_config = C.SHADOW_SUMMON_ANIMATION_CONFIG
+            else:
+                raise ValueError(
+                    f"Unsupported element for summon: {element}")
+            skill = Summon(
+                name=selected_skill["name"],
+                element=element,
+                damage=int(selected_skill["damage"]),
+                speed=float(selected_skill["speed"]),
+                radius=float(selected_skill["radius"]),
+                # Infinite duration - summons stay until killed
+                duration=float('inf'),
+                cooldown=float(selected_skill["cooldown"]),
+                description=selected_skill["description"],
+                sprite_path=sprite_path,
+                animation_config=animation_config,
+                attack_radius=C.ATTACK_RADIUS
+            )
+        elif skill_type == SkillType.HEAL:
+            # Parse the heal_summons parameter if it exists
+            heal_summons = True  # Default to True for backward compatibility
+            if "heal_summons" in selected_skill and selected_skill["heal_summons"].upper() == "FALSE":
+                heal_summons = False
 
-                    # Create the appropriate skill based on type
-                    if skill_type == SkillType.PROJECTILE:
-                        skill = Projectile(
-                            name=row["name"],
-                            element=row["element"].upper(),
-                            damage=int(row["damage"]),
-                            speed=float(row["speed"]),
-                            radius=float(row["radius"]),
-                            duration=float(row["duration"]),
-                            cooldown=float(row["cooldown"]),
-                            description=row["description"]
-                        )
-                    elif skill_type == SkillType.SUMMON:
-                        element = row["element"].upper()
-                        if element == "SHADOW":
-                            sprite_path = C.SHADOW_SUMMON_SPRITE_PATH
-                            animation_config = C.SHADOW_SUMMON_ANIMATION_CONFIG
-                        else:
-                            raise ValueError(
-                                f"Unsupported element for summon: {element}")
-
-                        skill = Summon(
-                            name=row["name"],
-                            element=element,
-                            damage=int(row["damage"]),
-                            speed=float(row["speed"]),
-                            radius=float(row["radius"]),
-                            # Infinite duration - summons stay until killed
-                            duration=float('inf'),
-                            cooldown=float(row["cooldown"]),
-                            description=row["description"],
-                            sprite_path=sprite_path,
-                            animation_config=animation_config,
-                            attack_radius=C.ATTACK_RADIUS
-                        )
-                    elif skill_type == SkillType.HEAL:
-                        # Parse the heal_summons parameter if it exists
-                        heal_summons = True  # Default to True for backward compatibility
-                        if "heal_summons" in row and row["heal_summons"].upper() == "FALSE":
-                            heal_summons = False
-
-                        skill = Heal(
-                            name=row["name"],
-                            element=row["element"].upper(),
-                            heal_amount=int(row["heal_amount"]),
-                            radius=float(row["radius"]),
-                            duration=float(row["duration"]),
-                            cooldown=float(row["cooldown"]),
-                            description=row["description"],
-                            heal_summons=heal_summons
-                        )
-                    elif skill_type == SkillType.AOE:
-                        skill = AOE(
-                            name=row["name"],
-                            element=row["element"].upper(),
-                            damage=int(row["damage"]),
-                            radius=float(row["radius"]),
-                            duration=float(row["duration"]),
-                            cooldown=float(row["cooldown"]),
-                            description=row["description"]
-                        )
-                    elif skill_type == SkillType.SLASH:
-                        skill = Slash(
-                            name=row["name"],
-                            element=row["element"].upper(),
-                            damage=int(row["damage"]),
-                            radius=float(row["radius"]),
-                            duration=float(row["duration"]),
-                            cooldown=float(row["cooldown"]),
-                            description=row["description"]
-                        )
-                    elif skill_type == SkillType.CHAIN:
-                        skill = Chain(
-                            name=row["name"],
-                            element=row["element"].upper(),
-                            damage=int(row["damage"]),
-                            radius=float(row["radius"]),
-                            duration=float(row["duration"]),
-                            pull=(row["pull"].strip().lower() == "true"),
-                            cooldown=float(row["cooldown"]),
-                            description=row["description"]
-                        )
-                    else:
-                        raise ValueError(
-                            f"Unknown skill type: {skill_type_str}")
-                    self.skills.append(skill)
-        except FileNotFoundError:
-            raise ValueError(f"Error: CSV '{filename}' not found.")
-        except KeyError as e:
-            raise ValueError(f"CSV parsing error: missing column {e}")
-
-        return self.skills
+            skill = Heal(
+                name=selected_skill["name"],
+                element=selected_skill["element"].upper(),
+                heal_amount=int(selected_skill["heal_amount"]),
+                radius=float(selected_skill["radius"]),
+                duration=float(selected_skill["duration"]),
+                cooldown=float(selected_skill["cooldown"]),
+                description=selected_skill["description"],
+                heal_summons=heal_summons
+            )
+        elif skill_type == SkillType.AOE:
+            skill = AOE(
+                name=selected_skill["name"],
+                element=selected_skill["element"].upper(),
+                damage=int(selected_skill["damage"]),
+                radius=float(selected_skill["radius"]),
+                duration=float(selected_skill["duration"]),
+                cooldown=float(selected_skill["cooldown"]),
+                description=selected_skill["description"]
+            )
+        elif skill_type == SkillType.SLASH:
+            skill = Slash(
+                name=skill["name"],
+                element=selected_skill["element"].upper(),
+                damage=int(selected_skill["damage"]),
+                radius=float(selected_skill["radius"]),
+                duration=float(selected_skill["duration"]),
+                cooldown=float(selected_skill["cooldown"]),
+                description=selected_skill["description"]
+            )
+        elif skill_type == SkillType.CHAIN:
+            skill = Chain(
+                name=selected_skill["name"],
+                element=selected_skill["element"].upper(),
+                damage=int(selected_skill["damage"]),
+                radius=float(selected_skill["radius"]),
+                duration=float(selected_skill["duration"]),
+                pull=(selected_skill["pull"].strip().lower() == "true"),
+                cooldown=float(selected_skill["cooldown"]),
+                description=selected_skill["description"]
+            )
+        else:
+            raise ValueError(
+                f"Unknown skill type: {skill_type_str}")
+        return skill
 
     def use_skill(self, index, target_x, target_y, enemies, now, player, effects=None):
         """Activates a skill, creates entities/effects, and adds visual effects"""
