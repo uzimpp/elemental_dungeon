@@ -1,4 +1,3 @@
-![Mermaid Diagram May 12 2025](https://github.com/user-attachments/assets/6abf0506-aa10-4650-8fd3-b5f3ac87e2f4)
 # Incantato 🧙‍♂️
 
 <img width="100%" alt="Screenshot 2568-04-09 at 10 06 45" src="https://github.com/user-attachments/assets/ef749a41-918e-4b93-bdfd-3b6749ad4566" />
