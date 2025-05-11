@@ -1,19 +1,49 @@
+"""
+Font management module for Incantato game.
+
+Provides a singleton Font class to centralize font loading and access,
+ensuring consistent typography across the game interface.
+"""
 import pygame
 
 
 class Font:
-    """Central font for all game fonts to ensure proper initialization"""
+    """
+    Central font manager using singleton pattern for all game fonts.
+
+    Ensures proper initialization and caching of fonts at different sizes.
+    """
     _instance = None
     _initialized = False
     _fonts = {}
+    _font_path = None
 
     def __new__(cls):
+        """
+        Create or return the singleton instance.
+
+        Returns:
+            Font: The singleton Font instance
+        """
         if cls._instance is None:
             cls._instance = super(Font, cls).__new__(cls)
+            # Initialize instance attributes (to avoid defining them outside __init__)
+            cls._instance._fonts = {}
+            cls._instance._font_path = None
+            cls._instance._initialized = False
         return cls._instance
 
     def initialize(self, font_path, sizes):
-        """Initialize fonts after pygame has been initialized"""
+        """
+        Initialize fonts after pygame has been initialized.
+
+        Args:
+            font_path: Path to the font file
+            sizes: Dictionary mapping name to font size
+
+        Raises:
+            RuntimeError: If pygame is not initialized
+        """
         if not pygame.get_init():
             raise RuntimeError(
                 "Pygame must be initialized before initializing fonts")
@@ -26,7 +56,19 @@ class Font:
             self._fonts[name] = pygame.font.Font(font_path, size)
 
     def get_font(self, name):
-        """Get a font by name"""
+        """
+        Get a font by name or size.
+
+        Args:
+            name: Font name from initialization or an integer size
+
+        Returns:
+            pygame.font.Font: The requested font
+
+        Raises:
+            RuntimeError: If fonts are not initialized
+            ValueError: If the requested font name doesn't exist
+        """
         if not self._initialized:
             raise RuntimeError("Call initialize() first")
 

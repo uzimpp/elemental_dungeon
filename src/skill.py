@@ -296,13 +296,14 @@ class Summon(BaseSkill):
     """Summon skill that creates SummonEntity instances"""
 
     def __init__(self, name, element, damage, speed, radius, duration, cooldown, description, sprite_path, animation_config, attack_radius):
-        super().__init__(name, element, SkillType.SUMMON,
-                         cooldown, description, sprite_path, animation_config)
+        super().__init__(name, element, SkillType.SUMMON, cooldown, description)
         self.damage = damage
         self.speed = speed
         self.radius = radius
         self.duration = duration
         self.attack_radius = attack_radius
+        self.sprite_path = sprite_path
+        self.animation_config = animation_config
 
     @staticmethod
     def activate(skill, x, y, attack_radius):

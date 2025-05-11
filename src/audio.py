@@ -1,6 +1,14 @@
-import pygame
+"""
+Audio management module for Incantato game.
+
+Handles background music and sound effects using the Pygame mixer,
+implementing a singleton pattern to ensure centralized audio control.
+"""
 import os.path
 import time
+
+import pygame
+
 from config import Config as C
 
 
@@ -10,19 +18,27 @@ class Audio:
     only one instance controls all game audio.
     """
     _instance = None
+    _initialized = False
 
     def __new__(cls):
+        """
+        Create or return the singleton instance.
+
+        Returns:
+            Audio: The singleton Audio instance
+        """
         if cls._instance is None:
             cls._instance = super(Audio, cls).__new__(cls)
-            cls._instance._initialized = False
         return cls._instance
 
     def __init__(self):
+        """Initialize the audio system if not already initialized."""
         # Skip initialization if already done
-        if hasattr(self, '_initialized') and self._initialized:
+        if self._initialized:
             return
 
         self._initialized = True
+        self._font_path = None
 
         pygame.mixer.init()
 
@@ -48,14 +64,24 @@ class Audio:
         self.load_music()
 
     def load_music(self):
-        """Pre-checks if music files exist to avoid runtime errors"""
-        for track_name, track_path in self.music_tracks.items():
+        """
+        Pre-check if music files exist to avoid runtime errors.
+
+        Returns:
+            bool: True if verification completed (even if files are missing)
+        """
+        for track_key, track_path in self.music_tracks.items():
             if not os.path.exists(track_path):
                 print(f"Warning: Music file not found: {track_path}")
         return True
 
     def play_music(self, music_key):
-        """Play a music track by key"""
+        """
+        Play a music track by key.
+
+        Args:
+            music_key: Key identifying the music track ("MENU" or "PLAYING")
+        """
         if not self.music_enabled:
             return
 
@@ -71,18 +97,33 @@ class Audio:
         pygame.mixer.music.set_volume(self.music_volume)
 
     def stop_music(self):
-        """Stop the currently playing music"""
+        """Stop the currently playing music."""
         pygame.mixer.music.stop()
         self.current_music = None
 
     def fade_out(self, fade_ms=500):
-        """Fade out the current music"""
+        """
+        Fade out the current music.
+
+        Args:
+            fade_ms: Fade duration in milliseconds
+        """
         pygame.mixer.music.fadeout(fade_ms)
 
     def fade_in(self, music_key, fade_ms=500):
-        """Fade in a new music track"""
+        """
+        Fade in a new music track.
+
+        Args:
+            music_key: Key identifying the music track
+            fade_ms: Fade duration in milliseconds
+
+        Returns:
+            function: A callback function to handle the fade effect,
+            or None if music is disabled
+        """
         if not self.music_enabled:
-            return
+            return None
 
         # Set volume to 0 and then start fading in
         orig_volume = self.music_volume
@@ -114,13 +155,23 @@ class Audio:
         return fade_step
 
     def set_music_volume(self, volume):
-        """Set music volume (0.0 to 1.0)"""
+        """
+        Set music volume.
+
+        Args:
+            volume: Volume level from 0.0 to 1.0
+        """
         self.music_volume = max(0.0, min(1.0, volume))
         if self.music_enabled:
             pygame.mixer.music.set_volume(self.music_volume)
 
     def toggle_music(self):
-        """Toggle music on/off"""
+        """
+        Toggle music on/off.
+
+        Returns:
+            bool: Current music enabled state
+        """
         self.music_enabled = not self.music_enabled
 
         if self.music_enabled:
@@ -134,7 +185,13 @@ class Audio:
         return self.music_enabled
 
     def load_sound(self, name, file_path):
-        """Load a sound effect"""
+        """
+        Load a sound effect.
+
+        Args:
+            name: Identifier for the sound effect
+            file_path: Path to the sound file
+        """
         if os.path.exists(file_path):
             try:
                 self.sound_effects[name] = pygame.mixer.Sound(file_path)
@@ -145,7 +202,12 @@ class Audio:
             print(f"Sound file not found: {file_path}")
 
     def play_sound(self, sound_key):
-        """Play a sound effect by key"""
+        """
+        Play a sound effect by key.
+
+        Args:
+            sound_key: Key identifying the sound effect
+        """
         if not self.sound_enabled or sound_key not in self.sound_effects:
             return
 
@@ -153,12 +215,22 @@ class Audio:
         self.sound_effects[sound_key].play()
 
     def set_sound_volume(self, volume):
-        """Set sound effects volume (0.0 to 1.0)"""
+        """
+        Set sound effects volume.
+
+        Args:
+            volume: Volume level from 0.0 to 1.0
+        """
         self.sfx_volume = max(0.0, min(1.0, volume))
         for sound in self.sound_effects.values():
             sound.set_volume(self.sfx_volume)
 
     def toggle_sound(self):
-        """Toggle sound effects on/off"""
+        """
+        Toggle sound effects on/off.
+
+        Returns:
+            bool: Current sound enabled state
+        """
         self.sound_enabled = not self.sound_enabled
         return self.sound_enabled

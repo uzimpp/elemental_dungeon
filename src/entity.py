@@ -1,10 +1,34 @@
+"""
+Entity module for Incantato game.
+
+Provides the base Entity class for all game objects like players, enemies,
+projectiles, and summons with common functionality like movement,
+health management, and collision.
+"""
 import pygame
 from config import Config as C
 from ui import UI
 
 
 class Entity(pygame.sprite.Sprite):
+    """
+    Base class for all game entities with movement, health, and rendering.
+
+    Inherits from pygame.sprite.Sprite to enable sprite group functionality.
+    """
+
     def __init__(self, x, y, radius, max_health, speed, color):
+        """
+        Initialize an entity with basic properties.
+
+        Args:
+            x: Initial x position
+            y: Initial y position
+            radius: Collision radius 
+            max_health: Maximum health points
+            speed: Movement speed in pixels per second
+            color: RGB tuple for entity color
+        """
         super().__init__()
         # Position and movement using Vector2
         self.pos = pygame.math.Vector2(x, y)
@@ -40,10 +64,24 @@ class Entity(pygame.sprite.Sprite):
 
     @property
     def alive(self):
+        """
+        Check if the entity is alive.
+
+        Returns:
+            bool: True if entity is alive, False otherwise
+        """
         return self._alive and self.health > 0
 
     @alive.setter
     def alive(self, value):
+        """
+        Set entity alive status.
+
+        When set to False, automatically removes the entity from all sprite groups.
+
+        Args:
+            value: Boolean alive state
+        """
         self._alive = value
         if not value:
             # Call pygame's kill method to remove from all sprite groups
@@ -51,40 +89,81 @@ class Entity(pygame.sprite.Sprite):
 
     @property
     def x(self):
+        """Get the entity's x coordinate."""
         return self.pos.x
 
     @x.setter
     def x(self, value):
+        """
+        Set the entity's x coordinate.
+
+        Updates both the Vector2 position and the rect.
+
+        Args:
+            value: New x position
+        """
         self.pos.x = value
         self.rect.centerx = int(value)
 
     @property
     def y(self):
+        """Get the entity's y coordinate."""
         return self.pos.y
 
     @y.setter
     def y(self, value):
+        """
+        Set the entity's y coordinate.
+
+        Updates both the Vector2 position and the rect.
+
+        Args:
+            value: New y position
+        """
         self.pos.y = value
         self.rect.centery = int(value)
 
     @property
     def dx(self):
+        """Get the entity's x direction."""
         return self.direction.x
 
     @dx.setter
     def dx(self, value):
+        """
+        Set the entity's x direction.
+
+        Args:
+            value: New x direction
+        """
         self.direction.x = value
 
     @property
     def dy(self):
+        """Get the entity's y direction."""
         return self.direction.y
 
     @dy.setter
     def dy(self, value):
+        """
+        Set the entity's y direction.
+
+        Args:
+            value: New y direction
+        """
         self.direction.y = value
 
     def move(self, dx, dy, dt):
-        """Move the entity by the given delta x and y, scaled by dt (delta time)"""
+        """
+        Move the entity by the given delta x and y, scaled by dt.
+
+        Handles screen boundaries to keep entity on screen.
+
+        Args:
+            dx: X movement direction (-1 to 1)
+            dy: Y movement direction (-1 to 1)
+            dt: Delta time in seconds since last frame
+        """
         # Set direction vector (normalize if needed)
         self.dx = dx
         self.dy = dy
@@ -116,7 +195,14 @@ class Entity(pygame.sprite.Sprite):
         self.rect.center = (int(self.pos.x), int(self.pos.y))
 
     def take_damage(self, amount):
-        """Apply damage to the entity"""
+        """
+        Apply damage to the entity.
+
+        Handles death animations when health reaches zero.
+
+        Args:
+            amount: Amount of damage to apply
+        """
         if not self.alive:
             return  # Don't damage dead entities
 
@@ -149,7 +235,12 @@ class Entity(pygame.sprite.Sprite):
                     self.attack_animation_timer = hurt_duration
 
     def heal(self, amount):
-        """Heal the entity"""
+        """
+        Heal the entity.
+
+        Args:
+            amount: Amount of health to restore
+        """
         if not self.alive:
             return  # Don't heal dead entities
 
@@ -157,10 +248,11 @@ class Entity(pygame.sprite.Sprite):
             self.health = min(self.max_health, self.health + amount)
 
     def attack(self, target, damage=None):
-        """Generic attack method for entities
+        """
+        Generic attack method for entities.
 
         Args:
-            target: The target to attack
+            target: The target entity to attack
             damage: Damage amount (uses self's damage attr if None)
         """
         if hasattr(self, 'damage'):
@@ -171,11 +263,29 @@ class Entity(pygame.sprite.Sprite):
             target.take_damage(1)
 
     def get_distance_to(self, other_x, other_y):
-        """Calculate distance to another point"""
+        """
+        Calculate distance to another point.
+
+        Args:
+            other_x: Target x coordinate
+            other_y: Target y coordinate
+
+        Returns:
+            float: Distance to the point
+        """
         return self.pos.distance_to(pygame.math.Vector2(other_x, other_y))
 
     def get_direction_to(self, target_x, target_y):
-        """Calculate direction (dx, dy) to a target point, normalized"""
+        """
+        Calculate direction to a target point, normalized.
+
+        Args:
+            target_x: Target x coordinate
+            target_y: Target y coordinate
+
+        Returns:
+            tuple: Normalized (dx, dy) direction vector
+        """
         direction = pygame.math.Vector2(
             target_x - self.pos.x, target_y - self.pos.y)
         if direction.length() > 0:
@@ -183,7 +293,14 @@ class Entity(pygame.sprite.Sprite):
         return direction.x, direction.y
 
     def update_animation(self, dt):
-        """Update animation state based on timers"""
+        """
+        Update animation state based on timers.
+
+        Handles dying, hurt, and attack animations.
+
+        Args:
+            dt: Delta time in seconds since last frame
+        """
         if hasattr(self, 'animation') and self.animation is not None:
             # Handle dying animation
             if not self.alive and self.state == 'dying':
@@ -218,7 +335,15 @@ class Entity(pygame.sprite.Sprite):
                 self.animation.update(dt, self.dx, self.dy)
 
     def draw(self, screen):
-        """Draw the entity on the screen"""
+        """
+        Draw the entity on the screen.
+
+        Renders the sprite animation if available, otherwise draws a circle.
+        Also draws hitbox, attack radius, and health bar.
+
+        Args:
+            screen: Pygame surface to draw on
+        """
         if not self.alive and (not hasattr(self, 'animation') or self.state != 'dying'):
             return  # Don't draw dead entities unless they're in dying animation
 
@@ -264,27 +389,34 @@ class Entity(pygame.sprite.Sprite):
             pygame.draw.circle(screen, self.color,
                                (int(self.pos.x), int(self.pos.y)), self.radius)
 
-        # Draw attack radius if set
-        if hasattr(self, 'attack_radius') and self.attack_radius > 0:
-            # Create a transparent surface for the attack radius indicator
-            radius_surf = pygame.Surface(
-                (self.attack_radius * 2, self.attack_radius * 2), pygame.SRCALPHA)
-            # Draw a semi-transparent circle for the attack radius
-            pygame.draw.circle(radius_surf, (*self.color, 40),
-                               (self.attack_radius, self.attack_radius), self.attack_radius)
-            # Draw circle outline
-            pygame.draw.circle(radius_surf, (*self.color, 100),
-                               (self.attack_radius, self.attack_radius), self.attack_radius, 2)
-            # Blit the radius surface to the screen
-            screen.blit(radius_surf, (int(
-                self.pos.x - self.attack_radius), int(self.pos.y - self.attack_radius)))
+        # # Draw attack radius if set
+        # if hasattr(self, 'attack_radius') and self.attack_radius > 0:
+        #     # Create a transparent surface for the attack radius indicator
+        #     radius_surf = pygame.Surface(
+        #         (self.attack_radius * 2, self.attack_radius * 2), pygame.SRCALPHA)
+        #     # Draw a semi-transparent circle for the attack radius
+        #     pygame.draw.circle(radius_surf, (*self.color, 40),
+        #                        (self.attack_radius, self.attack_radius), self.attack_radius)
+        #     # Draw circle outline
+        #     pygame.draw.circle(radius_surf, (*self.color, 100),
+        #                        (self.attack_radius, self.attack_radius), self.attack_radius, 2)
+        #     # Blit the radius surface to the screen
+        #     screen.blit(radius_surf, (int(
+        #         self.pos.x - self.attack_radius), int(self.pos.y - self.attack_radius)))
 
         # Draw health bar if entity is alive or in dying animation
         if self.alive or (hasattr(self, 'animation') and self.state == 'dying'):
             self.draw_health_bar(screen)
 
     def draw_health_bar(self, surf):
-        """Draw health bar above the entity"""
+        """
+        Draw a health bar above the entity.
+
+        Shows current health as a proportion of max health.
+
+        Args:
+            surf: Pygame surface to draw on
+        """
         # Add HP bar
         bar_x = self.x - 25
         bar_y = self.y - self.radius - 10
@@ -297,7 +429,14 @@ class Entity(pygame.sprite.Sprite):
             self.color)
 
     def update(self, dt):
-        """Update method to be overridden by child classes"""
+        """
+        Update entity state.
+
+        Updates animation and attack timers. Checks for death conditions.
+
+        Args:
+            dt: Delta time in seconds since last frame
+        """
         # Update animation if available
         if hasattr(self, 'animation') and self.animation is not None:
             self.update_animation(dt)
@@ -310,3 +449,6 @@ class Entity(pygame.sprite.Sprite):
         if self.health <= 0 and self.alive:
             if not hasattr(self, 'animation') or self.animation is None:
                 self.alive = False
+
+        # Update rect position to match vector position
+        self.rect.center = (int(self.pos.x), int(self.pos.y))

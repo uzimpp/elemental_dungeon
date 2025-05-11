@@ -1,16 +1,24 @@
-# main.py
-import pygame
+"""
+Main entry point for Incantato game.
+
+Handles game initialization, state management, event loop,
+collision detection, and wave spawning.
+"""
+import random
 import sys
 import time
-import random
-from font import Font
-from player import Player
-from enemy import Enemy
-from utils import resolve_overlap
-from game_state import GameStateManager, MenuState, NameEntryState, DeckSelectionState, PlayingState, StatsDisplayState
+
+import pygame
+
 from audio import Audio
 from config import Config as C
 from data_collector import DataCollector
+from enemy import Enemy
+from font import Font
+from game_state import (DeckSelectionState, GameStateManager, MenuState,
+                        NameEntryState, PlayingState, StatsDisplayState)
+from player import Player
+from utils import resolve_overlap
 
 
 class Game:
@@ -59,12 +67,12 @@ class Game:
         DataCollector.initialize_csvs()
 
     def initialize_player(self):
-        """Initialize the player with an empty deck"""
+        """Initialize the player with an empty deck."""
         self.player = Player(self.player_name, game_instance=self)
         self.game_start_time = time.time()
 
     def reset_game(self):
-        """Reset game state for retry"""
+        """Reset game state for retry."""
         # Reset wave number
         self.wave_number = 1
         # IMPORTANT: Get a new Play_ID for this new game session
@@ -106,14 +114,14 @@ class Game:
                 self.player.animation.set_state('idle', force_reset=True)
 
     def prepare_game(self):
-        """Setup game for playing after deck is created"""
+        """Setup game for playing after deck is created."""
         self.reset_game()
         self.spawn_wave()
         self.audio.fade_out(800)
         self.audio.fade_in("PLAYING", 1000)
 
     def spawn_wave(self):
-        """Spawn a new wave of enemies after clearing the previous wave"""
+        """Spawn a new wave of enemies after clearing the previous wave."""
         # Clear enemy group
         self.enemy_group.empty()
 
@@ -173,11 +181,16 @@ class Game:
 
     @property
     def enemies(self):
-        """Property to maintain backward compatibility"""
+        """
+        Property to maintain backward compatibility.
+
+        Returns:
+            list: All enemy sprites
+        """
         return list(self.enemy_group.sprites())
 
     def check_collisions(self):
-        """Use sprite collide for efficient collision detection"""
+        """Use sprite collide for efficient collision detection."""
         # Player projectiles vs enemies
         for projectile in self.player.deck.projectiles:
             collided_enemies = pygame.sprite.spritecollide(
@@ -199,7 +212,12 @@ class Game:
             resolve_overlap(self.player, enemy)
 
     def run(self):
-        """Main game loop with pause support"""
+        """
+        Main game loop with pause support.
+
+        Handles event processing, updates, and rendering until 
+        the game is closed.
+        """
         while self.running:
             dt = self.clock.tick(C.FPS) / 1000.0
             events = pygame.event.get()
@@ -220,46 +238,41 @@ class Game:
         sys.exit()
 
     def show_stats_window(self):
-        """Example method for showing a Tkinter stats window"""
+        """
+        Shows the stats visualization window.
+
+        Pauses the game while the stats window is active.
+        """
         # First pause the game
         self.state_manager.pause()
 
         try:
             # This is where you would create and run your Tkinter window
-            # For example:
-            # import tkinter as tk
-            # root = tk.Tk()
-            # root.title("Game Stats")
-            # ... set up your Tkinter window ...
-            # root.mainloop()
-
-            # For now, just print a message
             print("Stats window would appear here (paused game)")
-
-            # You can either:
-            # 1. Keep the game paused until the Tkinter window is closed
-            # 2. Resume automatically and let the Tkinter window run alongside
-            # For option 1, the Tkinter window would need to call game.state_manager.resume()
-            # when it closes
         except Exception as e:
             print(f"Error showing stats: {e}")
             # Make sure to resume the game if there's an error
             self.state_manager.resume()
 
     def pause_game(self):
-        """Pause the game"""
+        """Pause the game by pausing the state manager."""
         self.state_manager.pause()
 
     def resume_game(self):
-        """Resume the game"""
+        """Resume the game by resuming the state manager."""
         self.state_manager.resume()
 
     def toggle_pause(self):
-        """Toggle pause state"""
+        """Toggle between paused and unpaused states."""
         self.state_manager.toggle_pause()
 
 
 def main():
+    """
+    Entry point for the game.
+
+    Creates a Game instance and starts the main loop.
+    """
     game = Game()
     game.run()
 
