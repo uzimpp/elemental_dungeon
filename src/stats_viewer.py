@@ -3,6 +3,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.lines as mlines
 import os
 import pandas as pd
 import threading
@@ -10,14 +11,12 @@ import tkinter as tk
 from tkinter import ttk
 import platform
 import tempfile
-import sys
 import shutil
 import multiprocessing
-from functools import partial
 from config import Config as C
-# Ensure Matplotlib TkAgg backend is explicitly imported for main thread/non-macOS use
 import matplotlib
 matplotlib.use('TkAgg')
+
 # Note: plt, sns, np are used within visualization classes,
 # so they are fine as top-level if Tkinter runs in a thread.
 # For macOS subprocess, they must be re-imported there.
@@ -177,6 +176,8 @@ class TopPlayersVisualization(Visualization):
                 self.ax.text(width + 0.3, bar.get_y() + bar.get_height()/2,
                              f'{width:.0f}', ha='center', va='center')
 
+            self.ax.invert_yaxis()  # Ensure the top player is at the top of the chart
+
             self.fig.tight_layout()
             self.canvas.draw_idle()
         except Exception as e:
@@ -301,19 +302,14 @@ class WaveHistogramVisualization(Visualization):
         except Exception as e:
             print(f"Error updating wave histogram: {e}")
 
-# 5. Time vs Waves Scatter Plot
 
-
-class TimeWavesScatterVisualization(Visualization):
+class TopDecksVisualization(Visualization):
     def __init__(self, parent):
         super().__init__(parent)
-
-        # Header
-        tk.Label(self.frame, text="Game Duration vs Waves Reached",
+        tk.Label(self.frame, text="Top 5 Most Frequent Decks",
                  font=("Helvetica", 14, "bold")).pack(pady=(0, 10))
-
-        # Create matplotlib figure
-        self.fig = Figure(figsize=(6, 4), dpi=100)
+        # Adjusted size for potentially long deck names
+        self.fig = Figure(figsize=(8, 5), dpi=100)
         self.ax = self.fig.add_subplot(111)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame)
         self.canvas.draw()
@@ -321,110 +317,227 @@ class TimeWavesScatterVisualization(Visualization):
 
     def update(self, game_df, waves_df):
         if game_df is None or game_df.empty:
+            self.ax.clear()
+            self.ax.text(0.5, 0.5, "No game data available for deck analysis.",
+                         horizontalalignment='center', verticalalignment='center',
+                         transform=self.ax.transAxes)
+            self.canvas.draw_idle()
             return
 
         try:
             self.ax.clear()
 
-            # Create scatter plot
-            scatter = self.ax.scatter(
+            # Create a 'deck' column by combining skill columns
+            # Sort skills within each deck for consistent grouping
+            def create_deck_tuple(row):
+                skills = sorted([str(row[f'skill{i}']) for i in range(1, 5) if pd.notna(
+                    row[f'skill{i}']) and row[f'skill{i}'] != 'unknown'])
+                return tuple(skills)
+
+            game_df['deck'] = game_df.apply(create_deck_tuple, axis=1)
+
+            # Count deck frequencies
+            deck_counts = game_df['deck'].value_counts().head(5)
+
+            if deck_counts.empty:
+                self.ax.text(0.5, 0.5, "Not enough data to determine top decks.",
+                             horizontalalignment='center', verticalalignment='center',
+                             transform=self.ax.transAxes)
+                self.canvas.draw_idle()
+                return
+
+            # Convert deck tuples to strings for display
+            # Join with newline for better wrapping
+            deck_labels = ['\n'.join(deck) for deck in deck_counts.index]
+
+            bars = self.ax.barh(deck_labels, deck_counts.values,
+                                color='mediumpurple', edgecolor='indigo')
+            self.ax.set_title('Top 5 Most Frequent Decks')
+            self.ax.set_xlabel('Frequency')
+            self.ax.set_ylabel('Deck Composition')
+            self.ax.invert_yaxis()  # Display the most frequent at the top
+
+            # Add frequency numbers to bars
+            for bar in bars:
+                self.ax.text(bar.get_width() + 0.1, bar.get_y() + bar.get_height()/2,
+                             f'{int(bar.get_width())}', va='center', ha='left', fontsize=9)
+
+            self.fig.tight_layout(pad=1.5)  # Adjust padding
+            self.canvas.draw_idle()
+
+        except Exception as e:
+            print(f"Error updating top decks chart: {e}")
+            self.ax.clear()
+            self.ax.text(0.5, 0.5, f"Error: {e}",
+                         horizontalalignment='center', verticalalignment='center',
+                         transform=self.ax.transAxes, color='red')
+            self.canvas.draw_idle()
+
+
+class TimeWavesScatterVisualization(Visualization):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.fig = Figure(figsize=(6, 4), dpi=100)
+        self.ax = self.fig.add_subplot(111)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=parent)
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        self.scatter_points = None
+        self.annot = None  # For hover annotations
+
+        # Set up hover annotations
+        self.annot = self.ax.annotate("", xy=(0, 0), xytext=(20, 20),
+                                      textcoords="offset points",
+                                      bbox=dict(boxstyle="round",
+                                                fc="w", alpha=0.7),
+                                      arrowprops=dict(arrowstyle="->"))
+        self.annot.set_visible(False)
+
+        # Connect hover events
+        self.fig.canvas.mpl_connect("motion_notify_event", self.hover)
+
+    def hover(self, event):
+        if not hasattr(self, 'scatter_points') or self.scatter_points is None:
+            return
+
+        if event.inaxes == self.ax:
+            cont, ind = self.scatter_points.contains(event)
+            if cont:
+                self.update_annot(ind)
+                self.annot.set_visible(True)
+                self.fig.canvas.draw_idle()
+            else:
+                if self.annot.get_visible():
+                    self.annot.set_visible(False)
+                    self.fig.canvas.draw_idle()
+
+    def update_annot(self, ind):
+        """Update the annotation when hovering over a point"""
+        if not hasattr(self, 'game_data') or self.game_data is None:
+            return
+
+        pos = self.scatter_points.get_offsets()[ind["ind"][0]]
+        self.annot.xy = pos
+
+        idx = ind["ind"][0]
+        player = self.game_data.iloc[idx]['player_name']
+        waves = self.game_data.iloc[idx]['waves_reached']
+        time = self.game_data.iloc[idx]['Time_survived_seconds']
+
+        text = f"{player}\nWaves: {waves}\nTime: {time:.1f}s"
+        self.annot.set_text(text)
+
+    def update(self, game_df, waves_df):
+        try:
+            if game_df is None or game_df.empty:
+                self.ax.clear()
+                self.ax.set_title('No game data available')
+                self.fig.tight_layout()
+                self.canvas.draw_idle()
+                return
+
+            # Keep a reference to the data for hover tooltips
+            self.game_data = game_df.copy()
+
+            # Clear previous plot
+            self.ax.clear()
+
+            # Create scatter plot with improved visual style
+            self.scatter_points = self.ax.scatter(
                 game_df['Time_survived_seconds'],
                 game_df['waves_reached'],
-                c=game_df['player_name'].astype(
-                    'category').cat.codes,  # Color by player
+                c=game_df['player_name'].astype('category').cat.codes,
                 alpha=0.7,
-                s=50,
-                cmap='tab10'
+                s=80,  # Larger points
+                cmap='tab10',
+                edgecolors='white',  # White edges make points stand out
+                linewidths=0.5
             )
 
-            # Add player names as annotations
-            for i, row in game_df.iterrows():
-                self.ax.annotate(
-                    row['player_name'],
-                    (row['Time_survived_seconds'], row['waves_reached']),
-                    fontsize=8,
-                    alpha=0.7,
-                    xytext=(5, 0),
-                    textcoords='offset points'
-                )
-
-            # Add best fit line
+            # Add best fit line with confidence interval
             if len(game_df) > 1:
-                x = game_df['Time_survived_seconds']
-                y = game_df['waves_reached']
-                z = np.polyfit(x, y, 1)
-                p = np.poly1d(z)
-                self.ax.plot(x, p(x), "r--", alpha=0.8)
+                try:
+                    x = game_df['Time_survived_seconds']
+                    y = game_df['waves_reached']
 
-            self.ax.set_title('Game Duration vs Waves Reached')
-            self.ax.set_xlabel('Duration (seconds)')
-            self.ax.set_ylabel('Waves Reached')
+                    # Add polynomial fit
+                    z = np.polyfit(x, y, 1)
+                    p = np.poly1d(z)
+                    x_range = np.linspace(min(x), max(x), 100)
+                    self.ax.plot(x_range, p(x_range), "r--", alpha=0.8,
+                                 label=f"Best fit: y={z[0]:.3f}x+{z[1]:.2f}")
+
+                    # Add confidence interval if seaborn is available and there are enough points
+                    if len(x) >= 3:
+                        sns.regplot(x=x, y=y, scatter=False, ax=self.ax,
+                                    color='r', line_kws={'alpha': 0.0},
+                                    ci=95)
+                except Exception as e:
+                    print(f"Error creating best fit line: {e}")
+
+            # Improve chart styling
+            self.ax.set_title(
+                'Player Performance: Game Duration vs Waves Reached', fontsize=12)
+            self.ax.set_xlabel('Duration (seconds)', fontsize=10)
+            self.ax.set_ylabel('Waves Reached', fontsize=10)
+            self.ax.grid(True, linestyle='--', alpha=0.7)
+
+            # Add zero lines
+            self.ax.axhline(y=0, color='k', linestyle='-', alpha=0.3)
+            self.ax.axvline(x=0, color='k', linestyle='-', alpha=0.3)
+
+            # Create a better legend with colored dots
+            unique_players = game_df['player_name'].unique()
+            player_categories = game_df['player_name'].astype('category').cat
+            player_codes = {player: code for player, code in zip(
+                player_categories.categories, range(len(player_categories.categories)))}
+
+            legend_handles = []
+            cmap = plt.get_cmap('tab10')  # Ensure we use the same colormap
+
+            for player_name in unique_players:
+                if player_name in player_codes:
+                    # Cycle through 10 colors
+                    player_color = cmap(player_codes[player_name] % 10 / 10.0)
+                    legend_handles.append(mlines.Line2D(
+                        [], [],
+                        color=player_color,
+                        marker='o',
+                        linestyle='None',
+                        markeredgecolor='white',
+                        markeredgewidth=0.5,
+                        markersize=8,
+                        label=player_name
+                    ))
+
+            # Add legend for best fit line if it exists
+            if len(game_df) > 1:
+                legend_handles.append(mlines.Line2D(
+                    [], [],
+                    color='r',
+                    linestyle='--',
+                    markersize=0,
+                    label=f"Best fit"
+                ))
+
+            if legend_handles:
+                self.ax.legend(
+                    handles=legend_handles,
+                    title="Players",
+                    fontsize='small',
+                    title_fontsize='medium',
+                    loc='best',
+                    framealpha=0.8,
+                    edgecolor='lightgray'
+                )
 
             self.fig.tight_layout()
             self.canvas.draw_idle()
         except Exception as e:
             print(f"Error updating time-waves scatter plot: {e}")
-
-# 6. Death Analysis (Correlation Heatmap)
-
-
-class DeathAnalysisVisualization(Visualization):
-    def __init__(self, parent):
-        super().__init__(parent)
-
-        # Header
-        tk.Label(self.frame, text="Death Analysis Correlation Heatmap",
-                 font=("Helvetica", 14, "bold")).pack(pady=(0, 10))
-
-        # Create matplotlib figure
-        self.fig = Figure(figsize=(7, 5), dpi=100)
-        self.ax = self.fig.add_subplot(111)
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-    def update(self, game_df, waves_df):
-        if waves_df is None or waves_df.empty:
-            return
-
-        try:
             self.ax.clear()
-
-            # Filter for last wave of each game where player died
-            last_waves = waves_df.loc[waves_df.groupby('Play_ID')[
-                'wave'].idxmax()]
-
-            # Select relevant columns
-            corr_cols = ['hp', 'stamina', 'skill1_frequency', 'skill2_frequency',
-                         'skill3_frequency', 'skill4_frequency', 'time_per_wave',
-                         'spawned_enemies', 'enemies_left']
-
-            # Create correlation matrix
-            corr_data = last_waves[corr_cols].corr()
-
-            # Create heatmap
-            sns.heatmap(
-                corr_data,
-                annot=True,
-                cmap='coolwarm',
-                ax=self.ax,
-                fmt='.2f',
-                linewidths=0.5,
-                annot_kws={"size": 8}
-            )
-
-            self.ax.set_title('Correlation Between Factors at Death')
-
-            # Rotate x-axis labels for better visibility
-            plt.setp(self.ax.get_xticklabels(), rotation=45,
-                     ha='right', rotation_mode='anchor')
-
+            self.ax.set_title(f'Error updating plot')
             self.fig.tight_layout()
             self.canvas.draw_idle()
-        except Exception as e:
-            print(f"Error updating death analysis: {e}")
-
-# Main Stats Viewer App
 
 
 class StatsViewerApp:
@@ -614,15 +727,15 @@ class StatsViewerApp:
         self.notebook.add(tab_wave_hist, text="Wave Distribution")
         self.wave_hist_vis = WaveHistogramVisualization(tab_wave_hist)
 
+        # Tab for Top Decks (New Feature #3)
+        tab_top_decks = ttk.Frame(self.notebook)
+        self.notebook.add(tab_top_decks, text="Top Decks")
+        self.top_decks_vis = TopDecksVisualization(tab_top_decks)
+
         # Tab 5: Time vs Waves
         tab_time_waves = ttk.Frame(self.notebook)
         self.notebook.add(tab_time_waves, text="Time vs Waves")
         self.time_waves_vis = TimeWavesScatterVisualization(tab_time_waves)
-
-        # Tab 6: Death Analysis
-        tab_death = ttk.Frame(self.notebook)
-        self.notebook.add(tab_death, text="Death Analysis")
-        self.death_vis = DeathAnalysisVisualization(tab_death)
 
         # Store visualizations in a list for easy updates
         self.visualizations = [
@@ -630,8 +743,8 @@ class StatsViewerApp:
             self.players_vis,
             self.skills_vis,
             self.wave_hist_vis,
+            self.top_decks_vis,
             self.time_waves_vis,
-            self.death_vis
         ]
 
         # Add refresh button

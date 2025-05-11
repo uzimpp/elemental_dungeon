@@ -163,4 +163,5 @@ class Config:
     MENU_BGM_PATH = "assets/music/menu.mp3"
     GAME_BGM_PATH = "assets/music/retro-forest.mp3"
     FONT_PATH = "assets/fonts/PixelifySans-Regular.ttf"
+    # FONT_ICON_PATH = "assets/fonts/NotoSans-Regular.ttf"
     MAP_PATH = "assets/map/map.png"

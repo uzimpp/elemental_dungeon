@@ -208,7 +208,7 @@ class Projectile(BaseSkill):
 class SummonEntity(Entity):
     """Entity class for summons that behaves like other game entities"""
 
-    def __init__(self, x, y, skill, attack_radius):
+    def __init__(self, x, y, skill, attack_radius, sprite_path, animation_config):
         super().__init__(
             x=x,
             y=y,
@@ -223,8 +223,8 @@ class SummonEntity(Entity):
         self.attack_radius = attack_radius
 
         self.animation = CharacterAnimation(
-            sprite_sheet_path=C.SHADOW_SUMMON_SPRITE_PATH,
-            config=C.SHADOW_SUMMON_ANIMATION_CONFIG,
+            sprite_sheet_path=sprite_path,
+            config=animation_config,
             sprite_width=C.SPRITE_SIZE,
             sprite_height=C.SPRITE_SIZE
         )
@@ -296,13 +296,12 @@ class Summon(BaseSkill):
     """Summon skill that creates SummonEntity instances"""
 
     def __init__(self, name, element, damage, speed, radius, duration, cooldown, description, sprite_path, animation_config, attack_radius):
-        super().__init__(name, element, SkillType.SUMMON, cooldown, description)
+        super().__init__(name, element, SkillType.SUMMON,
+                         cooldown, description, sprite_path, animation_config)
         self.damage = damage
         self.speed = speed
         self.radius = radius
         self.duration = duration
-        self.sprite_path = sprite_path
-        self.animation_config = animation_config
         self.attack_radius = attack_radius
 
     @staticmethod
@@ -437,10 +436,12 @@ class Chain(BaseSkill):
         """Apply damage to enemies in a chain, hitting multiple targets in sequence"""
         # Find all valid targets
         valid_enemies = [e for e in enemies if e.alive]
-        if not valid_enemies:
-            return False
         hit_enemies = []  # Track which enemies we've already hit
         effects = []  # Collect all effects created
+
+        if not valid_enemies:
+            return effects  # Return empty list if no valid enemies
+
         # Find the initial target (enemy in the direction of click)
         first_target = None
         min_dist = float('inf')

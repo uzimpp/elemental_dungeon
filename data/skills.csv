@@ -11,7 +11,7 @@ Ice Shard,ICE,PROJECTILE,22,10,5,0,FALSE,0,0.7,Fires a shard of ice.,FALSE
 Glacial Spike,ICE,PROJECTILE,40,8,10,1,FALSE,0,3.0,Ice spike pierces and slows.,FALSE
 Frost Nova,ICE,AOE,30,0,130,2,FALSE,0,7.0,Burst of frost damages and freezes.,FALSE
 Frost Link,ICE,CHAIN,20,0,140,0,FALSE,0,7.5,Icy chain slows and damages.,FALSE
-Wind Gust,WIND,PROJECTILE,15,15,60,0,TRUE,0,1.5,Wind gust pushes enemies back.,FALSE
+Wind Gust,WIND,PROJECTILE,15,15,60,0,TRUE,0,1.5,Wind gust pull enemies upon explosion.,FALSE
 Cyclone Slash,WIND,SLASH,30,0,100,0,FALSE,0,2.0,Swift arcing wind slash.,FALSE
 Tornado,WIND,AOE,25,5,100,5,TRUE,0,15.0,Tornado pulls and damages.,FALSE
 Gale Chain,WIND,CHAIN,25,0,170,0,TRUE,0,9.0,Wind chain pulls and damages.,FALSE
@@ -24,7 +24,7 @@ Earthquake,ROCK,AOE,55,0,180,0,FALSE,0,16.0,Ground shakes, damages nearby.,FALSE
 Boulder Roll,ROCK,PROJECTILE,40,6,30,0,TRUE,0,8.0,Rolls boulder, knocks back.,FALSE
 Stone Spikes,ROCK,AOE,45,0,100,0,FALSE,0,7.0,Rock spikes erupt from ground.,FALSE
 Spark,THUNDER,PROJECTILE,18,20,5,0,FALSE,0,0.5,Quick jolt of electricity.,FALSE
-Lightning Bolt,THUNDER,PROJECTILE,45,0,10,0,FALSE,0,3.5,Calls lightning on target.,FALSE
+Lightning Bolt,THUNDER,PROJECTILE,45,20,10,0,FALSE,0,3.5,Calls lightning on target.,FALSE
 Thunder Strike,THUNDER,AOE,60,0,120,0,FALSE,0,14.0,Ground lightning damages & stuns.,FALSE
 Chain Lightning,THUNDER,CHAIN,25,0,150,0,FALSE,0,7.0,Electricity arcs between enemies.,FALSE
 Shadow Bolt,SHADOW,PROJECTILE,28,11,5,0,FALSE,0,1.3,Fires dark energy projectile.,FALSE

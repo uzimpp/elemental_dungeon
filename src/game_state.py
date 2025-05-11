@@ -189,12 +189,12 @@ class PauseOverlay:
                                   button_height, "Quit to Menu", self.font)  # Clarified text
 
         # Music Toggle Button (Icon-based)
-        music_icon_text = "🔊" if self.game.audio.music_enabled else "🔇"
+        music_text = "Music On" if self.game.audio.music_enabled else "Music Off"
         self.music_button = Button(
-            C.WIDTH - 60, C.HEIGHT - 60, 50, 50,
-            music_icon_text,
-            self.font,  # Re-use menu font, consider a dedicated icon font/size later
-            draw_background=False  # Added for icon button
+            C.WIDTH - 150, C.HEIGHT - 60, 140, 50,  # Adjusted for text
+            music_text,
+            self.font,  # Re-use menu font
+            draw_background=True  # Standard button appearance
         )
 
         # Store buttons in a list for easier iteration in update/render
@@ -250,7 +250,7 @@ class PauseOverlay:
                     print(
                         f"[DEBUG] After toggle - self.game.audio.music_enabled: {self.game.audio.music_enabled}")
                     self.music_button.set_text(
-                        "🔊" if music_enabled_after_toggle else "🔇")
+                        "Music On" if music_enabled_after_toggle else "Music Off")
                     print(
                         f"[DEBUG] Music button text set to: {self.music_button.text}")
                     # Event handled, no further action for this click
@@ -281,9 +281,20 @@ class GameOverOverlay:
                    button_height, "Quit", self.font)
         ]
 
+        # Music Toggle Button
+        music_text = "Music On" if self.game.audio.music_enabled else "Music Off"
+        self.music_button = Button(
+            C.WIDTH - 150, C.HEIGHT - 60, 140, 50,  # Position bottom-right
+            music_text,
+            self.font,
+            draw_background=True
+        )
+        # Add to a list that `update` and `render` can iterate over easily
+        self.all_interactive_elements = self.buttons + [self.music_button]
+
     def update(self, dt):
         mouse_pos = pygame.mouse.get_pos()
-        for button in self.buttons:
+        for button in self.all_interactive_elements:  # Iterate over all buttons including music
             button.update(mouse_pos)
         return None
 
@@ -305,7 +316,7 @@ class GameOverOverlay:
                     2 - wave_text.get_width()//2, 230))
 
         # Buttons
-        for button in self.buttons:
+        for button in self.all_interactive_elements:  # Iterate over all buttons
             button.draw(screen)
 
     def handle_events(self, events):
@@ -324,6 +335,11 @@ class GameOverOverlay:
                     return "MENU"
                 elif self.buttons[2].is_clicked(mouse_pos, True):  # Quit
                     return "QUIT"
+                elif self.music_button.is_clicked(mouse_pos, True):
+                    music_enabled = self.game.audio.toggle_music()
+                    self.music_button.set_text(
+                        "Music On" if music_enabled else "Music Off")
+                    return None  # Event handled, no state change from overlay
         return None
 
 
@@ -356,13 +372,14 @@ class MenuState(GameState):
         self.ui_manager.add_element(quit_button, "buttons")
 
         # Music Toggle Button
-        music_icon_text = "🔊" if self.game.audio.music_enabled else "🔇"
+        music_text = "Music On" if self.game.audio.music_enabled else "Music Off"
         # Position bottom-right
         self.music_button = Button(
-            C.WIDTH - 60, C.HEIGHT - 60, 50, 50,
-            music_icon_text,
-            self.menu_font,  # Use a suitable font, maybe a larger one for icons
-            draw_background=False  # Added for icon button
+            # Adjusted width for text, standard position
+            C.WIDTH - 150, C.HEIGHT - 60, 140, 50,
+            music_text,
+            self.menu_font,  # Using menu_font, consistent with other buttons here
+            draw_background=True  # Standard button appearance
         )
         self.ui_manager.add_element(
             self.music_button, "persistent_ui")  # New group
@@ -376,7 +393,7 @@ class MenuState(GameState):
         self.game.audio.set_music_volume(self.game.audio.music_volume)
         # Update music button icon on entering state
         self.music_button.set_text(
-            "🔊" if self.game.audio.music_enabled else "🔇")
+            "Music On" if self.game.audio.music_enabled else "Music Off")
         super().enter()  # Call base class enter if it has any logic
 
     def exit(self):
@@ -409,7 +426,8 @@ class MenuState(GameState):
                 # Handle persistent UI (music button)
                 if self.music_button.is_clicked(mouse_pos, True):
                     music_enabled = self.game.audio.toggle_music()
-                    self.music_button.set_text("🔊" if music_enabled else "🔇")
+                    self.music_button.set_text(
+                        "Music On" if music_enabled else "Music Off")
                     return None  # Event handled
 
                 # Handle other menu buttons
@@ -663,10 +681,10 @@ class DeckSelectionState(GameState):
         screen_height = game.screen.get_height()
 
         # Skill list properties (defined here for use by scroll buttons)
-        self.list_width_ratio = 0.6
+        self.list_width_ratio = 0.3
         self.list_width = screen_width * self.list_width_ratio
         self.list_x = (screen_width - self.list_width) // 2
-        self.list_y = 80
+        self.list_y = 100
         self.list_height = 400  # Height of the scrollable list area
 
         back_button = Button(10, 60, 100, 40, "Back", self.desc_font)
@@ -678,22 +696,19 @@ class DeckSelectionState(GameState):
 
         # Position scroll buttons to the right of the skill list
         scroll_button_x = self.list_x + self.list_width + 10
+        # Use text for scroll buttons
         up_button = Button(scroll_button_x, self.list_y,
-                           40, 40, "▲", self.skill_font, draw_background=False)
+                           60, 40, "Up", self.desc_font)  # Changed icon to text, adjusted width
         down_button = Button(scroll_button_x, self.list_y + self.list_height - 40,
-                             40, 40, "▼", self.skill_font, draw_background=False)
+                             60, 40, "Down", self.desc_font)  # Changed icon to text, adjusted width
         self.ui_manager.add_element(up_button, "scroll")
         self.ui_manager.add_element(down_button, "scroll")
 
-        music_icon_text = "🔊" if self.game.audio.music_enabled else "🔇"
-        self.music_button = Button(
-            C.WIDTH - 60, C.HEIGHT - 60, 50, 50, music_icon_text, self.icon_font,
-            draw_background=False  # Added for icon button
-        )
-        self.ui_manager.add_element(self.music_button, "persistent_ui")
-
+        # Hamburger Menu Button to Text Button "Menu"
         self.hamburger_button = Button(
-            10, 10, 40, 40, "☰", self.icon_font, draw_background=False)  # Added for icon button
+            10, 10, 80, 40, "Menu", self.desc_font,  # Using self.desc_font
+            draw_background=True  # Standard button appearance
+        )
         self.ui_manager.add_element(self.hamburger_button, "overlay_triggers")
 
         self.element_colors = {k: v['primary']
@@ -704,9 +719,6 @@ class DeckSelectionState(GameState):
         self.selected_skill_data = []
         self.scroll_offset = 0
         self.selected_index = 0
-        if self.music_button:
-            self.music_button.set_text(
-                "🔊" if self.game.audio.music_enabled else "🔇")
         super().enter()
 
     def load_skill_data(self):
@@ -814,11 +826,6 @@ class DeckSelectionState(GameState):
                         PauseOverlay(self.game))
                     return None
 
-                if self.music_button and self.music_button.is_clicked(mouse_pos, True):
-                    music_enabled = self.game.audio.toggle_music()
-                    self.music_button.set_text("🔊" if music_enabled else "🔇")
-                    return None
-
                 navigation_buttons = self.ui_manager.elements.get(
                     "navigation", [])
                 for i, button in enumerate(navigation_buttons):
@@ -897,7 +904,6 @@ class PlayingState(GameState):
         self.ui_font = Font().get_font('MENU')
         # Potentially larger for icons like hamburger
         self.icon_font = Font().get_font('SKILL')
-        self.music_button = None
         self.hamburger_button = None  # Initialize hamburger_button
 
     def load_background(self):
@@ -916,9 +922,6 @@ class PlayingState(GameState):
             if self.game.audio.current_music is not None:  # Fade out previous if any
                 self.game.audio.fade_out(500)
             self.game.audio.fade_in("PLAYING", 1000)
-        if self.music_button:
-            self.music_button.set_text(
-                "🔊" if self.game.audio.music_enabled else "🔇")
         super().enter()
 
     def exit(self):
@@ -951,21 +954,27 @@ class PlayingState(GameState):
         self.ui_manager.add_element(stamina_bar, "status")
 
         skill_font_ui = Font().get_font('UI')  # Corrected font variable name
+        skill_display_size = 80  # Define a consistent size for the skill display
+        skill_display_spacing = 10  # Horizontal spacing between skill displays
+
         for i, skill in enumerate(self.game.player.deck.skills):
             skill_display = SkillDisplay(
-                10 + i * 110, C.HEIGHT - 100, 100, 80, skill, skill_font_ui, hotkey=str(i+1))
+                10 + i * (skill_display_size + skill_display_spacing),
+                # Position above bottom edge
+                C.HEIGHT - (skill_display_size + 20),
+                skill_display_size,
+                skill_display_size,
+                skill,
+                skill_font_ui,
+                hotkey=str(i+1)
+            )
             self.ui_manager.add_element(skill_display, "skills")
 
-        music_icon_text = "🔊" if self.game.audio.music_enabled else "🔇"
-        self.music_button = Button(
-            C.WIDTH - 60, C.HEIGHT - 60, 50, 50, music_icon_text, self.icon_font,
-            draw_background=False  # Added for icon button
-        )
-        self.ui_manager.add_element(self.music_button, "persistent_ui")
-
-        # Hamburger Menu Button
+        # Hamburger Menu Button to Text Button "Menu"
         self.hamburger_button = Button(
-            10, 10, 40, 40, "☰", self.icon_font, draw_background=False)  # Added for icon button
+            10, 10, 80, 40, "Menu", self.ui_font,  # Using self.ui_font
+            draw_background=True  # Standard button appearance
+        )
         self.ui_manager.add_element(self.hamburger_button, "overlay_triggers")
 
     def on_pause(self):
@@ -1092,11 +1101,6 @@ class PlayingState(GameState):
                     self.game.state_manager.set_overlay(
                         PauseOverlay(self.game))
                     return None  # Event handled
-                # Music button click
-                if self.music_button and self.music_button.is_clicked(mouse_pos, True):
-                    music_enabled = self.game.audio.toggle_music()
-                    self.music_button.set_text("🔊" if music_enabled else "🔇")
-                    return None  # Event handled
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:  # Escape also opens pause menu
@@ -1111,9 +1115,9 @@ class PlayingState(GameState):
                     self.game.audio.set_music_volume(current_vol + 0.1)
                 elif event.key == pygame.K_m:
                     music_enabled = self.game.audio.toggle_music()
-                    if self.music_button:
-                        self.music_button.set_text(
-                            "🔊" if music_enabled else "🔇")
+                    # if self.music_button: # Music button removed, M key might still update an overlay's button if active
+                    #     self.music_button.set_text(
+                    #         "Music On" if music_enabled else "Music Off")
                 elif event.key == pygame.K_p:
                     self.game.state_manager.toggle_pause()
 

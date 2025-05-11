@@ -1,5 +1,6 @@
 import pygame
 import time
+import math
 from config import Config as C
 from font import Font
 
@@ -155,63 +156,85 @@ class SkillDisplay(UIElement):
         self.skill = skill
         self.font = font
         self.hotkey = hotkey
+        # Ensure width and height are treated as diameter for a circle
+        self.diameter = min(width, height)
+        self.radius = self.diameter // 2
+        self.center_x = width // 2
+        self.center_y = height // 2
         self._render()
 
     def _render(self):
-        """Render the skill display"""
+        """Render the skill display - base state (no cooldown shown)"""
         self.image.fill((0, 0, 0, 0))  # Clear with transparency
 
-        # Background
-        pygame.draw.rect(
-            self.image, C.UI_COLORS['skill_box_bg'], (0, 0, self.rect.width, self.rect.height))
-
-        # Element color indicator
-        pygame.draw.rect(self.image, self.skill.color,
-                         (0, 0, 5, self.rect.height))
+        # Circle Background
+        pygame.draw.circle(
+            self.image, C.UI_COLORS['skill_box_bg'], (self.center_x, self.center_y), self.radius)
+        # Element color as border
+        pygame.draw.circle(self.image, self.skill.color, (self.center_x,
+                           self.center_y), self.radius, 3)  # Border width 3
 
         # Skill name
-        name_text = self.font.render(self.skill.name, True, C.WHITE)
-        name_rect = name_text.get_rect(centerx=self.rect.width//2, top=5)
-        self.image.blit(name_text, name_rect)
-
-        # Element and type
-        element_text = self.font.render(
-            self.skill.element, True, self.skill.color)
-        element_rect = element_text.get_rect(
-            centerx=self.rect.width//2, top=25)
-        self.image.blit(element_text, element_rect)
-
-        # Render skill type text (using skill_type property)
-        type_text = self.font.render(self.skill.skill_type.name, True, C.WHITE)
-        type_rect = type_text.get_rect(centerx=self.rect.width//2, top=40)
-        self.image.blit(type_text, type_rect)
+        if self.skill and hasattr(self.skill, 'name'):
+            name_text_render = self.font.render(
+                self.skill.name, True, C.UI_COLORS['skill_text'])
+            name_rect = name_text_render.get_rect(
+                center=(self.center_x, self.center_y - self.radius // 3))
+            self.image.blit(name_text_render, name_rect)
 
         # Hotkey display
         if self.hotkey:
-            key_text = self.font.render(f"[{self.hotkey}]", True, C.WHITE)
-            key_rect = key_text.get_rect(
-                centerx=self.rect.width//2, bottom=self.rect.height-5)
-            self.image.blit(key_text, key_rect)
+            key_text_render = self.font.render(
+                f"[{self.hotkey}]", True, C.UI_COLORS['skill_hotkey'])
+            key_rect = key_text_render.get_rect(
+                center=(self.center_x, self.center_y + self.radius // 2))
+            self.image.blit(key_text_render, key_rect)
 
     def update_cooldown(self, current_time):
-        """Update cooldown display"""
+        """Update cooldown display. Calls _render() to refresh base and then draws cooldown if active."""
+        # CRUCIAL FIX: Redraw the base skill display first to clear previous cooldown renderings
+        self._render()
+
         if not self.skill.is_off_cooldown(current_time):
             cd_remaining = self.skill.cooldown - \
                 (current_time - self.skill.last_use_time)
-            cd_height = int((cd_remaining / self.skill.cooldown)
-                            * self.rect.height)
 
-            # Draw cooldown overlay
-            overlay = pygame.Surface(
-                (self.rect.width, cd_height), pygame.SRCALPHA)
-            overlay.fill(C.UI_COLORS['cooldown_overlay'])
-            self.image.blit(overlay, (0, self.rect.height - cd_height))
+            # Cooldown Arc
+            if cd_remaining > 0 and self.skill.cooldown > 0:
+                arc_angle_fraction = cd_remaining / self.skill.cooldown
+                # Sweep from top (-PI/2) clockwise
+                start_angle_rad = -math.pi / 2
+                # pygame.draw.arc sweeps counter-clockwise, so adjust stop_angle calculation or angles
+                # To draw remaining cooldown (e.g. full arc when cd_remaining is high):
+                # We want the arc to represent the *elapsed* time to "clear" the circle, or *remaining* part.
+                # Let's draw the part that is *still on cooldown*.
+                stop_angle_rad = start_angle_rad + \
+                    (arc_angle_fraction * 2 * math.pi)
 
-            # Draw cooldown text
-            cd_text = self.font.render(f"{cd_remaining:.1f}s", True, C.WHITE)
-            cd_rect = cd_text.get_rect(
-                center=(self.rect.width//2, self.rect.height//2))
-            self.image.blit(cd_text, cd_rect)
+                arc_rect = pygame.Rect(
+                    self.center_x - self.radius, self.center_y - self.radius, self.diameter, self.diameter)
+
+                # Ensure arc is drawn within the circle border. Inset the rect slightly.
+                # Slightly smaller than main radius to fit inside border
+                arc_draw_radius = self.radius - 2
+                arc_draw_diameter = arc_draw_radius * 2
+                arc_draw_rect = pygame.Rect(
+                    self.center_x - arc_draw_radius, self.center_y - arc_draw_radius, arc_draw_diameter, arc_draw_diameter)
+
+                try:
+                    pygame.draw.arc(self.image, C.UI_COLORS['cooldown_overlay'], arc_draw_rect,
+                                    start_angle_rad, stop_angle_rad, width=6)  # Arc width 6
+                except TypeError as e:  # Pygame issue if start_angle == stop_angle
+                    if start_angle_rad != stop_angle_rad:  # Only print if it's an unexpected error
+                        print(
+                            f"Error drawing arc: {e}, start: {start_angle_rad}, stop: {stop_angle_rad}")
+
+            # Draw cooldown text (numerical)
+            cd_text_render = self.font.render(
+                f"{cd_remaining:.1f}s", True, C.UI_COLORS['skill_text'])
+            cd_rect = cd_text_render.get_rect(
+                center=(self.center_x, self.center_y))
+            self.image.blit(cd_text_render, cd_rect)
 
 
 class UIManager:

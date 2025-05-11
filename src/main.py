@@ -67,7 +67,8 @@ class Game:
         """Reset game state for retry"""
         # Reset wave number
         self.wave_number = 1
-
+        # IMPORTANT: Get a new Play_ID for this new game session
+        DataCollector.current_play_id = DataCollector._get_next_play_id()
         # Clear enemy group
         self.enemy_group.empty()
 
