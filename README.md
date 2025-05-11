@@ -36,7 +36,7 @@ Survive as many waves as possible! Each wave becomes progressively more difficul
 | Type | Description | How to Use | Tips |
 |------------|-------------|------------|----------------|
 | **Projectile** | Fast-moving attacks that travel in straight lines and deal damage on impact | Aim with mouse cursor, press corresponding skill key (1-4) to fire | Great for distant targets; aim ahead of moving enemies for better accuracy |
-| **Summons** | Creates AI allies that automatically seek and attack nearby enemies | Press skill key to summon at your location; AI controls the summon afterward | Use to distract enemies while you reposition; effective "tanks" for drawing enemy attention |
+| **Summons** | Creates allies that automatically seek and attack nearby enemies | Press skill key to summon at your location; AI controls the summon afterward | Use to distract enemies while you reposition; effective "tanks" for drawing enemy attention |
 | **AOE (Area of Effect)** | Creates expanding damage zones that affect multiple enemies within range | Aim with mouse to target location, press skill key to activate | Most effective against groups of enemies; place strategically to control enemy movement |
 | **Slash** | Short-range arc attack that deals high damage directly in front of player | Face direction with mouse, press skill key to execute a quick slash attack | High damage but requires close range; combo with dash for hit-and-run tactics |
 | **Chain** | Automatically targets the closest enemy and jumps to nearby targets | Press skill key to activate; automatically finds and chains between targets | Excellent against clustered enemies; no need for precise aiming |
@@ -93,7 +93,7 @@ To start the game, make sure your path is in incantato directory
 
 run:
 ```bash
-python src/game.py
+python src/main.py
 ```
 When the game launches:
 1. Enter your name at the prompt
@@ -109,33 +109,23 @@ When the game launches:
 * **Cooldown Tracking:** Keep an eye on your skill cooldowns to maximize damage output
 
 ## 📁 Project Structure
-
-- `main.py`: Main entry point for the game
-- `game/`: Game engine, player, enemies, and skill classes
-- `sprites/` : Sprite sheets
-- `assets/`: Game assets (sfx, bgm)
+- `src/`: Game engine, player, enemies, and skill classes
+- `assets/`: Game assets (sprits, bgm, map, etc.)
 - `data/`: Data storage for game statistics (CSV files)
 
 ## 🛠 Game Version
-verion 0.5
+verion 0.7
 
-## ✅ TODOs
-- [ ] Implement map.
-- [ ] Better UX/UI
 - [ ] Data visualization features will be expanded in future versions.
 **(if time allows)**
 - [ ] More skill types will be created in the future.
 - [ ] More enemy types will be created in the future.
-
-## 📋 Project Timeline
-
-- 50% Checkpoint (v0.5): April 16, 2025
-- Final Submission (v1.0): May 11, 2025
 
 ## 👤 Creator
 
 - Worakrit Kullanatpokin
 
 ## 🤝 Credits
-Sprite sheets: [Shade](https://merchant-shade.itch.io/16x16-puny-characters)
+Sprite sheets: https://merchant-shade.itch.io/16x16-puny-characters<br/>
+Map: https://merchant-shade.itch.io/16x16-puny-world<br/>
 Background Music: https://www.FesliyanStudios.com

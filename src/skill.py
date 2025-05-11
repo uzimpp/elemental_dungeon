@@ -28,6 +28,7 @@ class BaseSkill:
         self.last_use_time = 0
         self.color = self._get_color_from_element(element)
         self.owner = None  # Reference to the owner entity (e.g., player)
+        self.effect_manager = None  # Will be set by the game
 
     def _get_color_from_element(self, element):
         if element in C.ELEMENT_COLORS:
@@ -41,6 +42,25 @@ class BaseSkill:
 
     def trigger_cooldown(self):
         self.last_use_time = time.time()
+
+    def set_effect_manager(self, effect_manager):
+        """Set the effect manager for this skill"""
+        self.effect_manager = effect_manager
+
+    def add_effect(self, effect):
+        """Add a visual effect to the effect manager"""
+        if self.effect_manager:
+            self.effect_manager.add_effect(effect)
+
+    @staticmethod
+    def _calculate_spawn_position(player_x, player_y, target_x, target_y, distance):
+        """Calculate spawn position for projectiles and summons"""
+        dx = target_x - player_x
+        dy = target_y - player_y
+        dist = math.hypot(dx, dy) or 1
+        spawn_x = player_x + (dx / dist) * distance
+        spawn_y = player_y + (dy / dist) * distance
+        return spawn_x, spawn_y
 
 class ProjectileEntity(Entity):
     """Projectile entity that inherits from Entity base class"""
@@ -166,7 +186,7 @@ class SummonEntity(Entity):
             x=x,
             y=y,
             radius=12,
-            max_health=50, # Example health
+            max_health=50,
             speed=max(120, skill.speed * 60), # Ensure minimum speed of 120 pixels per second
             color=skill.color
         )
@@ -252,11 +272,20 @@ class Summon(BaseSkill):
         self.animation_config = animation_config
         self.attack_radius = attack_radius
 
-    @staticmethod
-    def create(skill, x, y, attack_radius):
+    def activate(self, player_x, player_y, target_x, target_y, enemies):
         """Create a SummonEntity instance"""
-        return SummonEntity(x, y, skill, attack_radius)
-    
+        x, y = self._calculate_spawn_position(player_x, player_y, target_x, target_y, self.radius)
+        summon = SummonEntity(x, y, self, self.attack_radius)
+        # Add visual effect
+        self.add_effect(VisualEffect(
+            x, y,
+            "explosion",
+            self.color,
+            radius=self.radius,
+            duration=0.3
+        ))
+        return summon
+
     @staticmethod
     def update(summon, dt, enemies):
         """Update the summon (for compatibility with existing code)"""
@@ -268,7 +297,7 @@ class Summon(BaseSkill):
 
 class Heal(BaseSkill):
     """Heal skill implementation"""
-    def __init__(self, name, element, heal_amount, radius, duration, cooldown, description, heal_summons=True):
+    def __init__(self, name, element, heal_amount, radius, cooldown, description, heal_summons=False):
         super().__init__(name, element, SkillType.HEAL, cooldown, description)
         self.heal_amount = heal_amount
         self.radius = radius
@@ -317,8 +346,7 @@ class Slash(BaseSkill):
         self.radius = radius
         self.duration = duration
 
-    @staticmethod
-    def activate(skill, player_x, player_y, target_x, target_y, enemies, start_angle=None, sweep_angle=None):
+    def activate(self, player_x, player_y, target_x, target_y, enemies):
         """Apply damage to enemies in an arc"""
         # Calculate target angle (used for debugging or if start/sweep not provided)
         target_angle = math.atan2(target_y - player_y, target_x - player_x)
@@ -331,7 +359,7 @@ class Slash(BaseSkill):
         end_angle = start_angle + sweep_angle
         hit_count = 0
         for enemy in enemies:
-            if not enemy.alive: 
+            if not enemy.alive:
                 continue
             # Calculate distance and angle to enemy
             dx = enemy.x - player_x
@@ -359,8 +387,8 @@ class Slash(BaseSkill):
         return hit_count > 0
 
 class Chain(BaseSkill):
-    """Chain attack skill implementation"""
-    def __init__(self, name, element, damage, radius, duration, pull, cooldown, description, max_targets=3, chain_range=150):
+    """Chain lightning skill implementation"""
+    def __init__(self, name, element, damage, radius, duration, cooldown, description, chain_count=3):
         super().__init__(name, element, SkillType.CHAIN, cooldown, description)
         self.damage = damage
         self.radius = radius
