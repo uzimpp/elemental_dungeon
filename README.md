@@ -58,8 +58,6 @@ The game records comprehensive data to help you analyze performance:
 * Skill usage patterns and effectiveness
 * Cause of death analysis
 
-> ✅ **Note:** Data analysis and visualization features will be implemented in future versions.
-
 ## ⚙️ Installation & Setup
 
 1. **Clone Repository:**
