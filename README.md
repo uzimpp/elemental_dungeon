@@ -93,7 +93,7 @@ To start the game, make sure your path is in incantato directory
 
 run:
 ```bash
-python src/game.py
+python src/main.py
 ```
 When the game launches:
 1. Enter your name at the prompt
@@ -109,19 +109,13 @@ When the game launches:
 * **Cooldown Tracking:** Keep an eye on your skill cooldowns to maximize damage output
 
 ## 📁 Project Structure
-
-- `main.py`: Main entry point for the game
-- `game/`: Game engine, player, enemies, and skill classes
-- `sprites/` : Sprite sheets
+- `src/`: Game engine, player, enemies, and skill classes
 - `assets/`: Game assets (sfx, bgm)
 - `data/`: Data storage for game statistics (CSV files)
 
 ## 🛠 Game Version
-verion 0.5
+verion 0.7
 
-## ✅ TODOs
-- [ ] Implement map.
-- [ ] Better UX/UI
 - [ ] Data visualization features will be expanded in future versions.
 **(if time allows)**
 - [ ] More skill types will be created in the future.
@@ -137,5 +131,6 @@ verion 0.5
 - Worakrit Kullanatpokin
 
 ## 🤝 Credits
-Sprite sheets: [Shade](https://merchant-shade.itch.io/16x16-puny-characters)<br/>
+Sprite sheets: https://merchant-shade.itch.io/16x16-puny-characters<br/>
+Map: https://merchant-shade.itch.io/16x16-puny-world<br/>
 Background Music: https://www.FesliyanStudios.com
