@@ -646,10 +646,11 @@ class DeckSelectionState(GameState):
                         self.create_player_deck()
                         self.game.prepare_game()  # Initialize gameplay
                         return "PLAYING"
-
+                
                 elif event.key == pygame.K_ESCAPE:
                     # Go back to main menu
                     return "MENU"
+        
         return None
     
     def create_player_deck(self):
@@ -881,4 +882,3 @@ class PlayingState(GameState):
                     return "MENU"
         
         return None
-

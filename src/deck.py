@@ -342,7 +342,7 @@ class Deck:
         self._effects = [effect for effect in self._effects if effect.update(dt)]
 
     def draw(self, surface):
-        """Draw all active entities and effects"""
+        """Draw all active entities managed by the deck"""
         # Draw projectiles
         for projectile in self.projectiles:
             projectile.draw(surface)
