@@ -33,6 +33,10 @@ class Game:
         # Sprite groups for collision detection
         self.enemy_group = pygame.sprite.Group()
 
+        # Initialize player attribute to avoid AttributeError before initialization
+        self.player = None
+        self.game_start_time = None
+
         # Initialize state manager and states
         self.state_manager = GameStateManager(self)
         self.state_manager.add_state("MENU", MenuState(self))
@@ -43,7 +47,7 @@ class Game:
 
         # Start with menu state and play menu music
         self.state_manager.set_state("MENU")
-        self.audio.play_music("MENU")
+        # Initial music play moved to MenuState.enter()
 
     def initialize_player(self):
         """Initialize the player with an empty deck"""
@@ -179,34 +183,21 @@ class Game:
 
     def run(self):
         """Main game loop with pause support"""
-        self.running = True
         while self.running:
-            # Get delta time in seconds
             dt = self.clock.tick(C.FPS) / 1000.0
-
-            # Get all events
             events = pygame.event.get()
 
-            # Process all quit events
-            for event in events:
-                if event.type == pygame.QUIT:
-                    self.running = False
-                    break
+            # GameStateManager.handle_events will now check for pygame.QUIT internally first
+            state_manager_result = self.state_manager.handle_events(events)
 
-            if not self.running:
-                break
+            if state_manager_result == "QUIT":
+                self.running = False
+                # Loop will terminate as self.running is false
 
-            # Handle events through state manager (always processes events)
-            self.state_manager.handle_events(events)
-
-            # Update game state (handles pausing internally)
-            self.state_manager.update(dt)
-
-            # Render everything (always happens even when paused)
-            self.state_manager.render(self.screen)
-
-            # Update the display
-            pygame.display.flip()
+            if self.running:  # Only update and render if not quitting
+                self.state_manager.update(dt)
+                self.state_manager.render(self.screen)
+                pygame.display.flip()
 
         pygame.quit()
         sys.exit()

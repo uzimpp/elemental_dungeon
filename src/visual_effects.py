@@ -40,9 +40,6 @@ class VisualEffect:
             self.particles = []  # Particles for slash trail
             self.start_angle = start_angle
             self.sweep_angle = sweep_angle
-            print(
-                f"[VisualEffect] Created slash effect with start_angle={math.degrees(start_angle):.1f}°, sweep_angle={math.degrees(sweep_angle):.1f}°")
-
         # Line specific variables (for chain lightning)
         if effect_type == "line":
             self.line_width = radius  # Use radius as line width
@@ -71,7 +68,7 @@ class VisualEffect:
 
         if progress >= 1.0:
             self.active = False
-            return
+            return self.active  # Effect is done
 
         # Common fade out
         self.alpha = 255 * (1 - progress)
@@ -85,26 +82,18 @@ class VisualEffect:
             self.y -= dt * 50
 
         elif self.effect_type == "slash":
-            # Enhanced slash animation - clockwise sweep
-            # Set sweep progress based on animation progress
             self.angle = self.sweep_angle * progress
+            if progress < 0.05:
+                pass  # Keep print minimal
+                # print(
+                #     f"[VisualEffect] Slash animation beginning - Start: {math.degrees(self.start_angle):.1f}°, Current: {math.degrees(self.start_angle + self.angle):.1f}°, End: {math.degrees(self.start_angle + self.sweep_angle):.1f}°")
+            elif 0.45 < progress < 0.55:
+                pass  # Keep print minimal
+                # print(
+                #     f"[VisualEffect] Slash animation midpoint - Current angle: {math.degrees(self.start_angle + self.angle):.1f}°")
 
-            # For debugging, log angle at beginning and midpoint
-            if progress < 0.05:  # Beginning of animation
-                start_angle_deg = math.degrees(self.start_angle)
-                current_angle_deg = math.degrees(self.start_angle + self.angle)
-                end_angle_deg = math.degrees(
-                    self.start_angle + self.sweep_angle)
-                print(
-                    f"[VisualEffect] Slash animation beginning - Start: {start_angle_deg:.1f}°, Current: {current_angle_deg:.1f}°, End: {end_angle_deg:.1f}°")
-            elif 0.45 < progress < 0.55:  # Midpoint of animation
-                current_angle_deg = math.degrees(self.start_angle + self.angle)
-                print(
-                    f"[VisualEffect] Slash animation midpoint - Current angle: {current_angle_deg:.1f}°")
-
-            # Add particles along the arc
-            if progress < 0.5:  # Only add particles in first half of animation
-                for _ in range(2):  # Add 2 particles per frame
+            if progress < 0.5:
+                for _ in range(2):
                     particle_angle = self.start_angle + self.angle * random.random()
                     r = random.uniform(0.7, 1.0) * self.radius
                     px = r * math.cos(particle_angle)
@@ -116,44 +105,34 @@ class VisualEffect:
                         'size': random.randint(2, 4)
                     })
 
-            # Update existing particles
             for p in self.particles:
                 p['alpha'] = max(0, p['alpha'] - 10)
-
-            # Remove faded particles
             self.particles = [p for p in self.particles if p['alpha'] > 0]
 
         elif self.effect_type == "line":
-            # Update particle alphas for fading
             for p in self.particles:
-                # Fade out faster than the main effect for a flickering look
                 fade_speed = random.uniform(10, 25)
                 p['alpha'] = max(0, p['alpha'] - fade_speed)
-
-                # Add slight movement to particles
                 jitter = 2
                 p['x'] += random.uniform(-jitter, jitter)
                 p['y'] += random.uniform(-jitter, jitter)
-
-            # Remove faded particles
             self.particles = [p for p in self.particles if p['alpha'] > 0]
 
-            # Add new particles for a continuous effect
             if progress < 0.7 and self.end_x is not None and self.end_y is not None:
-                for _ in range(3):  # Add new particles each frame
-                    t = random.random()  # Random position along the line
+                for _ in range(3):
+                    t = random.random()
                     px = self.x + (self.end_x - self.x) * t
                     py = self.y + (self.end_y - self.y) * t
-                    jitter = 8  # Larger jitter for more lightning-like effect
+                    jitter = 8
                     px += random.uniform(-jitter, jitter)
                     py += random.uniform(-jitter, jitter)
                     self.particles.append({
                         'x': px,
                         'y': py,
-                        # Varying brightness
                         'alpha': 200 + random.randint(0, 55),
                         'size': random.randint(2, 5)
                     })
+        return self.active  # Effect is still active
 
     def draw(self, surf):
         if not self.active:
@@ -269,12 +248,13 @@ class DashAfterimage:
 
         if progress >= 1.0:
             self.active = False
-            return
+            return self.active  # Effect is done
 
         # Calculate current alpha (fade out)
         current_alpha = self.start_alpha * (1.0 - progress)
         # Apply alpha to the copied sprite
         self.sprite.set_alpha(int(max(0, current_alpha)))
+        return self.active  # Effect is still active
 
     def draw(self, surf):
         if not self.active or not self.sprite:

@@ -37,7 +37,8 @@ class Button(UIElement):
 
     def __init__(self, x, y, width, height, text, font,
                  color=(255, 255, 255), hover_color=(255, 255, 0),
-                 bg_color=(30, 30, 60), border_color=(100, 100, 150)):
+                 bg_color=(30, 30, 60), border_color=(100, 100, 150),
+                 draw_background=True):
         super().__init__(x, y, width, height)
         self.text = text
         self.font = font
@@ -45,6 +46,7 @@ class Button(UIElement):
         self.hover_color = hover_color
         self.bg_color = bg_color
         self.border_color = border_color
+        self.draw_background = draw_background
         self.on_click = None  # Callback function to be called when button is clicked
         self._render()
 
@@ -52,11 +54,12 @@ class Button(UIElement):
         """Render the button to its image surface"""
         self.image.fill((0, 0, 0, 0))  # Clear with transparency
 
-        # Draw button background
-        pygame.draw.rect(self.image, self.bg_color,
-                         (0, 0, self.rect.width, self.rect.height))
-        pygame.draw.rect(self.image, self.border_color,
-                         (0, 0, self.rect.width, self.rect.height), 2)
+        if self.draw_background:
+            # Draw button background
+            pygame.draw.rect(self.image, self.bg_color,
+                             (0, 0, self.rect.width, self.rect.height))
+            pygame.draw.rect(self.image, self.border_color,
+                             (0, 0, self.rect.width, self.rect.height), 2)
 
         # Render text
         text_color = self.hover_color if self.is_hovered else self.color
@@ -69,8 +72,6 @@ class Button(UIElement):
         """Update button state and appearance"""
         was_hovered = self.is_hovered
         super().update(mouse_pos, dt)
-
-        # Only re-render if hover state changed
         if was_hovered != self.is_hovered:
             self._render()
 
@@ -78,6 +79,15 @@ class Button(UIElement):
         """Change the button text"""
         self.text = text
         self._render()
+
+    def is_clicked(self, mouse_pos, mouse_click):
+        """Check if element was clicked"""
+        # Ensure mouse_click is True and mouse_pos is within the button's rect
+        return self.rect.collidepoint(mouse_pos) and mouse_click
+
+    def draw(self, screen):
+        """Draw the button by blitting its pre-rendered image."""
+        screen.blit(self.image, self.rect)
 
 
 class ProgressBar(UIElement):
@@ -268,55 +278,68 @@ class UI:
     @staticmethod
     def draw_selected_skills(screen, selected_skills):
         """Draw the selected skills area"""
-        skill_font = Font().get_font('SKILL')
-        desc_font = Font().get_font('DESC')
+        skill_font = Font().get_font('SKILL')  # Smaller font for skill name in slot
+        desc_font = Font().get_font('DESC')  # Font for details like CD, Type, Dmg
+        ui_font = Font().get_font('UI')  # For the 'X' mark and slot title
         chosen_y = 500
-        chosen_title = skill_font.render(
-            f"Selected Skills ({len(selected_skills)}/{C.SKILLS_LIMIT})", True, (255, 255, 255))
+        chosen_title_text = f"Selected Skills ({len(selected_skills)}/{C.SKILLS_LIMIT})"
+        chosen_title = ui_font.render(chosen_title_text, True, C.WHITE)
         screen.blit(chosen_title, (screen.get_width()//2 -
-                    chosen_title.get_width()//2, chosen_y - 30))
-        # Draw slots for chosen skills
+                    chosen_title.get_width()//2, chosen_y - 25))  # Adjusted y for title
+
+        slot_width = 100
+        slot_height = 90  # Increased height slightly for more text
+        total_slots_width = C.SKILLS_LIMIT * \
+            (slot_width + 20)  # 20 for spacing
+        start_x = (screen.get_width() - total_slots_width) // 2 + 10
+
         for i in range(C.SKILLS_LIMIT):
-            slot_x = (screen.get_width() // 2) - \
-                ((C.SKILLS_LIMIT * 120) // 2) + (i * 120) + 10
+            slot_x = start_x + i * (slot_width + 20)
             slot_y = chosen_y
-            # Draw slot background
-            slot_rect = pygame.Rect(slot_x, slot_y, 100, 80)
+            slot_rect = pygame.Rect(slot_x, slot_y, slot_width, slot_height)
             pygame.draw.rect(screen, (30, 30, 60), slot_rect)
             pygame.draw.rect(screen, (100, 100, 150), slot_rect, 2)
 
-            # If there's a skill in this slot, draw it
             if i < len(selected_skills):
                 skill = selected_skills[i]
-                element = skill["element"].upper()
-                # Get the primary color from the element color dictionary, with fallback to white
-                if element in C.ELEMENT_COLORS:
-                    element_color = C.ELEMENT_COLORS[element]['primary']
-                else:
-                    # Default to white if element not found
-                    element_color = (255, 255, 255)
+                element = skill.get("element", "N/A").upper()
+                element_color = C.ELEMENT_COLORS.get(
+                    element, {}).get('primary', C.WHITE)
 
-                # Draw element color indicator
                 pygame.draw.rect(screen, element_color,
-                                 (slot_x, slot_y, 5, 80))
-                # Skill name (centered in slot)
+                                 (slot_x, slot_y, 5, slot_height))
+
+                text_x_offset = 10  # Start text rendering further from the element bar
+                current_y = slot_y + 5
+
                 name_text = skill_font.render(
-                    skill["name"], True, (255, 255, 255))
-                name_rect = name_text.get_rect(
-                    center=(slot_x + 50, slot_y + 30))
-                screen.blit(name_text, name_rect)
+                    skill.get("name", "Unknown"), True, C.WHITE)
+                screen.blit(name_text, (slot_x + text_x_offset, current_y))
+                current_y += name_text.get_height() + 2
 
-                # Element and cooldown
-                element_text = desc_font.render(element, True, element_color)
-                element_rect = element_text.get_rect(
-                    center=(slot_x + 50, slot_y + 50))
-                screen.blit(element_text, element_rect)
+                type_text_str = f"Type: {skill.get('skill_type', 'N/A')}"
+                # Assuming LIGHT_GREY will be fixed or use GREY
+                type_text = desc_font.render(type_text_str, True, C.LIGHT_GREY)
+                screen.blit(type_text, (slot_x + text_x_offset, current_y))
+                current_y += type_text.get_height() + 2
 
-                cooldown_text = desc_font.render(
-                    f"{float(skill['cooldown']):.1f}s", True, (200, 200, 200))
-                cooldown_rect = cooldown_text.get_rect(
-                    center=(slot_x + 50, slot_y + 65))
-                screen.blit(cooldown_text, cooldown_rect)
+                # Placeholder for damage - replace skill.get('damage', 'N/A') with actual field
+                damage_val = skill.get(
+                    'damage', skill.get('description_short', 'N/A'))
+                damage_text_str = f"Dmg: {damage_val}"
+                damage_text = desc_font.render(
+                    damage_text_str, True, C.LIGHT_GREY)
+                screen.blit(damage_text, (slot_x + text_x_offset, current_y))
+                current_y += damage_text.get_height() + 2
+
+                cd_text_str = f"CD: {float(skill.get('cooldown', 0)):.1f}s"
+                cd_text = desc_font.render(cd_text_str, True, C.LIGHT_GREY)
+                screen.blit(cd_text, (slot_x + text_x_offset, current_y))
+
+                x_mark_text = ui_font.render("X", True, C.RED)
+                x_rect = x_mark_text.get_rect(
+                    top=slot_y + 3, right=slot_x + slot_width - 3)
+                screen.blit(x_mark_text, x_rect)
 
     @staticmethod
     def draw_hp_bar(
