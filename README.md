@@ -84,7 +84,7 @@ The game records comprehensive data to help you analyze performance:
 
 4. **Install required packages:**
    ```bash
-   pip install pygame
+   pip install -r requirements.txt
    ```
 
 ## 🚀 Running the Game
