@@ -29,3 +29,6 @@ timestamp,player_name,wave_survived,game_duration,final_hp,deck_composition,skil
 2025-05-06 05:20:14,uzimp,7,94.99,0,Chain Lightning|Thunder Strike|Nature's Touch|Holy Nova,Chain Lightning,Thunder Strike,Nature's Touch,Holy Nova
 2025-05-11 15:34:56,uzimp,1,35.74,0,Dark Heal|Summon Wraith|Dark Nova|Fire Nova,Dark Heal,Summon Wraith,Dark Nova,Fire Nova
 2025-05-11 15:49:24,uzimp,2,42.32,0,Shadow Slash|Dark Heal|Summon Wraith|Dark Nova,Shadow Slash,Dark Heal,Summon Wraith,Dark Nova
+0001,uzimp,3,Ice Bolt,Frost Nova,Dark Heal,Fire Wave,45.12
+0002,uzimp,4,Shadow Slash,Dark Heal,Summon Wraith,Dark Nova,57.01
+0003,uzimp,2,Holy Nova,Chain Lightning,Dark Nova,Summon Wraith,106.06

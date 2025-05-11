@@ -7,9 +7,10 @@ from font import Font
 from player import Player
 from enemy import Enemy
 from utils import resolve_overlap
-from game_state import GameStateManager, MenuState, NameEntryState, DeckSelectionState, PlayingState
+from game_state import GameStateManager, MenuState, NameEntryState, DeckSelectionState, PlayingState, StatsDisplayState
 from audio import Audio
 from config import Config as C
+from data_collector import DataCollector
 
 
 class Game:
@@ -37,6 +38,11 @@ class Game:
         self.player = None
         self.game_start_time = None
 
+        # Data collection attributes for per-wave logging
+        self.wave_start_time = None
+        self.current_wave_skill_usage = {}
+        self.current_wave_spawned_enemies = 0
+
         # Initialize state manager and states
         self.state_manager = GameStateManager(self)
         self.state_manager.add_state("MENU", MenuState(self))
@@ -44,14 +50,18 @@ class Game:
         self.state_manager.add_state(
             "DECK_SELECTION", DeckSelectionState(self))
         self.state_manager.add_state("PLAYING", PlayingState(self))
+        self.state_manager.add_state("STATS_DISPLAY", StatsDisplayState(self))
 
         # Start with menu state and play menu music
         self.state_manager.set_state("MENU")
         # Initial music play moved to MenuState.enter()
 
+        # Initialize DataCollector CSVs
+        DataCollector.initialize_csvs()
+
     def initialize_player(self):
         """Initialize the player with an empty deck"""
-        self.player = Player(self.player_name)
+        self.player = Player(self.player_name, game_instance=self)
         self.game_start_time = time.time()
 
     def reset_game(self):
@@ -107,6 +117,11 @@ class Game:
         # Clear enemy group
         self.enemy_group.empty()
 
+        # Reset per-wave data trackers
+        self.wave_start_time = time.time()
+        self.current_wave_skill_usage = {}
+        # Note: current_wave_spawned_enemies will be set below
+
         # Clear player projectiles and summons to avoid overlapping entities
         if hasattr(self, 'player') and self.player and hasattr(self.player, 'deck'):
             # Use empty() for sprite groups instead of clear()
@@ -124,6 +139,8 @@ class Game:
 
         # spawn enemies based on wave number
         n_enemies = 5 + self.wave_number
+        # Track spawned enemies for logging
+        self.current_wave_spawned_enemies = n_enemies
         for _ in range(n_enemies):
             # Ensure enemies don't spawn too close to the player
             spawn_too_close = True
