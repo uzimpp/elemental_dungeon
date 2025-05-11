@@ -1,7 +1,7 @@
 import pygame
 import math
 from config import Config as C
-
+from utils import Utils
 
 class SpriteSheet:
     """Utility class to handle loading and extracting sprites from a sheet."""
@@ -97,12 +97,8 @@ class CharacterAnimation:
         target_angle_deg = math.degrees(target_angle_rad)
         target_angle_deg = (target_angle_deg + 360) % 360
 
-        def angle_diff(a1, a2):
-            diff = abs(a1 - a2) % 360
-            return min(diff, 360 - diff)
-
         closest_angle = min(
-            self.ANGLES, key=lambda angle: angle_diff(angle, target_angle_deg))
+            self.ANGLES, key=lambda angle: Utils.angle_diff(angle, target_angle_deg))
         return closest_angle
 
     def set_state(self, new_state, force_reset=False):

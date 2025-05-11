@@ -1,7 +1,7 @@
 """
 Module containing all configuration constants for the game.
 """
-
+import pygame
 class Config:
     # Game Name
     GAME_NAME = "Incantato"
@@ -152,3 +152,7 @@ class Config:
     GAME_BGM_PATH = "assets/music/retro-forest.mp3"
     FONT_PATH = "assets/fonts/PixelifySans-Regular.ttf"
     MAP_PATH = "assets/map/map.png"
+
+    TITLE_FONT = pygame.font.Font(FONT_PATH, 36)
+    SKILL_FONT = pygame.font.Font(FONT_PATH, 24)
+    DESC_FONT = pygame.font.Font(FONT_PATH, 18)

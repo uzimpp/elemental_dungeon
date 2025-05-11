@@ -4,7 +4,7 @@ import time
 from config import Config as C
 from ui import Button, ProgressBar, SkillDisplay, UIManager
 from deck import Deck
-
+from ui import UI
 class GameStateManager:
     """Manages transitions between game states"""
     def __init__(self, game):
@@ -348,14 +348,11 @@ class DeckSelectionState(GameState):
     """State for selecting skills for player deck"""
     def __init__(self, game):
         super().__init__(game)
-        self.title_font = pygame.font.Font(C.FONT_PATH, 36)
-        self.skill_font = pygame.font.Font(C.FONT_PATH, 24)
-        self.desc_font = pygame.font.Font(C.FONT_PATH, 18)
+
         
         # Skill selection data
         self.skill_data = []  # Raw skill data from CSV
         self.selected_skill_data = []  # Selected skills data
-        self.required_skills = 4
         self.skills_per_page = 5
         self.scroll_offset = 0
         self.selected_index = 0
@@ -364,16 +361,16 @@ class DeckSelectionState(GameState):
         screen_width = game.screen.get_width()
         
         # Back button
-        back_button = Button(10, 10, 100, 40, "Back", self.desc_font)
+        back_button = Button(10, 10, 100, 40, "Back", C.DESC_FONT)
         self.ui_manager.add_element(back_button, "navigation")
         
         # Confirm button 
-        confirm_button = Button((screen_width - 200) // 2, 650, 200, 50, "Confirm", self.skill_font)
+        confirm_button = Button((screen_width - 200) // 2, 650, 200, 50, "Confirm", C.SKILL_FONT)
         self.ui_manager.add_element(confirm_button, "navigation")
         
         # Scroll buttons
-        up_button = Button(screen_width // 2 + 180, 80, 40, 40, "▲", self.skill_font)
-        down_button = Button(screen_width // 2 + 180, 440, 40, 40, "▼", self.skill_font)
+        up_button = Button(screen_width // 2 + 180, 80, 40, 40, "▲", C.SKILL_FONT)
+        down_button = Button(screen_width // 2 + 180, 440, 40, 40, "▼", C.SKILL_FONT)
         self.ui_manager.add_element(up_button, "scroll")
         self.ui_manager.add_element(down_button, "scroll")
         
@@ -409,14 +406,14 @@ class DeckSelectionState(GameState):
         screen.fill((40, 40, 80))
         
         # Title
-        title = self.title_font.render(f"BUILD YOUR DECK (Pick {self.required_skills})", True, (255, 255, 255))
+        title = self.title_font.render(f"BUILD YOUR DECK (Pick {C.SKILLS_LIMIT})", True, (255, 255, 255))
         screen.blit(title, (screen.get_width()//2 - title.get_width()//2, 30))
         
         # Draw skill list
         self.draw_skill_list(screen)
         
         # Draw selected skills
-        self.draw_selected_skills(screen)
+        UI.draw_selected_skills(screen)
         
         # Draw UI elements (buttons)
         self.ui_manager.draw_all()
@@ -455,60 +452,21 @@ class DeckSelectionState(GameState):
             # Skill name with element color
             element = skill["element"].upper()
             element_color = self.element_colors.get(element, (255, 255, 255))
-            skill_text = self.skill_font.render(f"[{element}] {skill['name']}", True, 
+            skill_text = C.SKILL_FONT.render(f"[{element}] {skill['name']}", True, 
                                                (150, 150, 150) if is_chosen else element_color)
             screen.blit(skill_text, (list_x + 15, skill_y))
             
             # Display cooldown and type
-            cd_text = self.desc_font.render(f"Cooldown: {float(skill['cooldown']):.1f}s | Type: {skill['skill_type']}", True, (200, 200, 200))
+            cd_text = C.DESC_FONT.render(f"Cooldown: {float(skill['cooldown']):.1f}s | Type: {skill['skill_type']}", True, (200, 200, 200))
             screen.blit(cd_text, (list_x + 15, skill_y + 30))
             
             # Skill description (truncated for space)
             desc = skill["description"]
             if len(desc) > 60:
                 desc = desc[:57] + "..."
-            desc_text = self.desc_font.render(desc, True, (200, 200, 200))
+            desc_text = C.DESC_FONT.render(desc, True, (200, 200, 200))
             screen.blit(desc_text, (list_x + 15, skill_y + 50))
-    
-    def draw_selected_skills(self, screen):
-        """Draw the selected skills area"""
-        chosen_y = 500
-        chosen_title = self.skill_font.render(f"Selected Skills ({len(self.selected_skill_data)}/{self.required_skills})", True, (255, 255, 255))
-        screen.blit(chosen_title, (screen.get_width()//2 - chosen_title.get_width()//2, chosen_y - 30))
-        
-        # Draw slots for chosen skills
-        for i in range(self.required_skills):
-            slot_x = (screen.get_width() // 2) - ((self.required_skills * 120) // 2) + (i * 120) + 10
-            slot_y = chosen_y
-            
-            # Draw slot background
-            slot_rect = pygame.Rect(slot_x, slot_y, 100, 80)
-            pygame.draw.rect(screen, (30, 30, 60), slot_rect)
-            pygame.draw.rect(screen, (100, 100, 150), slot_rect, 2)
-            
-            # If there's a skill in this slot, draw it
-            if i < len(self.selected_skill_data):
-                skill = self.selected_skill_data[i]
-                element = skill["element"].upper()
-                element_color = self.element_colors.get(element, (255, 255, 255))
-                
-                # Draw element color indicator
-                pygame.draw.rect(screen, element_color, (slot_x, slot_y, 5, 80))
-                
-                # Skill name (centered in slot)
-                name_text = self.skill_font.render(skill["name"], True, (255, 255, 255))
-                name_rect = name_text.get_rect(center=(slot_x + 50, slot_y + 30))
-                screen.blit(name_text, name_rect)
-                
-                # Element and cooldown
-                element_text = self.desc_font.render(element, True, element_color)
-                element_rect = element_text.get_rect(center=(slot_x + 50, slot_y + 50))
-                screen.blit(element_text, element_rect)
-                
-                cooldown_text = self.desc_font.render(f"{float(skill['cooldown']):.1f}s", True, (200, 200, 200))
-                cooldown_rect = cooldown_text.get_rect(center=(slot_x + 50, slot_y + 65))
-                screen.blit(cooldown_text, cooldown_rect)
-    
+
     def handle_events(self, events):
         for event in events:
             if event.type == pygame.QUIT:
@@ -524,7 +482,7 @@ class DeckSelectionState(GameState):
                         if i == 0:  # Back button
                             return "MENU"
                         elif i == 1:  # Confirm button
-                            if len(self.selected_skill_data) == self.required_skills:
+                            if len(self.selected_skill_data) == C.SKILLS_LIMIT:
                                 self.create_player_deck()
                                 return "PLAYING"
                 
@@ -557,13 +515,13 @@ class DeckSelectionState(GameState):
                         
                         # If double-clicked, select the skill
                         selected = self.skill_data[self.selected_index]
-                        if selected not in self.selected_skill_data and len(self.selected_skill_data) < self.required_skills:
+                        if selected not in self.selected_skill_data and len(self.selected_skill_data) < C.SKILLS_LIMIT:
                             self.selected_skill_data.append(selected)
                 
                 # Check if clicking on chosen skills to remove them
                 chosen_y = 500
                 for i in range(len(self.selected_skill_data)):
-                    slot_x = (self.game.screen.get_width() // 2) - ((self.required_skills * 120) // 2) + (i * 120) + 10
+                    slot_x = (self.game.screen.get_width() // 2) - ((C.SKILLS_LIMIT * 120) // 2) + (i * 120) + 10
                     slot_y = chosen_y
                     slot_rect = pygame.Rect(slot_x, slot_y, 100, 80)
                     
@@ -589,7 +547,7 @@ class DeckSelectionState(GameState):
                     # Add selected skill to chosen (if not already chosen and haven't reached limit)
                     if self.selected_index < len(self.skill_data):
                         selected = self.skill_data[self.selected_index]
-                        if selected not in self.selected_skill_data and len(self.selected_skill_data) < self.required_skills:
+                        if selected not in self.selected_skill_data and len(self.selected_skill_data) < C.SKILLS_LIMIT:
                             self.selected_skill_data.append(selected)
                 
                 elif event.key == pygame.K_BACKSPACE:
@@ -599,7 +557,7 @@ class DeckSelectionState(GameState):
                 
                 elif event.key == pygame.K_SPACE:
                     # Confirm selection if we have enough skills
-                    if len(self.selected_skill_data) == self.required_skills:
+                    if len(self.selected_skill_data) == C.SKILLS_LIMIT:
                         self.create_player_deck()
                         self.game.prepare_game()  # Initialize gameplay
                         return "PLAYING"
@@ -774,5 +732,310 @@ class PlayingState(GameState):
             result = self.game.player.handle_event(event, mouse_pos, self.game.enemies, now)
             if result == 'exit':
                 return "MENU"
+        return None
+
+class PlayingState(GameState):
+    """Main gameplay state"""
+    def __init__(self, game):
+        super().__init__(game)
+        self.background = None
+        self.load_background()
+        self.paused = False
         
+    def load_background(self):
+        """Load the game background image"""
+        try:
+            bg_path = C.MAP_PATH
+            self.background = pygame.image.load(bg_path).convert()
+        except Exception as e:
+            print(f"Error loading background: {e}")
+            self.background = None
+    
+    def enter(self):
+        """Initialize UI when entering state"""
+        self.setup_ui()
+        # Play game music if not already playing
+        if self.game.audio.current_music != "PLAYING":
+            self.game.audio.fade_out(500)
+            self.game.audio.fade_in("PLAYING", 1000)
+    
+    def exit(self):
+        """Clean up when leaving state"""
+        pass
+    
+    def setup_ui(self):
+        """Set up UI elements for gameplay"""
+        # Clear previous UI elements
+        self.ui_manager.clear_group("status")
+        self.ui_manager.clear_group("skills")
+        
+        # Only setup UI if player exists
+        if not hasattr(self.game, 'player') or not self.game.player:
+            return
+            
+        # Add HP bar
+        hp_bar = ProgressBar(
+            10, 50, 200, 20, 
+            self.game.player.max_health,
+            bg_color=C.UI_COLORS['hp_bar_bg'],
+            fill_color=C.UI_COLORS['hp_bar_fill'],
+            text_color=C.UI_COLORS['hp_text'],
+            font=pygame.font.Font(C.FONT_PATH, 16),
+            label="HP"
+        )
+        self.ui_manager.add_element(hp_bar, "status")
+        
+        # Add stamina bar
+        stamina_bar = ProgressBar(
+            10, 80, 200, 20,
+            self.game.player.max_stamina,
+            bg_color=C.UI_COLORS['stamina_bar_bg'],
+            fill_color=C.UI_COLORS['stamina_bar_fill'],
+            text_color=C.UI_COLORS['stamina_text'],
+            font=pygame.font.Font(C.FONT_PATH, 16),
+            label="Stamina"
+        )
+        self.ui_manager.add_element(stamina_bar, "status")
+        
+        # Add skill displays
+        if hasattr(self.game.player, 'deck') and self.game.player.deck:
+            skill_font = pygame.font.Font(C.FONT_PATH, 16)
+            for i, skill in enumerate(self.game.player.deck.skills):
+                skill_display = SkillDisplay(
+                    10 + i * 110, C.HEIGHT - 100,
+                    100, 80,
+                    skill, skill_font, 
+                    hotkey=str(i+1)
+                )
+                self.ui_manager.add_element(skill_display, "skills")
+    
+    def update(self, dt):
+        # Skip updates if game objects aren't ready
+        if not hasattr(self.game, 'player') or not self.game.player:
+            return None
+            
+        # 1. Update enemy positions and attacks
+        self.game.enemy_group.update(self.game.player, dt)
+        
+        # 2. Handle player input (movement)
+        self.game.player.handle_input(dt)
+        
+        # 3. Update deck
+        self.game.player.deck.update(dt, self.game.enemies)
+        
+        # 4. Update UI elements
+        # Update HP bar
+        status_elements = self.ui_manager.elements.get("status", [])
+        if len(status_elements) >= 1:
+            status_elements[0].set_value(self.game.player.health)
+        
+        # Update stamina bar
+        if len(status_elements) >= 2:
+            status_elements[1].set_value(self.game.player.stamina)
+        
+        # Update skill cooldowns
+        now = time.time()
+        skill_elements = self.ui_manager.elements.get("skills", [])
+        for skill_display in skill_elements:
+            skill_display.update_cooldown(now)
+            
+        # Update all UI elements
+        mouse_pos = pygame.mouse.get_pos()
+        self.ui_manager.update_all(mouse_pos, dt)
+        
+        # 5. Check collisions
+        self.game.check_collisions()
+        
+        # 6. Wave logic
+        if len(self.game.enemy_group) == 0:
+            self.game.wave_number += 1
+            self.game.spawn_wave()
+        
+        # Check for player death
+        if self.game.player.health <= 0:
+            # Log the game results
+            DataCollection.log_csv(self.game, self.game.wave_number)
+            # Show game over overlay
+            self.game.state_manager.set_overlay(GameOverOverlay(self.game))
+        
+        return None
+    
+    def render(self, screen):
+        # Draw background
+        if self.background:
+            screen.blit(self.background, (0, 0))
+        else:
+            screen.fill((200, 220, 255))  # fallback color
+        
+        # Draw wave info
+        ui_font = pygame.font.Font(C.FONT_PATH, 24)
+        wave_text = ui_font.render(f"WAVE: {self.game.wave_number}", True, C.BLACK)
+        screen.blit(wave_text, (10, 10))
+        
+        # Draw game objects
+        for enemy in self.game.enemy_group:
+            enemy.draw(screen)
+        
+        # Draw player and effects if they exist    
+        if hasattr(self.game, 'player') and self.game.player:
+            self.game.player.draw(screen)
+            if hasattr(self.game.player, 'deck') and self.game.player.deck:
+                self.game.player.deck.draw(screen)
+        
+        # Draw UI
+        self.ui_manager.draw_all()
+    
+    def handle_events(self, events):
+        for event in events:
+            if event.type == pygame.QUIT:
+                return "QUIT"
+                
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    # Show pause overlay
+                    self.game.state_manager.set_overlay(PauseOverlay(self.game))
+                    return None
+                
+                # Volume controls
+                elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
+                    current_vol = self.game.audio.music_volume
+                    self.game.audio.set_music_volume(current_vol - 0.1)
+                
+                elif event.key == pygame.K_EQUALS or event.key == pygame.K_KP_PLUS:
+                    current_vol = self.game.audio.music_volume
+                    self.game.audio.set_music_volume(current_vol + 0.1)
+                
+                elif event.key == pygame.K_m:
+                    self.game.audio.toggle_music()
+            
+            # Process gameplay events (skill usage, etc.)
+            if hasattr(self.game, 'player') and self.game.player:
+                mouse_pos = pygame.mouse.get_pos()
+                now = time.time()
+                result = self.game.player.handle_event(event, mouse_pos, self.game.enemies, now)
+                if result == 'exit':
+                    return "MENU"
+        
+        return None
+
+class PauseOverlay:
+    """Reusable overlay for pause menu"""
+    def __init__(self, game):
+        self.game = game
+        self.font = pygame.font.Font(C.FONT_PATH, 32)
+        
+        # Centered buttons
+        screen_width = game.screen.get_width()
+        button_width = 200
+        button_height = 50
+        button_x = (screen_width - button_width) // 2
+        
+        music_status = 'On' if self.game.audio.music_enabled else 'Off'
+        
+        self.buttons = [
+            Button(button_x, 250, button_width, button_height, "Resume", self.font),
+            Button(button_x, 320, button_width, button_height, f"Music: {music_status}", self.font),
+            Button(button_x, 390, button_width, button_height, "Retry", self.font),
+            Button(button_x, 460, button_width, button_height, "Quit", self.font)
+        ]
+    
+    def update(self, dt):
+        mouse_pos = pygame.mouse.get_pos()
+        for button in self.buttons:
+            button.update(mouse_pos)
+        return None
+    
+    def render(self, screen):
+        # Semi-transparent overlay
+        overlay = pygame.Surface((screen.get_width(), screen.get_height()), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 128))  # 50% transparent black
+        screen.blit(overlay, (0, 0))
+        
+        # Title
+        title = self.font.render("PAUSED", True, (255, 255, 255))
+        screen.blit(title, (screen.get_width()//2 - title.get_width()//2, 180))
+        
+        # Buttons
+        for button in self.buttons:
+            button.draw(screen)
+    
+    def handle_events(self, events):
+        for event in events:
+            if event.type == pygame.QUIT:
+                return "QUIT"
+                
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                return "CLOSE_OVERLAY"
+                
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mouse_pos = pygame.mouse.get_pos()
+                
+                if self.buttons[0].is_clicked(mouse_pos, True):  # Resume
+                    return "CLOSE_OVERLAY"
+                elif self.buttons[1].is_clicked(mouse_pos, True):  # Music toggle
+                    music_enabled = self.game.audio.toggle_music()
+                    self.buttons[1].text = f"Music: {'On' if music_enabled else 'Off'}"
+                elif self.buttons[2].is_clicked(mouse_pos, True):  # Retry
+                    return "DECK_SELECTION"
+                elif self.buttons[3].is_clicked(mouse_pos, True):  # Quit
+                    return "MENU"
+        return None
+
+class GameOverOverlay:
+    """Reusable game over overlay"""
+    def __init__(self, game):
+        self.game = game
+        self.title_font = pygame.font.Font(C.FONT_PATH, 48)
+        self.font = pygame.font.Font(C.FONT_PATH, 32)
+        
+        # Centered buttons
+        screen_width = game.screen.get_width()
+        button_width = 200
+        button_height = 50
+        button_x = (screen_width - button_width) // 2
+        
+        self.buttons = [
+            Button(button_x, 350, button_width, button_height, "Try Again", self.font),
+            Button(button_x, 420, button_width, button_height, "Main Menu", self.font),
+            Button(button_x, 490, button_width, button_height, "Quit", self.font)
+        ]
+    
+    def update(self, dt):
+        mouse_pos = pygame.mouse.get_pos()
+        for button in self.buttons:
+            button.update(mouse_pos)
+        return None
+    
+    def render(self, screen):
+        # Semi-transparent overlay
+        overlay = pygame.Surface((screen.get_width(), screen.get_height()), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 192))  # Darker overlay for game over
+        screen.blit(overlay, (0, 0))
+        
+        # Title
+        title = self.title_font.render("GAME OVER", True, (255, 50, 50))
+        screen.blit(title, (screen.get_width()//2 - title.get_width()//2, 150))
+        
+        # Stats
+        wave_text = self.font.render(f"Waves Survived: {self.game.wave_number}", True, (255, 255, 255))
+        screen.blit(wave_text, (screen.get_width()//2 - wave_text.get_width()//2, 230))
+        
+        # Buttons
+        for button in self.buttons:
+            button.draw(screen)
+    
+    def handle_events(self, events):
+        for event in events:
+            if event.type == pygame.QUIT:
+                return "QUIT"
+                
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mouse_pos = pygame.mouse.get_pos()
+                
+                if self.buttons[0].is_clicked(mouse_pos, True):  # Try Again
+                    return "DECK_SELECTION"
+                elif self.buttons[1].is_clicked(mouse_pos, True):  # Main Menu
+                    return "MENU"
+                elif self.buttons[2].is_clicked(mouse_pos, True):  # Quit
+                    return "QUIT"
         return None

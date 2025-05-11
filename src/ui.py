@@ -235,3 +235,67 @@ class UIManager:
                         return element  # Return the clicked element
         return None
 
+class UI:
+    """UI class for handling all UI elements"""
+    @staticmethod
+    def draw_selected_skills(screen, selected_skills):
+        """Draw the selected skills area"""
+        chosen_y = 500
+        chosen_title = C.SKILL_FONT.render(f"Selected Skills ({len(selected_skills)}/{C.SKILLS_LIMIT})", True, (255, 255, 255))
+        screen.blit(chosen_title, (screen.get_width()//2 - chosen_title.get_width()//2, chosen_y - 30))
+        
+        # Draw slots for chosen skills
+        for i in range(C.SKILLS_LIMIT):
+            slot_x = (screen.get_width() // 2) - ((C.SKILLS_LIMIT * 120) // 2) + (i * 120) + 10
+            slot_y = chosen_y
+            
+            # Draw slot background
+            slot_rect = pygame.Rect(slot_x, slot_y, 100, 80)
+            pygame.draw.rect(screen, (30, 30, 60), slot_rect)
+            pygame.draw.rect(screen, (100, 100, 150), slot_rect, 2)
+            
+            # If there's a skill in this slot, draw it
+            if i < len(selected_skills):
+                skill = selected_skills[i]
+                element = skill["element"].upper()
+                element_color = C.ELEMENT_COLORS.get(element, (255, 255, 255))
+                
+                # Draw element color indicator
+                pygame.draw.rect(screen, element_color, (slot_x, slot_y, 5, 80))
+                
+                # Skill name (centered in slot)
+                name_text = C.SKILL_FONT.render(skill["name"], True, (255, 255, 255))
+                name_rect = name_text.get_rect(center=(slot_x + 50, slot_y + 30))
+                screen.blit(name_text, name_rect)
+                
+                # Element and cooldown
+                element_text = C.DESC_FONT.render(element, True, element_color)
+                element_rect = element_text.get_rect(center=(slot_x + 50, slot_y + 50))
+                screen.blit(element_text, element_rect)
+                
+                cooldown_text = C.DESC_FONT.render(f"{float(skill['cooldown']):.1f}s", True, (200, 200, 200))
+                cooldown_rect = cooldown_text.get_rect(center=(slot_x + 50, slot_y + 65))
+                screen.blit(cooldown_text, cooldown_rect)
+    
+    @staticmethod
+    def draw_hp_bar(
+            surface,
+            x,
+            y,
+            current_hp,
+            max_hp,
+            bar_color,
+            bar_width=50,
+            bar_height=6):
+        """
+        Draw a simple HP bar at (x, y) with the given color and size.
+        Bar fill depends on current_hp / max_hp.
+        """
+        if current_hp < 0:
+            current_hp = 0
+        pygame.draw.rect(surface, (60, 60, 60), (x, y, bar_width, bar_height))
+        hp_frac = current_hp / max_hp if max_hp > 0 else 0
+        if hp_frac < 0:
+            hp_frac = 0
+        fill_width = int(bar_width * hp_frac)
+        pygame.draw.rect(surface, bar_color, (x, y, fill_width, bar_height))
