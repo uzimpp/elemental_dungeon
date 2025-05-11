@@ -45,15 +45,13 @@ class Camera:
 
 
 class Player(Entity):
-    def __init__(self, name, deck):
+    def __init__(self, name, deck=None):
         super().__init__(C.WIDTH//2, C.HEIGHT//2, C.SPRITE_SIZE//2, C.PLAYER_MAX_HEALTH, C.PLAYER_WALK_SPEED, C.PLAYER_COLOR)
         self.name = name
-        self.deck = deck
-
+        self._deck = deck
         # Speed attributes
         self.walk_speed = C.PLAYER_WALK_SPEED
         self.sprint_speed = C.PLAYER_SPRINT_SPEED
-        # Stamina System
         self.max_stamina = C.PLAYER_MAX_STAMINA
         self.stamina = self.max_stamina
         self.stamina_regen = C.PLAYER_STAMINA_REGEN
@@ -75,14 +73,28 @@ class Player(Entity):
         self.move_vector = pygame.math.Vector2(0, 0)
 
     @property
+    def deck(self):
+        """Compatibility property for access to deck"""
+        return self._deck
+
+    @deck.setter
+    def deck(self, new_deck):
+        """Compatibility property for access to deck"""
+        self._deck = new_deck
+
+    @property
     def summons(self):
         """Compatibility property for access to active summons"""
-        return self.deck.get_summons
+        if self._deck is None:
+            return []
+        return self._deck.get_summons
 
     @property
     def projectiles(self):
         """Compatibility property for access to active projectiles"""
-        return self.deck.get_projectiles
+        if self._deck is None:
+            return []
+        return self._deck.get_projectiles
 
     def handle_input(self, dt):
         # Prevent input/movement if dying
@@ -103,13 +115,9 @@ class Player(Entity):
             if self.attack_animation_timer <= 0:
                 self.state = 'idle'
                 self.animation.set_state('idle', force_reset=True)
-        # Input and Movement
         self._process_keyboard_input(dt, speed_multiplier)
-        # Stamina logic
         self._update_stamina(dt)
-        # Determine and Set Animation State
         self._update_animation_state(dt)
-        # Update camera
         self.camera.update()
 
     def _process_keyboard_input(self, dt, speed_multiplier):
@@ -117,7 +125,6 @@ class Player(Entity):
         keys = pygame.key.get_pressed()
         # Check sprint key
         self.is_sprinting = (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]) and self.stamina > 0
-        # Calculate current speed
         base_speed = self.sprint_speed if self.is_sprinting else self.walk_speed
         current_speed = base_speed * speed_multiplier
         # Build movement vector from WASD keys
@@ -130,14 +137,11 @@ class Player(Entity):
             self.move_vector.x -= 1
         if keys[pygame.K_d]:
             self.move_vector.x += 1
-
         # Normalize for consistent diagonal speed
         if self.move_vector.length() > 0:
             self.move_vector.normalize_ip()
-            # Set direction based on movement
             self.dx = self.move_vector.x
             self.dy = self.move_vector.y
-            # Apply movement
             self.x += self.move_vector.x * current_speed * dt
             self.y += self.move_vector.y * current_speed * dt
         else:
@@ -148,12 +152,10 @@ class Player(Entity):
                 mouse_vector.normalize_ip()
                 self.dx = mouse_vector.x
                 self.dy = mouse_vector.y
-            
         # Calculate sprite boundaries based on actual scaled sprite size
         scale = C.RENDER_SIZE / C.SPRITE_SIZE
         half_width = (self.animation.sprite_width * scale) / 2
         half_height = (self.animation.sprite_height * scale) / 2
-        
         # Stay within screen boundaries
         self.x = max(half_width, min(C.WIDTH - half_width, self.x))
         self.y = max(half_height, min(C.HEIGHT - half_height, self.y))
@@ -191,7 +193,6 @@ class Player(Entity):
         self.animation.update(dt, self.dx, self.dy)
 
     def handle_event(self, event, mouse_pos, enemies, now, effects=None):
-        # Ignore events if dying
         if self.state == 'dying':
             return None
         if event.type == pygame.KEYDOWN:
@@ -202,10 +203,8 @@ class Player(Entity):
                     self.cast_skill(skill_idx, mouse_pos, enemies, now)
                 elif event.key == pygame.K_SPACE:
                     self.dash()
-
             if event.key == pygame.K_ESCAPE:
                 return 'exit'
-
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if self.state not in ['cast', 'sweep']:
                 if event.button == 1:
@@ -216,9 +215,7 @@ class Player(Entity):
         """Dash logic - Triggers an afterimage effect."""
         if self.state in ['dying', 'cast', 'sweep']:
             return
-
         if self.stamina >= self.dash_cost:
-            # --- Create Afterimage ---
             # Capture position and sprite *before* moving
             start_x, start_y = self.x, self.y
             # Get sprite before potential direction change
@@ -226,20 +223,15 @@ class Player(Entity):
             if current_sprite:  # Make sure sprite is valid
                 afterimage = DashAfterimage(start_x, start_y, current_sprite)
                 self.deck.add_effect(afterimage)  # Add to deck's effects list
-
-            # --- Perform Dash ---
             self.stamina -= self.dash_cost
-            
             # Get dash direction vector
             dash_vector = self._get_dash_direction()
             if dash_vector.length() == 0:
                 return
-                
             # Apply dash movement
             self.x += dash_vector.x * self.dash_distance
             self.y += dash_vector.y * self.dash_distance
 
-            # Calculate sprite boundaries based on actual scaled sprite size
             scale = C.RENDER_SIZE / C.SPRITE_SIZE
             half_width = (self.animation.sprite_width * scale) / 2
             half_height = (self.animation.sprite_height * scale) / 2
@@ -285,10 +277,7 @@ class Player(Entity):
         """Override take_damage to add camera shake effect"""
         if not self.alive:
             return
-            
-        # Apply damage through parent method
         super().take_damage(amt)
-        
         # Add camera shake effect based on damage amount
         if amt > 0:
             shake_intensity = min(10, amt / 2)  # Scale shake based on damage
@@ -299,11 +288,10 @@ class Player(Entity):
         if current_sprite:
             # Use consistent scale factor from config
             scale = C.RENDER_SIZE / C.SPRITE_SIZE
-            
             # Calculate scaled dimensions
             scaled_width = self.animation.sprite_width * scale
             scaled_height = self.animation.sprite_height * scale
-            
+
             # Scale the sprite if needed
             if scale != 1:
                 scaled_sprite = pygame.transform.scale(current_sprite,

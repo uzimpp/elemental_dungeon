@@ -232,8 +232,10 @@ class VisualEffect:
 
 
 class DashAfterimage:
-    """A fading afterimage effect using a specific sprite."""
-
+    """
+    A fading afterimage effect using a specific sprite.
+    This will destroy it self after animation ends
+    """
     def __init__(self, x, y, sprite, duration=0.2, start_alpha=150):
         self.x = x
         self.y = y

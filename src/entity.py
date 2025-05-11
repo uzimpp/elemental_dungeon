@@ -272,14 +272,11 @@ class Entity(pygame.sprite.Sprite):
         bar_x = self.pos.x - self.radius
         bar_y = self.pos.y - self.radius - 10
 
-        # Background (red)
-        pygame.draw.rect(screen, (255, 0, 0),
+        pygame.draw.rect(screen, C.GREY,
                          (bar_x, bar_y, bar_width, bar_height))
-
-        # Foreground (green)
         health_width = (self.health / self.max_health) * bar_width
         if health_width > 0:
-            pygame.draw.rect(screen, (0, 255, 0),
+            pygame.draw.rect(screen, self.color,
                              (bar_x, bar_y, health_width, bar_height))
 
     def update(self, dt):

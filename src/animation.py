@@ -24,6 +24,7 @@ class SpriteSheet:
         return sprite
 
 
+
 class CharacterAnimation:
     """Handles state-based character animation from an 8-directional sprite sheet."""
 
@@ -184,3 +185,11 @@ class CharacterAnimation:
         except IndexError:
             # Return default sprite on error
             return self.all_frames[0][0]
+
+    @staticmethod
+    def get_sprite_size():
+        """Returns the size of the sprite sheet."""
+        scale = C.RENDER_SIZE / C.SPRITE_SIZE
+        scale_width = C.SPRITE_SIZE * scale
+        scale_height = C.SPRITE_SIZE * scale
+        return scale, scale_width, scale_height

@@ -8,7 +8,6 @@ from visual_effects import VisualEffect
 
 class Deck:
     """Centralized manager for player skills, projectiles, summons and effects"""
-
     def __init__(self):
         self.skills = []
         # Replace lists with sprite groups

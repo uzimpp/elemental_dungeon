@@ -11,9 +11,12 @@ class Config:
     HEIGHT = 720
     FPS = 60
 
+    SKILLS_LIMIT = 4
+
     # Basic colors
     WHITE = (255, 255, 255)
     BLACK = (0, 0, 0)
+    GREY = (128, 128, 128)
     RED = (255, 0, 0)
     BLUE = (0, 0, 255)
     PURPLE = (128, 0, 128)
@@ -148,3 +151,4 @@ class Config:
     MENU_BGM_PATH = "assets/music/menu.mp3"
     GAME_BGM_PATH = "assets/music/retro-forest.mp3"
     FONT_PATH = "assets/fonts/PixelifySans-Regular.ttf"
+    MAP_PATH = "assets/map/map.png"
